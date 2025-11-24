@@ -1,6 +1,7 @@
 project:
   type: website
   output-dir: docs
+  resources: CNAME
 
 website:
   description: "A blog built with Quarto"
