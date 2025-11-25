@@ -1,19 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://your-website-url.example.com/about.html</loc>
+    <loc>https://passthetorch.dev/about.html</loc>
     <lastmod>2025-10-30T19:28:27.158Z</lastmod>
   </url>
   <url>
-    <loc>https://your-website-url.example.com/posts/welcome/index.html</loc>
-    <lastmod>2025-10-04T07:03:55.355Z</lastmod>
+    <loc>https://passthetorch.dev/posts/learning-journey/index.html</loc>
+    <lastmod>2025-11-25T17:39:24.002Z</lastmod>
   </url>
   <url>
-    <loc>https://your-website-url.example.com/posts/post-with-code/index.html</loc>
-    <lastmod>2025-10-04T07:03:55.355Z</lastmod>
-  </url>
-  <url>
-    <loc>https://your-website-url.example.com/index.html</loc>
+    <loc>https://passthetorch.dev/index.html</loc>
     <lastmod>2025-10-04T07:09:31.659Z</lastmod>
   </url>
 </urlset>

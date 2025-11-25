@@ -1,0 +1,12 @@
+---
+title: "Learning Journey"
+author: "Howard Baik"
+date: "2025-11-25"
+categories: [learn]
+---
+
+This post will contain resources I have used and found helpful in my learning journey of PyTorch and Deep Learning. I will update this post as I discover more resources.
+
+## PyTorch Videos
+
+- [PyTorch for Deep Learning & Machine Learning](https://youtu.be/V_xro1bcAuA?si=_dZL-au3oIEunfku) - Comprehensive course for beginners in PyTorch taught by Daniel Bourke. Covers basics of PyTorch, building neural networks, and practical applications.
