@@ -21,6 +21,13 @@
     "text": "PyTorch Videos\n\nPyTorch for Deep Learning & Machine Learning - Comprehensive course for beginners in PyTorch taught by Daniel Bourke. Covers basics of PyTorch, building neural networks, and practical applications."
   },
   {
+    "objectID": "posts/learning-journey/index.html#deep-learning-research",
+    "href": "posts/learning-journey/index.html#deep-learning-research",
+    "title": "Learning Journey",
+    "section": "Deep Learning Research",
+    "text": "Deep Learning Research\n\nEchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on GitHub."
+  },
+  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "Pass The Torch",

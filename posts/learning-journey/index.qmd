@@ -10,3 +10,9 @@ This post will contain resources I have used and found helpful in my learning jo
 ## PyTorch Videos
 
 - [PyTorch for Deep Learning & Machine Learning](https://youtu.be/V_xro1bcAuA?si=_dZL-au3oIEunfku) - Comprehensive course for beginners in PyTorch taught by Daniel Bourke. Covers basics of PyTorch, building neural networks, and practical applications.
+
+
+## Deep Learning Research
+
+- [EchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation](https://arxiv.org/abs/2410.09704) - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on [GitHub](https://github.com/echonet/EchoPrime).
+
