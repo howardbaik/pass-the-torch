@@ -4,7 +4,7 @@ project:
   resources: CNAME
 
 website:
-  description: "A blog built with Quarto"
+  description: "A Quarto blog for PyTorch."
   site-url: https://passthetorch.dev # you must change this appropriately for RSS feeds to work properly
   title: "Pass The Torch"
   favicon: favicon.ico
