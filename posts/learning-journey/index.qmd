@@ -9,7 +9,7 @@ This post will contain resources I have used and found helpful in my learning jo
 
 ## PyTorch Videos
 
-- [PyTorch for Deep Learning & Machine Learning](https://youtu.be/V_xro1bcAuA?si=_dZL-au3oIEunfku) - Comprehensive course for beginners in PyTorch taught by Daniel Bourke. Covers basics of PyTorch, building neural networks, and practical applications.
+- [PyTorch for Deep Learning & Machine Learning](https://youtu.be/V_xro1bcAuA?si=_dZL-au3oIEunfku) : Beginner PyTorch course taught by Daniel Bourke. It covers the basics of PyTorch, neural networks, and applications in computer vision. Code-first approach with hands-on examples in Google Colab and course textbook, [Learn PyTorch for Deep Learning: Zero to Mastery book](https://www.learnpytorch.io).
 
 
 ## Deep Learning Research
