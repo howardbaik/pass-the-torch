@@ -25,7 +25,7 @@
     "href": "posts/learning-journey/index.html#deep-learning-research",
     "title": "Learning Journey",
     "section": "Deep Learning Research",
-    "text": "Deep Learning Research\n\nEchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on GitHub."
+    "text": "Deep Learning Research\n\nCardiology\n\nEchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on GitHub.\n\n\n\nOpthalmology\n\nDeep learning applications in opthamology - Talk by Aaron Y. Lee that covers the beginnings of the application of deep learning in the field of ophthalmology and vision science."
   },
   {
     "objectID": "index.html",

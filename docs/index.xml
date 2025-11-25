@@ -8,7 +8,7 @@
 <title>Pass The Torch</title>
 <link>https://passthetorch.dev/</link>
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
-<description>A blog built with Quarto</description>
+<description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
 <lastBuildDate>Tue, 25 Nov 2025 05:00:00 GMT</lastBuildDate>
 <item>
@@ -30,11 +30,20 @@
 </section>
 <section id="deep-learning-research" class="level2">
 <h2 class="anchored" data-anchor-id="deep-learning-research">Deep Learning Research</h2>
+<section id="cardiology" class="level3">
+<h3 class="anchored" data-anchor-id="cardiology">Cardiology</h3>
 <ul>
 <li><a href="https://arxiv.org/abs/2410.09704">EchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation</a> - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on <a href="https://github.com/echonet/EchoPrime">GitHub</a>.</li>
 </ul>
+</section>
+<section id="opthalmology" class="level3">
+<h3 class="anchored" data-anchor-id="opthalmology">Opthalmology</h3>
+<ul>
+<li><a href="https://www.youtube.com/live/tkaZCdKHGv4?si=xMdRxJRBxIJ-YHKW">Deep learning applications in opthamology</a> - Talk by Aaron Y. Lee that covers the beginnings of the application of deep learning in the field of ophthalmology and vision science.</li>
+</ul>
 
 
+</section>
 </section>
 
  ]]></description>

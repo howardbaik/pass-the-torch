@@ -14,5 +14,10 @@ This post will contain resources I have used and found helpful in my learning jo
 
 ## Deep Learning Research
 
+### Cardiology
+
 - [EchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation](https://arxiv.org/abs/2410.09704) - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on [GitHub](https://github.com/echonet/EchoPrime).
 
+### Opthalmology
+
+- [Deep learning applications in opthamology](https://www.youtube.com/live/tkaZCdKHGv4?si=xMdRxJRBxIJ-YHKW) - Talk by Aaron Y. Lee that covers the beginnings of the application of deep learning in the field of ophthalmology and vision science.
