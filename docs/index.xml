@@ -41,6 +41,12 @@
 <ul>
 <li><a href="https://www.youtube.com/live/tkaZCdKHGv4?si=xMdRxJRBxIJ-YHKW">Deep learning applications in opthamology</a> - Talk by Aaron Y. Lee that covers the beginnings of the application of deep learning in the field of ophthalmology and vision science.</li>
 </ul>
+</section>
+<section id="electronic-health-record-ehr" class="level3">
+<h3 class="anchored" data-anchor-id="electronic-health-record-ehr">Electronic Health Record (EHR)</h3>
+<ul>
+<li><a href="https://www.nature.com/articles/s41467-025-63366-6">InfEHR: Clinical phenotype resolution through deep geometric learning on electronic health records</a> - A research paper on using deep geometric learning to analyze electronic health records for clinical phenotype resolution. The code is implemented in PyTorch and available on <a href="https://github.com/Nadkarni-Lab/InfEHR">GitHub</a>.</li>
+</ul>
 
 
 </section>
