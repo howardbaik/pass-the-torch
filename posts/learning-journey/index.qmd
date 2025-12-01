@@ -2,7 +2,7 @@
 title: "Learning Journey"
 author: "Howard Baik"
 date: "2025-11-25"
-image: "thumbnail.png"
+image: "thumbnail.jpg"
 categories: [learn]
 ---
 
