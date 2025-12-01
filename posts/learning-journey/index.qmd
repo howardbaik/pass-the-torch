@@ -22,6 +22,8 @@ This post will contain resources I have used and found helpful in my learning jo
 
 - [Deep learning applications in opthamology](https://www.youtube.com/live/tkaZCdKHGv4?si=xMdRxJRBxIJ-YHKW) - Talk by Aaron Y. Lee that covers the beginnings of the application of deep learning in the field of ophthalmology and vision science.
 
+- [Transforming Healthcare with AI: Lessons from Ophthalmology](https://youtu.be/B7InQF2Gu24?si=gag92adikqJQqtTK) - Talk by Pearse Keane on how AI is transforming healthcare, with a focus on ophthalmology.
+
 ### Electronic Health Record (EHR)
 
 - [InfEHR: Clinical phenotype resolution through deep geometric learning on electronic health records](https://www.nature.com/articles/s41467-025-63366-6) - A research paper on using deep geometric learning to analyze electronic health records for clinical phenotype resolution. The code is implemented in PyTorch and available on [GitHub](https://github.com/Nadkarni-Lab/InfEHR).
