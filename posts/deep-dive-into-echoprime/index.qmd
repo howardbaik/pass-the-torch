@@ -1,0 +1,193 @@
+---
+title: "Deep Dive into EchoPrime"
+format: html
+author: "Howard Baik"
+date: "2025-12-16"
+image: "thumbnail.png"
+categories: [Medical AI]
+execute: 
+  eval: false
+---
+
+Let's first initialize the EchoPrime class and make an instance of it. The __init__ function contains the majority of the setup code:
+
+## Setup
+```{python}
+# Standard library imports
+import os
+import math
+import glob
+import json
+import pickle
+import random
+
+# Third-party library imports
+import torch
+import torchvision
+import torch.nn.functional as F
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import cv2
+import pydicom
+import sklearn
+import sklearn.metrics
+import transformers
+
+# Local module imports
+import utils
+```
+
+```{python}
+# load language specific files
+utils.initialize_language(lang)
+```
+
+Source code of utils.initialize_language:
+```{python}
+import functools
+
+all_phrases, t_list = None, None
+global phrases_per_section_list, phrases_per_section_list_org, regex_per_section
+```
+
+Declares global variables: phrases_per_section_list, phrases_per_section_list_org, regex_per_section
+
+```{python}
+phrases_file = "assets/all_phr.json"
+with open(phrases_file, encoding="utf-8") as f:
+        all_phrases = json.load(f)
+```
+
+The `all_phr.json` file contains standardized echocardiogram report phrases organized by anatomical structures and clinical findings. It's a comprehensive template library that maps cardiac assessment categories to their corresponding clinical descriptions. 
+
+
+```{json}
+{
+  "Anatomical Structure": {
+    "Measurement/Finding Category": [
+      "Phrase 1",
+      "Phrase 2",
+      ...
+    ]
+  }
+}
+```
+
+
+Opens file in JSON format and loads its content into the variable all_phrases
+
+```{python}
+all_phrases
+```
+
+
+```{python}
+t_list = {k: [all_phrases[k][j] for j in all_phrases[k]] for k in all_phrases}
+```
+
+The line extracts phrase lists from the nested dictionary structure for each section. 
+
+For example, it extracts all the phrases related to `"Left Ventricle"` and stores them in `t_list` under the same key. For the key `"Left Ventricle"`, t_list will contain a list of all phrases associated with that section, such as `"Left ventricle not well visualized."`, `"Left ventricle is grossly normal in size and systolic function."`, `"Left ventricle is normal in size and systolic function."`, `"The left ventricle is small by linear cavity dimension."`
+
+
+
+
+```{python}
+phrases_per_section_list = {
+    k: functools.reduce(lambda a, b: a + b, v) for (k, v) in t_list.items()
+}
+
+phrases_per_section_list_org = {
+    k: functools.reduce(lambda a, b: a + b, v) for (k, v) in t_list.items()
+}
+```
+
+The code flattens nested lists of phrases for each section into single lists using `functools.reduce`.
+
+For example, 
+```{python}
+# Before (t_list structure - nested lists)
+"Left Ventricle": [
+    ["Left ventricle not well visualized."],
+    ["Normal LV size.", "Dilated LV."],
+    ["Normal wall thickness.", "Mild hypertrophy."]
+]
+
+# After (phrases_per_section_list - flat list)
+"Left Ventricle": [
+    "Left ventricle not well visualized.",
+    "Normal LV size.",
+    "Dilated LV.",
+    "Normal wall thickness.",
+    "Mild hypertrophy."
+]
+```
+
+Summary:
+- The code initializes language-specific phrases for different sections by loading them from a JSON file.
+- It flattens nested lists of phrases into single lists for easier processing (`phrases_per_section_list` and `phrases_per_section_list_org`).
+- It converts these phrases into regex patterns to facilitate text matching later on (`regex_per_section`).
+
+
+```{python}
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+```
+
+Device agnostic code setup for PyTorch to use GPU if available, otherwise CPU.
+
+```{python}
+checkpoint = torch.load("model_data/weights/echo_prime_encoder.pt", map_location=device)
+```
+
+checkpoint is an OrderedDict from the collections module 
+
+
+```{python}
+echo_encoder = torchvision.models.video.mvit_v2_s() 
+echo_encoder.head[-1] = torch.nn.Linear(echo_encoder.head[-1].in_features, 512)
+echo_encoder.load_state_dict(checkpoint)
+echo_encoder.eval() # Set the model in evaluation mode
+echo_encoder.to(device)
+for param in echo_encoder.parameters():
+    param.requires_grad = False
+```
+
+Constructs a small MViTV2 architecture and loads the pre-trained weights from the checkpoint. The model is set to evaluation mode, moved to the appropriate device (CPU or GPU), and all parameters are frozen to prevent further training.
+
+
+```{python}
+vc_state_dict = torch.load("model_data/weights/view_classifier.pt")
+view_classifier = torchvision.models.convnext_base()
+view_classifier.classifier[-1] = torch.nn.Linear(
+    view_classifier.classifier[-1].in_features, 11
+)
+view_classifier.load_state_dict(vc_state_dict)
+
+view_classifier.to(device)
+view_classifier.eval()
+for param in view_classifier.parameters():
+    param.requires_grad = False
+```
+
+Constructs a ConvNeXt base architecture for view classification, loads pre-trained weights, sets the model to evaluation mode, moves it to the appropriate device, and removes gradients from all parameters to prevent further training.
+
+
+```{python}
+frames_to_take = 32
+frame_stride = 2
+video_size = 224
+
+mean = torch.tensor([29.110628, 28.076836, 29.096405]).reshape(3, 1, 1, 1) 
+std = torch.tensor([47.989223, 46.456997, 47.20083]).reshape(3, 1, 1, 1)
+
+device = device
+lang = lang
+```
+
+
+Load MIL weights per section
+```{python}
+MIL_weights = pd.read_csv("assets/MIL_weights.csv")
+```

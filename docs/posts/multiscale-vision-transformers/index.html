@@ -6,8 +6,10 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
+<meta name="author" content="Howard Baik">
+<meta name="dcterms.date" content="2025-12-16">
 
-<title>Pass The Torch</title>
+<title>Multiscale Vision Transformers (MViT) – Pass The Torch</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -23,27 +25,25 @@ ul.task-list li input[type="checkbox"] {
 </style>
 
 
-<script src="site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="site_libs/quarto-nav/headroom.min.js"></script>
-<script src="site_libs/clipboard/clipboard.min.js"></script>
-<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="site_libs/quarto-search/fuse.min.js"></script>
-<script src="site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="./">
-<link href="./favicon.ico" rel="icon">
-<script src="site_libs/quarto-listing/list.min.js"></script>
-<script src="site_libs/quarto-listing/quarto-listing.js"></script>
-<script src="site_libs/quarto-html/quarto.js" type="module"></script>
-<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
-<script src="site_libs/quarto-html/popper.min.js"></script>
-<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="site_libs/quarto-html/anchor.min.js"></script>
-<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-dc55a5b9e770e841cd82e46aadbfb9b0.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-a1c87f40015067c62c82f3c4ff3d1ad4.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../favicon.ico" rel="icon">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dc55a5b9e770e841cd82e46aadbfb9b0.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-a1c87f40015067c62c82f3c4ff3d1ad4.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -71,35 +71,6 @@ ul.task-list li input[type="checkbox"] {
     "search-label": "Search"
   }
 }</script>
-<script>
-
-  window.document.addEventListener("DOMContentLoaded", function (_event) {
-    const listingTargetEl = window.document.querySelector('#listing-listing .list');
-    if (!listingTargetEl) {
-      // No listing discovered, do not attach.
-      return; 
-    }
-
-    const options = {
-      valueNames: ['listing-date','listing-title','listing-author','listing-image','listing-description','listing-categories',{ data: ['index'] },{ data: ['categories'] },{ data: ['listing-date-sort'] },{ data: ['listing-file-modified-sort'] }],
-      
-      searchColumns: ["listing-date","listing-title","listing-author","listing-image","listing-description","listing-categories"],
-    };
-
-    window['quarto-listings'] = window['quarto-listings'] || {};
-    window['quarto-listings']['listing-listing'] = new List('listing-listing', options);
-
-    if (window['quarto-listing-loaded']) {
-      window['quarto-listing-loaded']();
-    }
-  });
-
-  window.addEventListener('hashchange',() => {
-    if (window['quarto-listing-loaded']) {
-      window['quarto-listing-loaded']();
-    }
-  })
-  </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
@@ -131,19 +102,19 @@ window.Quarto = {
 };
 </script>
 
-<link rel="stylesheet" href="styles.css">
-<link rel="alternate" type="application/rss+xml" title="Pass The Torch" href="index.xml" data-external="1"></head>
+<link rel="stylesheet" href="../../styles.css">
+</head>
 
-<body class="nav-fixed quarto-light">
+<body class="nav-fixed fullcontent quarto-light">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top quarto-banner">
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <a href="../../index.html" class="navbar-brand navbar-brand-logo">
     </a>
-    <a class="navbar-brand" href="./index.html">
+    <a class="navbar-brand" href="../../index.html">
     <span class="navbar-title">Pass The Torch</span>
     </a>
   </div>
@@ -154,7 +125,7 @@ window.Quarto = {
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll ms-auto">
   <li class="nav-item">
-    <a class="nav-link" href="./about.html"> 
+    <a class="nav-link" href="../../about.html"> 
 <span class="menu-text">About</span></a>
   </li>  
   <li class="nav-item compact">
@@ -172,132 +143,126 @@ window.Quarto = {
 <!-- content -->
 <header id="title-block-header" class="quarto-title-block default page-columns page-full">
   <div class="quarto-title-banner page-columns page-full">
-    <div class="quarto-title column-page-left">
-      <h1 class="title">Pass The Torch</h1>
-                      </div>
+    <div class="quarto-title column-body">
+      <h1 class="title">Multiscale Vision Transformers (MViT)</h1>
+                                <div class="quarto-categories">
+                <div class="quarto-category">Computer Vision</div>
+              </div>
+                  </div>
   </div>
     
   
-  <div class="quarto-title-meta column-page-left">
+  <div class="quarto-title-meta">
 
+      <div>
+      <div class="quarto-title-meta-heading">Author</div>
+      <div class="quarto-title-meta-contents">
+               <p>Howard Baik </p>
+            </div>
+    </div>
       
+      <div>
+      <div class="quarto-title-meta-heading">Published</div>
+      <div class="quarto-title-meta-contents">
+        <p class="date">December 16, 2025</p>
+      </div>
+    </div>
     
       
     </div>
     
   
-  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full page-navbar">
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        
-    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(3)</span></div><div class="category" data-category="Q29tcHV0ZXIlMjBWaXNpb24=">Computer Vision <span class="quarto-category-count">(1)</span></div><div class="category" data-category="TGVhcm4=">Learn <span class="quarto-category-count">(1)</span></div><div class="category" data-category="TWVkaWNhbCUyMEFJ">Medical AI <span class="quarto-category-count">(1)</span></div></div></div>
+    
 <!-- main -->
-<main class="content quarto-banner-title-block column-page-left" id="quarto-document-content">
+<main class="content quarto-banner-title-block" id="quarto-document-content">
 
 
 
 
 
+<p>A summary of the Multiscale Vision Transformers (MViT) paper: <a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a></p>
+<p>Multiscale Vision Transformers (MViT) is a model for video and image recognition.</p>
+<p>Combine <strong>multiscale feature hierarchies</strong> with the <strong>transformer model</strong>.</p>
+<section id="multi-head-pooling-attention-mhpa" class="level2">
+<h2 class="anchored" data-anchor-id="multi-head-pooling-attention-mhpa">Multi Head Pooling Attention (MHPA):</h2>
+<p>Consider a <span class="math inline">\(D\)</span> dimensional input tensor <span class="math inline">\(X\)</span> of sequence length <span class="math inline">\(L\)</span>,</p>
+<p><span class="math display">\[
+X \in \mathbb{R}^{L \times D}
+\]</span></p>
+<p>Intermerdiate tensors:</p>
+<p>Query tensor <span class="math inline">\(\hat{Q} \in \mathbb{R}^{L \times D}\)</span>, key tensor <span class="math inline">\(\hat{K} \in \mathbb{R}^{L \times D}\)</span> and value tensor <span class="math inline">\(\hat{V} \in \mathbb{R}^{L \times D}\)</span> with linear operations.</p>
+<p><span class="math display">\[
+\hat{Q}=X W_Q \quad \hat{K}=X W_K \quad \hat{V}=X W_V
+\]</span></p>
+<p>with weights <span class="math inline">\(W_Q, W_K, W_V \in \mathbb{R}^{D \times D}\)</span>.</p>
+<p>Intermediate tensors are then pooled in sequence length, with a pooling operator <span class="math inline">\(\mathcal{P}\)</span> as as described next.</p>
+<section id="pooling-operator" class="level3">
+<h3 class="anchored" data-anchor-id="pooling-operator">Pooling Operator</h3>
+<p>The <span class="math inline">\(\mathcal{P}(\cdot ; {\Theta})\)</span> operator performs a pooling kernel computation: a pooling kernel <span class="math inline">\(k\)</span> of dimensions <span class="math inline">\(k_T \times k_H \times k_W\)</span> with strides <span class="math inline">\(s_T \times s_H \times s_W\)</span> and paddings <span class="math inline">\(p_T \times p_H \times p_W\)</span>.</p>
+<p>Equation below applied coordinate-wise: <span class="math display">\[
+\tilde{\mathbf{L}}=\left\lfloor\frac{\mathbf{L}+2 \mathbf{p}-\mathbf{k}}{\mathbf{s}}\right\rfloor+1
+\]</span></p>
+<p>meaning</p>
+<p><span class="math display">\[
+\begin{align}
+\tilde{T} = \frac{T+2p_T-k_T}{s_T} + 1  \\
+\tilde{H} = \frac{H+2p_H-k_H}{s_H} + 1  \\
+\tilde{W} = \frac{W+2p_W-k_W}{s_W} + 1  \\
+\end{align}
+\]</span></p>
+<p>and</p>
+<p><span class="math display">\[
+\begin{align}
+\tilde{L} &amp;=\tilde{T} \times \tilde{H} \times \tilde{W}  \\
+&amp;= \left(\frac{T+2 p_T-k_T}{s_T}+1\right) \times\left(\frac{H+2 p_H-k_H}{s_H}+1\right) \times\left(\frac{W+2 p_W-k_W}{s_W}+1\right)  \\
+&amp;\approx \frac{T H W + \dots}{s_T s_H s_W}
+\end{align}
+\]</span></p>
+<p>which explains the following phrase from the paper:</p>
+<blockquote class="blockquote">
+<p><span class="math inline">\(\tilde{L}\)</span>, the sequence length of the output tensor <span class="math inline">\(\mathcal{P}(Y ; \Theta)\)</span>, experiences an overall reduction by a factor of <span class="math inline">\(s_T s_H s_W\)</span>.</p>
+</blockquote>
+</section>
+<section id="pooling-attention" class="level3">
+<h3 class="anchored" data-anchor-id="pooling-attention">Pooling Attention</h3>
+<p>After the pooling operator, <span class="math inline">\(\mathcal{P}(Y ; \Theta)\)</span>, is applied to the query, key, and value tensors, the attention operation is performed as follows:</p>
+<p><span class="math display">\[
+\operatorname{Attention}(Q, K, V) = \operatorname{Softmax}\left(Q K^T / \sqrt{D}\right) V
+\]</span></p>
+<p>where <span class="math inline">\(Q = \mathcal{P}(\hat{Q} ; \Theta)\)</span>, <span class="math inline">\(K = \mathcal{P}(\hat{K} ; \Theta)\)</span>, and <span class="math inline">\(V = \mathcal{P}(\hat{V} ; \Theta)\)</span>.</p>
+<p>The paper mentions, “Naturally, the operation induces the constraints <span class="math inline">\(s_K \equiv s_V\)</span> on the pooling operators.” because the matrix multiplication by <span class="math inline">\(V\)</span> must be valid, see below:</p>
+<p>The first operation is the matrix multiplication <span class="math inline">\(QK^T\)</span>. For this multiplication to be valid:</p>
+<p><span class="math display">\[
+\begin{align}
+Q &amp;\in  \mathbb{R}^{L_Q \times D} \\
+K^T &amp;\in  \mathbb{R}^{D \times L_K} \\
+\end{align}
+\]</span></p>
+<p>The result has shape <span class="math inline">\((L_Q, L_K)\)</span>.</p>
+<p>After applying softmax, you multiply by <span class="math inline">\(V\)</span></p>
+<p>The previous result has shape <span class="math inline">\((L_Q, L_K)\)</span>. <span class="math inline">\(V\)</span> has shape <span class="math inline">\((L_V, D)\)</span>, so for the multiplication to be valid, <span class="math inline">\(L_K\)</span> must equal <span class="math inline">\(L_V\)</span>.</p>
+<p>and since both <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span> are both derived from the same pooling operation, which reduces the sequence length, <span class="math inline">\(L\)</span>, by the same factor, stride <span class="math inline">\(s\)</span>, this means <span class="math inline">\(s_K \equiv s_V\)</span>.</p>
+</section>
+</section>
+<section id="multiscale-transformer-networks" class="level2">
+<h2 class="anchored" data-anchor-id="multiscale-transformer-networks">Multiscale Transformer Networks</h2>
+<p>The key difference between MViT (Multiscale Vision Transformers) and ViT (Vision Transformers) is that MViT “progressively grow the channel resolution (i.e.&nbsp;dimension), while simultaneously reducing the spatiotemporal resolution (i.e.&nbsp;sequence length) throughout the network.”</p>
+<section id="scale-stage" class="level3">
+<h3 class="anchored" data-anchor-id="scale-stage">Scale Stage</h3>
+<p>At a transition of stages, the “channel dimension is upsampled (increased) while the length of the sequence is downsampled (decreased). This effectively reduces the spatio-temporal resolution of the underlying visual data while allowing the network to assimilate the processed information in more complex features”.</p>
+<p>Claude:</p>
+<blockquote class="blockquote">
+<p>This creates a multiscale hierarchy similar to CNNs - early stages process high-resolution spatial-temporal data with simple features (fewer channels), while later stages process lower-resolution data but with more complex, abstract features (more channels). If you downsample space-time resolution by 4×, you increase channels by 2×. So a resolution change from 2D × T/δₜ × H/8 × T/8 to 4D × T/δₜ × H/16 × T/16 roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of “deeper = more channels, lower resolution” to video transformers, allowing the model to build increasingly abstract representations of the video content.</p>
+</blockquote>
 
 
+</section>
+</section>
 
-
-<div class="quarto-listing quarto-listing-container-default" id="listing-listing">
-<div class="list quarto-listing-default">
-<div class="quarto-post image-right" data-index="0" data-categories="Q29tcHV0ZXIlMjBWaXNpb24=" data-listing-date-sort="1765861200000" data-listing-file-modified-sort="1766161263359" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="3" data-listing-word-count-sort="561">
-<div class="thumbnail"><a href="./posts/multiscale-vision-transformers/index.html" class="no-external">
-
-<img loading="lazy" src="./posts/multiscale-vision-transformers/thumbnail.png" class="thumbnail-image">
-
-</a></div>
-<div class="body">
-<h3 class="no-anchor listing-title">
-<a href="./posts/multiscale-vision-transformers/index.html" class="no-external">Multiscale Vision Transformers (MViT)</a>
-</h3>
-<div class="listing-categories">
-
-<div class="listing-category" onclick="window.quartoListingCategory('Q29tcHV0ZXIlMjBWaXNpb24='); return false;">Computer Vision</div>
-
-</div>
-<div class="delink listing-description"><a href="./posts/multiscale-vision-transformers/index.html" class="no-external">
-A summary of the Multiscale Vision Transformers (MViT) paper: Multiscale Vision Transformers
-</a></div>
-</div>
-<div class="metadata">
-<a href="./posts/multiscale-vision-transformers/index.html" class="no-external">
-<div class="listing-date">
-Dec 16, 2025
-</div>
-<div class="listing-author">
-Howard Baik
-</div>
-</a>
-</div>
-</div>
-<div class="quarto-post image-right" data-index="1" data-categories="TWVkaWNhbCUyMEFJ" data-listing-date-sort="1765861200000" data-listing-file-modified-sort="1765946625806" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="4" data-listing-word-count-sort="604">
-<div class="thumbnail"><a href="./posts/deep-dive-into-echoprime/index.html" class="no-external">
-
-<img loading="lazy" src="./posts/deep-dive-into-echoprime/thumbnail.png" class="thumbnail-image">
-
-</a></div>
-<div class="body">
-<h3 class="no-anchor listing-title">
-<a href="./posts/deep-dive-into-echoprime/index.html" class="no-external">Deep Dive into EchoPrime</a>
-</h3>
-<div class="listing-categories">
-
-<div class="listing-category" onclick="window.quartoListingCategory('TWVkaWNhbCUyMEFJ'); return false;">Medical AI</div>
-
-</div>
-<div class="delink listing-description"><a href="./posts/deep-dive-into-echoprime/index.html" class="no-external">
-Let’s first initialize the EchoPrime class and make an instance of it. The <strong>init</strong> function contains the majority of the setup code:
-</a></div>
-</div>
-<div class="metadata">
-<a href="./posts/deep-dive-into-echoprime/index.html" class="no-external">
-<div class="listing-date">
-Dec 16, 2025
-</div>
-<div class="listing-author">
-Howard Baik
-</div>
-</a>
-</div>
-</div>
-<div class="quarto-post image-right" data-index="2" data-categories="TGVhcm4=" data-listing-date-sort="1764046800000" data-listing-file-modified-sort="1765946677227" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="2" data-listing-word-count-sort="210">
-<div class="thumbnail"><a href="./posts/learning-journey/index.html" class="no-external">
-
-<img loading="lazy" src="./posts/learning-journey/thumbnail.jpg" class="thumbnail-image">
-
-</a></div>
-<div class="body">
-<h3 class="no-anchor listing-title">
-<a href="./posts/learning-journey/index.html" class="no-external">Learning Journey</a>
-</h3>
-<div class="listing-categories">
-
-<div class="listing-category" onclick="window.quartoListingCategory('TGVhcm4='); return false;">Learn</div>
-
-</div>
-<div class="delink listing-description"><a href="./posts/learning-journey/index.html" class="no-external">
-This post will contain resources I have used and found helpful in my learning journey of PyTorch and Deep Learning. I will update this post as I discover more resources.
-</a></div>
-</div>
-<div class="metadata">
-<a href="./posts/learning-journey/index.html" class="no-external">
-<div class="listing-date">
-Nov 25, 2025
-</div>
-<div class="listing-author">
-Howard Baik
-</div>
-</a>
-</div>
-</div>
-</div>
-<div class="listing-no-matching d-none">No matching items</div>
-</div></main> <!-- /main -->
+</main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
     const icon = "";

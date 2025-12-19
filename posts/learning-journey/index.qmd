@@ -3,7 +3,7 @@ title: "Learning Journey"
 author: "Howard Baik"
 date: "2025-11-25"
 image: "thumbnail.jpg"
-categories: [learn]
+categories: [Learn]
 ---
 
 This post will contain resources I have used and found helpful in my learning journey of PyTorch and Deep Learning. I will update this post as I discover more resources.

@@ -10,7 +10,522 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Tue, 25 Nov 2025 05:00:00 GMT</lastBuildDate>
+<lastBuildDate>Tue, 16 Dec 2025 05:00:00 GMT</lastBuildDate>
+<item>
+  <title>Multiscale Vision Transformers (MViT)</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/multiscale-vision-transformers/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<p>A summary of the Multiscale Vision Transformers (MViT) paper: <a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a></p>
+<p>Multiscale Vision Transformers (MViT) is a model for video and image recognition.</p>
+<p>Combine <strong>multiscale feature hierarchies</strong> with the <strong>transformer model</strong>.</p>
+<section id="multi-head-pooling-attention-mhpa" class="level2">
+<h2 class="anchored" data-anchor-id="multi-head-pooling-attention-mhpa">Multi Head Pooling Attention (MHPA):</h2>
+<p>Consider a <img src="https://latex.codecogs.com/png.latex?D"> dimensional input tensor <img src="https://latex.codecogs.com/png.latex?X"> of sequence length <img src="https://latex.codecogs.com/png.latex?L">,</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AX%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D%0A"></p>
+<p>Intermerdiate tensors:</p>
+<p>Query tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BQ%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D">, key tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BK%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"> and value tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BV%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"> with linear operations.</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Chat%7BQ%7D=X%20W_Q%20%5Cquad%20%5Chat%7BK%7D=X%20W_K%20%5Cquad%20%5Chat%7BV%7D=X%20W_V%0A"></p>
+<p>with weights <img src="https://latex.codecogs.com/png.latex?W_Q,%20W_K,%20W_V%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BD%20%5Ctimes%20D%7D">.</p>
+<p>Intermediate tensors are then pooled in sequence length, with a pooling operator <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D"> as as described next.</p>
+<section id="pooling-operator" class="level3">
+<h3 class="anchored" data-anchor-id="pooling-operator">Pooling Operator</h3>
+<p>The pooling operator, <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(%5Ccdot%20;%20%7B%5CTheta%7D)">, performs a pooling kernel computation: a pooling kernel <img src="https://latex.codecogs.com/png.latex?k"> of dimensions <img src="https://latex.codecogs.com/png.latex?k_T%20%5Ctimes%20k_H%20%5Ctimes%20k_W"> with strides <img src="https://latex.codecogs.com/png.latex?s_T%20%5Ctimes%20s_H%20%5Ctimes%20s_W"> and paddings <img src="https://latex.codecogs.com/png.latex?p_T%20%5Ctimes%20p_H%20%5Ctimes%20p_W">.</p>
+<p>Equation below applied coordinate-wise: <img src="https://latex.codecogs.com/png.latex?%0A%5Ctilde%7B%5Cmathbf%7BL%7D%7D=%5Cleft%5Clfloor%5Cfrac%7B%5Cmathbf%7BL%7D+2%20%5Cmathbf%7Bp%7D-%5Cmathbf%7Bk%7D%7D%7B%5Cmathbf%7Bs%7D%7D%5Cright%5Crfloor+1%0A"></p>
+<p>meaning</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0A%5Ctilde%7BT%7D%20=%20%5Cfrac%7BT+2p_T-k_T%7D%7Bs_T%7D%20+%201%20%20%5C%5C%0A%5Ctilde%7BH%7D%20=%20%5Cfrac%7BH+2p_H-k_H%7D%7Bs_H%7D%20+%201%20%20%5C%5C%0A%5Ctilde%7BW%7D%20=%20%5Cfrac%7BW+2p_W-k_W%7D%7Bs_W%7D%20+%201%20%20%5C%5C%0A%5Cend%7Balign%7D%0A"></p>
+<p>and</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0A%5Ctilde%7BL%7D%20&amp;=%5Ctilde%7BT%7D%20%5Ctimes%20%5Ctilde%7BH%7D%20%5Ctimes%20%5Ctilde%7BW%7D%20%20%5C%5C%0A&amp;=%20%5Cleft(%5Cfrac%7BT+2%20p_T-k_T%7D%7Bs_T%7D+1%5Cright)%20%5Ctimes%5Cleft(%5Cfrac%7BH+2%20p_H-k_H%7D%7Bs_H%7D+1%5Cright)%20%5Ctimes%5Cleft(%5Cfrac%7BW+2%20p_W-k_W%7D%7Bs_W%7D+1%5Cright)%20%20%5C%5C%0A&amp;%5Capprox%20%5Cfrac%7BT%20H%20W%20+%20%5Cdots%7D%7Bs_T%20s_H%20s_W%7D%0A%5Cend%7Balign%7D%0A"></p>
+<p>which explains the following phrase from the paper:</p>
+<blockquote class="blockquote">
+<p><img src="https://latex.codecogs.com/png.latex?%5Ctilde%7BL%7D">, the sequence length of the output tensor <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(Y%20;%20%5CTheta)">, experiences an overall reduction by a factor of <img src="https://latex.codecogs.com/png.latex?s_T%20s_H%20s_W">.</p>
+</blockquote>
+</section>
+<section id="pooling-attention" class="level3">
+<h3 class="anchored" data-anchor-id="pooling-attention">Pooling Attention</h3>
+<p>After the pooling operator, <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(Y%20;%20%5CTheta)">, is applied to the query, key, and value tensors, the attention operation is performed as follows:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Coperatorname%7BAttention%7D(Q,%20K,%20V)%20=%20%5Coperatorname%7BSoftmax%7D%5Cleft(Q%20K%5ET%20/%20%5Csqrt%7BD%7D%5Cright)%20V%0A"></p>
+<p>where <img src="https://latex.codecogs.com/png.latex?Q%20=%20%5Cmathcal%7BP%7D(%5Chat%7BQ%7D%20;%20%5CTheta)">, <img src="https://latex.codecogs.com/png.latex?K%20=%20%5Cmathcal%7BP%7D(%5Chat%7BK%7D%20;%20%5CTheta)">, and <img src="https://latex.codecogs.com/png.latex?V%20=%20%5Cmathcal%7BP%7D(%5Chat%7BV%7D%20;%20%5CTheta)">.</p>
+<p>The paper mentions, “Naturally, the operation induces the constraints <img src="https://latex.codecogs.com/png.latex?s_K%20%5Cequiv%20s_V"> on the pooling operators.” because the matrix multiplication by <img src="https://latex.codecogs.com/png.latex?V"> must be valid, see below:</p>
+<p>The first operation is the matrix multiplication <img src="https://latex.codecogs.com/png.latex?QK%5ET">. For this multiplication to be valid:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0AQ%20&amp;%5Cin%20%20%5Cmathbb%7BR%7D%5E%7BL_Q%20%5Ctimes%20D%7D%20%5C%5C%0AK%5ET%20&amp;%5Cin%20%20%5Cmathbb%7BR%7D%5E%7BD%20%5Ctimes%20L_K%7D%20%5C%5C%0A%5Cend%7Balign%7D%0A"></p>
+<p>The result has shape <img src="https://latex.codecogs.com/png.latex?(L_Q,%20L_K)">.</p>
+<p>After applying softmax, you multiply by <img src="https://latex.codecogs.com/png.latex?V"></p>
+<p>The previous result has shape <img src="https://latex.codecogs.com/png.latex?(L_Q,%20L_K)">. <img src="https://latex.codecogs.com/png.latex?V"> has shape <img src="https://latex.codecogs.com/png.latex?(L_V,%20D)">, so for the multiplication to be valid, <img src="https://latex.codecogs.com/png.latex?L_K"> must equal <img src="https://latex.codecogs.com/png.latex?L_V">.</p>
+<p>and since both <img src="https://latex.codecogs.com/png.latex?K"> and <img src="https://latex.codecogs.com/png.latex?V"> are both derived from the same pooling operation, which reduces the sequence length, <img src="https://latex.codecogs.com/png.latex?L">, by the same factor, stride <img src="https://latex.codecogs.com/png.latex?s">, this means <img src="https://latex.codecogs.com/png.latex?s_K%20%5Cequiv%20s_V">.</p>
+</section>
+</section>
+<section id="multiscale-transformer-networks" class="level2">
+<h2 class="anchored" data-anchor-id="multiscale-transformer-networks">Multiscale Transformer Networks</h2>
+<p>The key difference between MViT (Multiscale Vision Transformers) and ViT (Vision Transformers) is that MViT “progressively grow the channel resolution (i.e.&nbsp;dimension), while simultaneously reducing the spatiotemporal resolution (i.e.&nbsp;sequence length) throughout the network.”</p>
+<section id="scale-stage" class="level3">
+<h3 class="anchored" data-anchor-id="scale-stage">Scale Stage</h3>
+<p>At a transition of stages, the “channel dimension is upsampled (increased) while the length of the sequence is downsampled (decreased). This effectively reduces the spatio-temporal resolution of the underlying visual data while allowing the network to assimilate the processed information in more complex features”.</p>
+<p>Claude:</p>
+<blockquote class="blockquote">
+<p>This creates a multiscale hierarchy similar to CNNs - early stages process high-resolution spatial-temporal data with simple features (fewer channels), while later stages process lower-resolution data but with more complex, abstract features (more channels). If you downsample space-time resolution by 4×, you increase channels by 2×. So a resolution change from 2D × T/δₜ × H/8 × T/8 to 4D × T/δₜ × H/16 × T/16 roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of “deeper = more channels, lower resolution” to video transformers, allowing the model to build increasingly abstract representations of the video content.</p>
+</blockquote>
+
+
+</section>
+</section>
+
+ ]]></description>
+  <category>Computer Vision</category>
+  <guid>https://passthetorch.dev/posts/multiscale-vision-transformers/</guid>
+  <pubDate>Tue, 16 Dec 2025 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers/thumbnail.png" medium="image" type="image/png" height="92" width="144"/>
+</item>
+<item>
+  <title>Deep Dive into EchoPrime</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/deep-dive-into-echoprime/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<p>Let’s first initialize the EchoPrime class and make an instance of it. The <strong>init</strong> function contains the majority of the setup code:</p>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">Setup</h2>
+<div id="e8b11244" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Standard library imports</span></span>
+<span id="cb1-2"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> os</span>
+<span id="cb1-3"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> math</span>
+<span id="cb1-4"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> glob</span>
+<span id="cb1-5"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> json</span>
+<span id="cb1-6"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> pickle</span>
+<span id="cb1-7"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> random</span>
+<span id="cb1-8"></span>
+<span id="cb1-9"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Third-party library imports</span></span>
+<span id="cb1-10"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> torch</span>
+<span id="cb1-11"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> torchvision</span>
+<span id="cb1-12"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> torch.nn.functional <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> F</span>
+<span id="cb1-13"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> numpy <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> np</span>
+<span id="cb1-14"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> pandas <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> pd</span>
+<span id="cb1-15"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> matplotlib.pyplot <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> plt</span>
+<span id="cb1-16"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> tqdm <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> tqdm</span>
+<span id="cb1-17"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> cv2</span>
+<span id="cb1-18"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> pydicom</span>
+<span id="cb1-19"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> sklearn</span>
+<span id="cb1-20"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> sklearn.metrics</span>
+<span id="cb1-21"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> transformers</span>
+<span id="cb1-22"></span>
+<span id="cb1-23"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Local module imports</span></span>
+<span id="cb1-24"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> utils</span></code></pre></div></div>
+</div>
+<div id="874e2785" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># load language specific files</span></span>
+<span id="cb2-2">utils.initialize_language(lang)</span></code></pre></div></div>
+</div>
+<p>Source code of utils.initialize_language:</p>
+<div id="1bb03879" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> functools</span>
+<span id="cb3-2"></span>
+<span id="cb3-3">all_phrases, t_list <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">None</span>, <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">None</span></span>
+<span id="cb3-4"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">global</span> phrases_per_section_list, phrases_per_section_list_org, regex_per_section</span></code></pre></div></div>
+</div>
+<p>Declares global variables: phrases_per_section_list, phrases_per_section_list_org, regex_per_section</p>
+<div id="fcb4743b" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">phrases_file <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"assets/all_phr.json"</span></span>
+<span id="cb4-2"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">open</span>(phrases_file, encoding<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"utf-8"</span>) <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">as</span> f:</span>
+<span id="cb4-3">        all_phrases <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> json.load(f)</span></code></pre></div></div>
+</div>
+<p>The <code>all_phr.json</code> file contains standardized echocardiogram report phrases organized by anatomical structures and clinical findings. It’s a comprehensive template library that maps cardiac assessment categories to their corresponding clinical descriptions.</p>
+<pre class="{json}"><code>{
+  "Anatomical Structure": {
+    "Measurement/Finding Category": [
+      "Phrase 1",
+      "Phrase 2",
+      ...
+    ]
+  }
+}</code></pre>
+<p>Opens file in JSON format and loads its content into the variable all_phrases</p>
+<div id="df359e20" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">all_phrases</span></code></pre></div></div>
+</div>
+<div id="14df8e7f" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">t_list <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {k: [all_phrases[k][j] <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> j <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> all_phrases[k]] <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> k <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> all_phrases}</span></code></pre></div></div>
+</div>
+<p>The line extracts phrase lists from the nested dictionary structure for each section.</p>
+<p>For example, it extracts all the phrases related to <code>"Left Ventricle"</code> and stores them in <code>t_list</code> under the same key. For the key <code>"Left Ventricle"</code>, t_list will contain a list of all phrases associated with that section, such as <code>"Left ventricle not well visualized."</code>, <code>"Left ventricle is grossly normal in size and systolic function."</code>, <code>"Left ventricle is normal in size and systolic function."</code>, <code>"The left ventricle is small by linear cavity dimension."</code></p>
+<div id="04d3bc95" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1">phrases_per_section_list <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {</span>
+<span id="cb8-2">    k: functools.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">reduce</span>(<span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">lambda</span> a, b: a <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> b, v) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> (k, v) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> t_list.items()</span>
+<span id="cb8-3">}</span>
+<span id="cb8-4"></span>
+<span id="cb8-5">phrases_per_section_list_org <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {</span>
+<span id="cb8-6">    k: functools.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">reduce</span>(<span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">lambda</span> a, b: a <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> b, v) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> (k, v) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> t_list.items()</span>
+<span id="cb8-7">}</span></code></pre></div></div>
+</div>
+<p>The code flattens nested lists of phrases for each section into single lists using <code>functools.reduce</code>.</p>
+<p>For example,</p>
+<div id="f0b27424" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Before (t_list structure - nested lists)</span></span>
+<span id="cb9-2"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">"Left Ventricle"</span>: [</span>
+<span id="cb9-3">    [<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Left ventricle not well visualized."</span>],</span>
+<span id="cb9-4">    [<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Normal LV size."</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Dilated LV."</span>],</span>
+<span id="cb9-5">    [<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Normal wall thickness."</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Mild hypertrophy."</span>]</span>
+<span id="cb9-6">]</span>
+<span id="cb9-7"></span>
+<span id="cb9-8"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># After (phrases_per_section_list - flat list)</span></span>
+<span id="cb9-9"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">"Left Ventricle"</span>: [</span>
+<span id="cb9-10">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Left ventricle not well visualized."</span>,</span>
+<span id="cb9-11">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Normal LV size."</span>,</span>
+<span id="cb9-12">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Dilated LV."</span>,</span>
+<span id="cb9-13">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Normal wall thickness."</span>,</span>
+<span id="cb9-14">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Mild hypertrophy."</span></span>
+<span id="cb9-15">]</span></code></pre></div></div>
+</div>
+<p>Summary: - The code initializes language-specific phrases for different sections by loading them from a JSON file. - It flattens nested lists of phrases into single lists for easier processing (<code>phrases_per_section_list</code> and <code>phrases_per_section_list_org</code>). - It converts these phrases into regex patterns to facilitate text matching later on (<code>regex_per_section</code>).</p>
+<div id="6abcd5b4" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1">device <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.device(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cuda"</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> torch.cuda.is_available() <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cpu"</span>)</span></code></pre></div></div>
+</div>
+<p>Device agnostic code setup for PyTorch to use GPU if available, otherwise CPU.</p>
+<div id="b467331d" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1">checkpoint <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/weights/echo_prime_encoder.pt"</span>, map_location<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>device)</span></code></pre></div></div>
+</div>
+<p>checkpoint is an OrderedDict from the collections module</p>
+<div id="0736a240" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">echo_encoder <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.video.mvit_v2_s() </span>
+<span id="cb12-2">echo_encoder.head[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(echo_encoder.head[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].in_features, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>)</span>
+<span id="cb12-3">echo_encoder.load_state_dict(checkpoint)</span>
+<span id="cb12-4">echo_encoder.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">eval</span>() <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Set the model in evaluation mode</span></span>
+<span id="cb12-5">echo_encoder.to(device)</span>
+<span id="cb12-6"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> param <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> echo_encoder.parameters():</span>
+<span id="cb12-7">    param.requires_grad <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span></span></code></pre></div></div>
+</div>
+<p>Constructs a small MViTV2 architecture and loads the pre-trained weights from the checkpoint. The model is set to evaluation mode, moved to the appropriate device (CPU or GPU), and all parameters are frozen to prevent further training.</p>
+<div id="5445e424" class="cell" data-execution_count="12">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1">vc_state_dict <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/weights/view_classifier.pt"</span>)</span>
+<span id="cb13-2">view_classifier <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.convnext_base()</span>
+<span id="cb13-3">view_classifier.classifier[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(</span>
+<span id="cb13-4">    view_classifier.classifier[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].in_features, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">11</span></span>
+<span id="cb13-5">)</span>
+<span id="cb13-6">view_classifier.load_state_dict(vc_state_dict)</span>
+<span id="cb13-7"></span>
+<span id="cb13-8">view_classifier.to(device)</span>
+<span id="cb13-9">view_classifier.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">eval</span>()</span>
+<span id="cb13-10"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> param <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> view_classifier.parameters():</span>
+<span id="cb13-11">    param.requires_grad <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span></span></code></pre></div></div>
+</div>
+<p>Constructs a ConvNeXt base architecture for view classification, loads pre-trained weights, sets the model to evaluation mode, moves it to the appropriate device, and removes gradients from all parameters to prevent further training.</p>
+<div id="52c65da7" class="cell" data-execution_count="13">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1">frames_to_take <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">32</span></span>
+<span id="cb14-2">frame_stride <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span></span>
+<span id="cb14-3">video_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">224</span></span>
+<span id="cb14-4"></span>
+<span id="cb14-5">mean <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.tensor([<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">29.110628</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">28.076836</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">29.096405</span>]).reshape(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">3</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>) </span>
+<span id="cb14-6">std <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.tensor([<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">47.989223</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">46.456997</span>, <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">47.20083</span>]).reshape(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">3</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)</span>
+<span id="cb14-7"></span>
+<span id="cb14-8">device <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> device</span>
+<span id="cb14-9">lang <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> lang</span></code></pre></div></div>
+</div>
+<p>Load MIL weights per section</p>
+<div id="4d7016c5" class="cell" data-execution_count="14">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1">MIL_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_csv(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"assets/MIL_weights.csv"</span>)</span></code></pre></div></div>
+</div>
+
+
+</section>
+
+ ]]></description>
+  <category>Medical AI</category>
+  <guid>https://passthetorch.dev/posts/deep-dive-into-echoprime/</guid>
+  <pubDate>Tue, 16 Dec 2025 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-echoprime/thumbnail.png" medium="image" type="image/png" height="76" width="144"/>
+</item>
 <item>
   <title>Learning Journey</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -54,7 +569,7 @@
 </section>
 
  ]]></description>
-  <category>learn</category>
+  <category>Learn</category>
   <guid>https://passthetorch.dev/posts/learning-journey/</guid>
   <pubDate>Tue, 25 Nov 2025 05:00:00 GMT</pubDate>
   <media:content url="https://passthetorch.dev/posts/learning-journey/thumbnail.jpg" medium="image" type="image/jpeg"/>
