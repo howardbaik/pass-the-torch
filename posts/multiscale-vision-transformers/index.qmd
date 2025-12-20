@@ -17,9 +17,11 @@ Combine **multiscale feature hierarchies** with the **transformer model**.
 
 The model architecture is built on _stages_, which consists of multiple transformer blocks. The idea is to progressively increase the channel capacity while reducing the spatial-temporal resolution.
 
-- Meta AI Blogpost: https://ai.meta.com/blog/multiscale-vision-transformers-an-architecture-for-modeling-visual-data/
+For more details, see:
 
-- Video explanation from one of the authors: https://youtu.be/IG4il10zx68?si=Am5xLj5qU1QE73CW
+- Meta AI Blogpost: [Multiscale Vision Transformers: A hierarchical architecture for representing image and video information](https://ai.meta.com/blog/multiscale-vision-transformers-an-architecture-for-modeling-visual-data/)
+
+- Conference Talk: [Multiscale Vision Transformers (MViT) ICCV 2021](https://youtu.be/IG4il10zx68?si=Am5xLj5qU1QE73CW)
 
 
 ## Multi Head Pooling Attention (MHPA):

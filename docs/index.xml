@@ -27,9 +27,10 @@
 <p>Multiscale Vision Transformers (MViT) is a model for video and image recognition and is heavily inspired by the Vision Transformer (ViT) architecture.</p>
 <p>Combine <strong>multiscale feature hierarchies</strong> with the <strong>transformer model</strong>.</p>
 <p>The model architecture is built on <em>stages</em>, which consists of multiple transformer blocks. The idea is to progressively increase the channel capacity while reducing the spatial-temporal resolution.</p>
+<p>For more details, see:</p>
 <ul>
-<li><p>Meta AI Blogpost: https://ai.meta.com/blog/multiscale-vision-transformers-an-architecture-for-modeling-visual-data/</p></li>
-<li><p>Video explanation from one of the authors: https://youtu.be/IG4il10zx68?si=Am5xLj5qU1QE73CW</p></li>
+<li><p>Meta AI Blogpost: <a href="https://ai.meta.com/blog/multiscale-vision-transformers-an-architecture-for-modeling-visual-data/">Multiscale Vision Transformers: A hierarchical architecture for representing image and video information</a></p></li>
+<li><p>Conference Talk: <a href="https://youtu.be/IG4il10zx68?si=Am5xLj5qU1QE73CW">Multiscale Vision Transformers (MViT) ICCV 2021</a></p></li>
 </ul>
 </section>
 <section id="multi-head-pooling-attention-mhpa" class="level2">

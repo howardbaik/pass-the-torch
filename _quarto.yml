@@ -19,6 +19,7 @@ format:
       - simplex
       - brand
     css: styles.css
+    link-external-newwindow: true
 
 
 
