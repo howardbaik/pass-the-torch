@@ -183,17 +183,29 @@ window.Quarto = {
 
 
 
-<p>A summary of the Multiscale Vision Transformers (MViT) paper: <a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a></p>
-<p>Multiscale Vision Transformers (MViT) is a model for video and image recognition.</p>
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>A summary of the Multiscale Vision Transformers (MViT) paper: <a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a>, focused on the model architecture and key concepts. Not focused on the experimental results.</p>
+<p>Multiscale Vision Transformers (MViT) is a model for video and image recognition and is heavily inspired by the Vision Transformer (ViT) architecture.</p>
 <p>Combine <strong>multiscale feature hierarchies</strong> with the <strong>transformer model</strong>.</p>
+<p>The model architecture is built on <em>stages</em>, which consists of multiple transformer blocks. The idea is to progressively increase the channel capacity while reducing the spatial-temporal resolution.</p>
+<ul>
+<li><p>Meta AI Blogpost: https://ai.meta.com/blog/multiscale-vision-transformers-an-architecture-for-modeling-visual-data/</p></li>
+<li><p>Video explanation from one of the authors: https://youtu.be/IG4il10zx68?si=Am5xLj5qU1QE73CW</p></li>
+</ul>
+</section>
 <section id="multi-head-pooling-attention-mhpa" class="level2">
 <h2 class="anchored" data-anchor-id="multi-head-pooling-attention-mhpa">Multi Head Pooling Attention (MHPA):</h2>
-<p>Consider a <span class="math inline">\(D\)</span> dimensional input tensor <span class="math inline">\(X\)</span> of sequence length <span class="math inline">\(L\)</span>,</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="pooling-attention.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+<p>Consider an input tensor <span class="math inline">\(X\)</span> that is <span class="math inline">\(D\)</span> dimensional and has a sequence length of <span class="math inline">\(L\)</span>,</p>
 <p><span class="math display">\[
 X \in \mathbb{R}^{L \times D}
 \]</span></p>
-<p>Intermerdiate tensors:</p>
-<p>Query tensor <span class="math inline">\(\hat{Q} \in \mathbb{R}^{L \times D}\)</span>, key tensor <span class="math inline">\(\hat{K} \in \mathbb{R}^{L \times D}\)</span> and value tensor <span class="math inline">\(\hat{V} \in \mathbb{R}^{L \times D}\)</span> with linear operations.</p>
+<p>MHPA projects the input tensor <span class="math inline">\(X\)</span> into intermerdiate tensors, Query tensor <span class="math inline">\(\hat{Q} \in \mathbb{R}^{L \times D}\)</span>, key tensor <span class="math inline">\(\hat{K} \in \mathbb{R}^{L \times D}\)</span> and value tensor <span class="math inline">\(\hat{V} \in \mathbb{R}^{L \times D}\)</span> with linear operations:</p>
 <p><span class="math display">\[
 \hat{Q}=X W_Q \quad \hat{K}=X W_K \quad \hat{V}=X W_V
 \]</span></p>
@@ -201,11 +213,11 @@ X \in \mathbb{R}^{L \times D}
 <p>Intermediate tensors are then pooled in sequence length, with a pooling operator <span class="math inline">\(\mathcal{P}\)</span> as as described next.</p>
 <section id="pooling-operator" class="level3">
 <h3 class="anchored" data-anchor-id="pooling-operator">Pooling Operator</h3>
-<p>The <span class="math inline">\(\mathcal{P}(\cdot ; {\Theta})\)</span> operator performs a pooling kernel computation: a pooling kernel <span class="math inline">\(k\)</span> of dimensions <span class="math inline">\(k_T \times k_H \times k_W\)</span> with strides <span class="math inline">\(s_T \times s_H \times s_W\)</span> and paddings <span class="math inline">\(p_T \times p_H \times p_W\)</span>.</p>
+<p>The pooling operator, <span class="math inline">\(\mathcal{P}(\cdot ; {\Theta})\)</span>, performs a pooling kernel computation: a pooling kernel <span class="math inline">\(k\)</span> of dimensions <span class="math inline">\(k_T \times k_H \times k_W\)</span> with strides <span class="math inline">\(s_T \times s_H \times s_W\)</span> and paddings <span class="math inline">\(p_T \times p_H \times p_W\)</span>.</p>
 <p>Equation below applied coordinate-wise: <span class="math display">\[
 \tilde{\mathbf{L}}=\left\lfloor\frac{\mathbf{L}+2 \mathbf{p}-\mathbf{k}}{\mathbf{s}}\right\rfloor+1
 \]</span></p>
-<p>meaning</p>
+<p>When we apply the above equation coordinate-wise, we get:</p>
 <p><span class="math display">\[
 \begin{align}
 \tilde{T} = \frac{T+2p_T-k_T}{s_T} + 1  \\
@@ -213,7 +225,7 @@ X \in \mathbb{R}^{L \times D}
 \tilde{W} = \frac{W+2p_W-k_W}{s_W} + 1  \\
 \end{align}
 \]</span></p>
-<p>and</p>
+<p>and getting the sequence length (flattening the tensor), <span class="math inline">\(\tilde{L}\)</span>,</p>
 <p><span class="math display">\[
 \begin{align}
 \tilde{L} &amp;=\tilde{T} \times \tilde{H} \times \tilde{W}  \\
@@ -228,38 +240,63 @@ X \in \mathbb{R}^{L \times D}
 </section>
 <section id="pooling-attention" class="level3">
 <h3 class="anchored" data-anchor-id="pooling-attention">Pooling Attention</h3>
-<p>After the pooling operator, <span class="math inline">\(\mathcal{P}(Y ; \Theta)\)</span>, is applied to the query, key, and value tensors, the attention operation is performed as follows:</p>
+<p>After the pooling operator <span class="math inline">\(\mathcal{P}(Y ; \Theta)\)</span> is applied to the query, key, and value tensors, the attention operation is performed as follows:</p>
 <p><span class="math display">\[
 \operatorname{Attention}(Q, K, V) = \operatorname{Softmax}\left(Q K^T / \sqrt{D}\right) V
 \]</span></p>
 <p>where <span class="math inline">\(Q = \mathcal{P}(\hat{Q} ; \Theta)\)</span>, <span class="math inline">\(K = \mathcal{P}(\hat{K} ; \Theta)\)</span>, and <span class="math inline">\(V = \mathcal{P}(\hat{V} ; \Theta)\)</span>.</p>
-<p>The paper mentions, “Naturally, the operation induces the constraints <span class="math inline">\(s_K \equiv s_V\)</span> on the pooling operators.” because the matrix multiplication by <span class="math inline">\(V\)</span> must be valid, see below:</p>
-<p>The first operation is the matrix multiplication <span class="math inline">\(QK^T\)</span>. For this multiplication to be valid:</p>
+<p>The paper mentions, “Naturally, the operation induces the constraints <span class="math inline">\(s_K \equiv s_V\)</span> on the pooling operators.” because the matrix multiplication by <span class="math inline">\(V\)</span> must be valid. For explanation, see below:</p>
+<p>The first operation is the matrix multiplication <span class="math inline">\(QK^T\)</span>. The resulting shape of this multiplication</p>
 <p><span class="math display">\[
 \begin{align}
 Q &amp;\in  \mathbb{R}^{L_Q \times D} \\
 K^T &amp;\in  \mathbb{R}^{D \times L_K} \\
 \end{align}
 \]</span></p>
-<p>The result has shape <span class="math inline">\((L_Q, L_K)\)</span>.</p>
-<p>After applying softmax, you multiply by <span class="math inline">\(V\)</span></p>
+<p>The result has shape <span class="math inline">\((L_Q, L_K)\)</span>. After applying softmax, you multiply by <span class="math inline">\(V\)</span>.</p>
 <p>The previous result has shape <span class="math inline">\((L_Q, L_K)\)</span>. <span class="math inline">\(V\)</span> has shape <span class="math inline">\((L_V, D)\)</span>, so for the multiplication to be valid, <span class="math inline">\(L_K\)</span> must equal <span class="math inline">\(L_V\)</span>.</p>
 <p>and since both <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span> are both derived from the same pooling operation, which reduces the sequence length, <span class="math inline">\(L\)</span>, by the same factor, stride <span class="math inline">\(s\)</span>, this means <span class="math inline">\(s_K \equiv s_V\)</span>.</p>
+<p>This point is reiterated in a later section of the paper, “Key-Value Pooling”:</p>
+<blockquote class="blockquote">
+<p>Since the sequence length of key and value tensors need to be identical to allow attention weight calculation, the pooling stride used on K and value V tensors needs to be identical.</p>
+</blockquote>
 </section>
 </section>
 <section id="multiscale-transformer-networks" class="level2">
 <h2 class="anchored" data-anchor-id="multiscale-transformer-networks">Multiscale Transformer Networks</h2>
-<p>The key difference between MViT (Multiscale Vision Transformers) and ViT (Vision Transformers) is that MViT “progressively grow the channel resolution (i.e.&nbsp;dimension), while simultaneously reducing the spatiotemporal resolution (i.e.&nbsp;sequence length) throughout the network.”</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="multiscale-vision-transformer.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+<p>The key difference between MViT (Multiscale Vision Transformers) and ViT (Vision Transformers) is that MViT “progressively grows the channel resolution (i.e.&nbsp;dimension), while simultaneously reducing the spatiotemporal resolution (i.e.&nbsp;sequence length) throughout the network.” while ViT “maintains a constant channel capacity and spatial resolution throughout all the blocks”.</p>
 <section id="scale-stage" class="level3">
 <h3 class="anchored" data-anchor-id="scale-stage">Scale Stage</h3>
+<p>Scale stage is a set of <span class="math inline">\(N\)</span> transformer blocks that operate with the same channel dimension <span class="math inline">\(D\)</span> and sequence length <span class="math inline">\(L\)</span>.</p>
 <p>At a transition of stages, the “channel dimension is upsampled (increased) while the length of the sequence is downsampled (decreased). This effectively reduces the spatio-temporal resolution of the underlying visual data while allowing the network to assimilate the processed information in more complex features”.</p>
-<p>Claude:</p>
-<blockquote class="blockquote">
-<p>This creates a multiscale hierarchy similar to CNNs - early stages process high-resolution spatial-temporal data with simple features (fewer channels), while later stages process lower-resolution data but with more complex, abstract features (more channels). If you downsample space-time resolution by 4×, you increase channels by 2×. So a resolution change from 2D × T/δₜ × H/8 × T/8 to 4D × T/δₜ × H/16 × T/16 roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of “deeper = more channels, lower resolution” to video transformers, allowing the model to build increasingly abstract representations of the video content.</p>
-</blockquote>
-
-
+<p>This creates a multiscale hierarchy similar to CNNs - early stages process high-resolution spatial-temporal data with simple features (fewer channels), while later stages process lower-resolution data but with more complex, abstract features (more channels).</p>
+<p>If you downsample space-time resolution by 4×, you increase channels by 2×. So a resolution change from 2D × T/δₜ × H/8 × W/8 to 4D × T/δₜ × H/16 × W/16 roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of “deeper = more channels, lower resolution” to video transformers, allowing the model to build increasingly abstract representations of the video content.</p>
 </section>
+<section id="query-key-value-qkv-pooling" class="level3">
+<h3 class="anchored" data-anchor-id="query-key-value-qkv-pooling">Query Key Value (QKV) Pooling</h3>
+<p>“Unlike Query pooling, changing the sequence length of key K and value V tensors does not change the output sequence length and, hence, the space-time resolution.”</p>
+<p>The reason is in the “Pooling Attention” section above: the attention mechanism output length is determined by the query length, <span class="math inline">\(L_Q\)</span> because the attention mechanism involves matrix multiplication of <span class="math inline">\(QK^T V\)</span>, where the output has shape <span class="math inline">\((L_Q, D)\)</span> and <span class="math inline">\(L_K\)</span> and <span class="math inline">\(L_V\)</span> is only used during matrix multiplication of <span class="math inline">\(QK^T V\)</span>.</p>
+<p>The model architecture decreases resolution at the beginning of a stage and then keeps the resolution constant within the stage, so the first pooling attention operator operates at <span class="math inline">\(s^Q &gt; 1\)</span> while the rest have <span class="math inline">\(s^Q \equiv 1\)</span>.</p>
+</section>
+<section id="skip-connections" class="level3">
+<h3 class="anchored" data-anchor-id="skip-connections">Skip Connections</h3>
+<p>The last step of the “Pooling Attention” architecture shows the skip connection. The skip connection is implemented as follows: The query pooling operator <span class="math inline">\(\mathcal{P}\left(\cdot ; \Theta_Q\right)\)</span> is added, instead of the raw input <span class="math inline">\(X\)</span>, to the output of the attention operation.</p>
+</section>
+</section>
+<section id="summary" class="level2">
+<h2 class="anchored" data-anchor-id="summary">Summary</h2>
+<p>Walkthrough of the entire model architecture from start to finish:</p>
+<p><span class="math inline">\(\text{cube}_1\)</span> stage:</p>
+<p>The raw input data is provided as dense space-time cubes of shape <span class="math inline">\(c_T \times c_H \times c_W\)</span> and <span class="math inline">\(D\)</span> channels. Then, downsampling is applied to reduce the spatial-temporal resolution with <span class="math inline">\(\text { stride } s_T \times 4 \times 4\)</span>. This results in an output of shape <span class="math inline">\(D \times \frac{T}{s_T} \times \frac{H}{4} \times \frac{W}{4}\)</span>.</p>
+<p><span class="math inline">\(\text{scale}\)</span> stage:</p>
+<p>Then, the subsequent scale stages down-sample the spatial resolution (sequence length <span class="math inline">\(L\)</span>) through multiple (<span class="math inline">\(N\)</span>) transformer blocks with Multi Head Pooling Attention (MHPA) and increase the channel dimension <span class="math inline">\(D\)</span> through MLP at stage transitions.</p>
+
+
 </section>
 
 </main> <!-- /main -->

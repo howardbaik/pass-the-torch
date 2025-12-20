@@ -21,15 +21,27 @@
 
 
 
-<p>A summary of the Multiscale Vision Transformers (MViT) paper: <a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a></p>
-<p>Multiscale Vision Transformers (MViT) is a model for video and image recognition.</p>
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>A summary of the Multiscale Vision Transformers (MViT) paper: <a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a>, focused on the model architecture and key concepts. Not focused on the experimental results.</p>
+<p>Multiscale Vision Transformers (MViT) is a model for video and image recognition and is heavily inspired by the Vision Transformer (ViT) architecture.</p>
 <p>Combine <strong>multiscale feature hierarchies</strong> with the <strong>transformer model</strong>.</p>
+<p>The model architecture is built on <em>stages</em>, which consists of multiple transformer blocks. The idea is to progressively increase the channel capacity while reducing the spatial-temporal resolution.</p>
+<ul>
+<li><p>Meta AI Blogpost: https://ai.meta.com/blog/multiscale-vision-transformers-an-architecture-for-modeling-visual-data/</p></li>
+<li><p>Video explanation from one of the authors: https://youtu.be/IG4il10zx68?si=Am5xLj5qU1QE73CW</p></li>
+</ul>
+</section>
 <section id="multi-head-pooling-attention-mhpa" class="level2">
 <h2 class="anchored" data-anchor-id="multi-head-pooling-attention-mhpa">Multi Head Pooling Attention (MHPA):</h2>
-<p>Consider a <img src="https://latex.codecogs.com/png.latex?D"> dimensional input tensor <img src="https://latex.codecogs.com/png.latex?X"> of sequence length <img src="https://latex.codecogs.com/png.latex?L">,</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/multiscale-vision-transformers/pooling-attention.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+<p>Consider an input tensor <img src="https://latex.codecogs.com/png.latex?X"> that is <img src="https://latex.codecogs.com/png.latex?D"> dimensional and has a sequence length of <img src="https://latex.codecogs.com/png.latex?L">,</p>
 <p><img src="https://latex.codecogs.com/png.latex?%0AX%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D%0A"></p>
-<p>Intermerdiate tensors:</p>
-<p>Query tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BQ%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D">, key tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BK%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"> and value tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BV%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"> with linear operations.</p>
+<p>MHPA projects the input tensor <img src="https://latex.codecogs.com/png.latex?X"> into intermerdiate tensors, Query tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BQ%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D">, key tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BK%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"> and value tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BV%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"> with linear operations:</p>
 <p><img src="https://latex.codecogs.com/png.latex?%0A%5Chat%7BQ%7D=X%20W_Q%20%5Cquad%20%5Chat%7BK%7D=X%20W_K%20%5Cquad%20%5Chat%7BV%7D=X%20W_V%0A"></p>
 <p>with weights <img src="https://latex.codecogs.com/png.latex?W_Q,%20W_K,%20W_V%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BD%20%5Ctimes%20D%7D">.</p>
 <p>Intermediate tensors are then pooled in sequence length, with a pooling operator <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D"> as as described next.</p>
@@ -37,9 +49,9 @@
 <h3 class="anchored" data-anchor-id="pooling-operator">Pooling Operator</h3>
 <p>The pooling operator, <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(%5Ccdot%20;%20%7B%5CTheta%7D)">, performs a pooling kernel computation: a pooling kernel <img src="https://latex.codecogs.com/png.latex?k"> of dimensions <img src="https://latex.codecogs.com/png.latex?k_T%20%5Ctimes%20k_H%20%5Ctimes%20k_W"> with strides <img src="https://latex.codecogs.com/png.latex?s_T%20%5Ctimes%20s_H%20%5Ctimes%20s_W"> and paddings <img src="https://latex.codecogs.com/png.latex?p_T%20%5Ctimes%20p_H%20%5Ctimes%20p_W">.</p>
 <p>Equation below applied coordinate-wise: <img src="https://latex.codecogs.com/png.latex?%0A%5Ctilde%7B%5Cmathbf%7BL%7D%7D=%5Cleft%5Clfloor%5Cfrac%7B%5Cmathbf%7BL%7D+2%20%5Cmathbf%7Bp%7D-%5Cmathbf%7Bk%7D%7D%7B%5Cmathbf%7Bs%7D%7D%5Cright%5Crfloor+1%0A"></p>
-<p>meaning</p>
+<p>When we apply the above equation coordinate-wise, we get:</p>
 <p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0A%5Ctilde%7BT%7D%20=%20%5Cfrac%7BT+2p_T-k_T%7D%7Bs_T%7D%20+%201%20%20%5C%5C%0A%5Ctilde%7BH%7D%20=%20%5Cfrac%7BH+2p_H-k_H%7D%7Bs_H%7D%20+%201%20%20%5C%5C%0A%5Ctilde%7BW%7D%20=%20%5Cfrac%7BW+2p_W-k_W%7D%7Bs_W%7D%20+%201%20%20%5C%5C%0A%5Cend%7Balign%7D%0A"></p>
-<p>and</p>
+<p>and getting the sequence length (flattening the tensor), <img src="https://latex.codecogs.com/png.latex?%5Ctilde%7BL%7D">,</p>
 <p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0A%5Ctilde%7BL%7D%20&amp;=%5Ctilde%7BT%7D%20%5Ctimes%20%5Ctilde%7BH%7D%20%5Ctimes%20%5Ctilde%7BW%7D%20%20%5C%5C%0A&amp;=%20%5Cleft(%5Cfrac%7BT+2%20p_T-k_T%7D%7Bs_T%7D+1%5Cright)%20%5Ctimes%5Cleft(%5Cfrac%7BH+2%20p_H-k_H%7D%7Bs_H%7D+1%5Cright)%20%5Ctimes%5Cleft(%5Cfrac%7BW+2%20p_W-k_W%7D%7Bs_W%7D+1%5Cright)%20%20%5C%5C%0A&amp;%5Capprox%20%5Cfrac%7BT%20H%20W%20+%20%5Cdots%7D%7Bs_T%20s_H%20s_W%7D%0A%5Cend%7Balign%7D%0A"></p>
 <p>which explains the following phrase from the paper:</p>
 <blockquote class="blockquote">
@@ -48,31 +60,56 @@
 </section>
 <section id="pooling-attention" class="level3">
 <h3 class="anchored" data-anchor-id="pooling-attention">Pooling Attention</h3>
-<p>After the pooling operator, <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(Y%20;%20%5CTheta)">, is applied to the query, key, and value tensors, the attention operation is performed as follows:</p>
+<p>After the pooling operator <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(Y%20;%20%5CTheta)"> is applied to the query, key, and value tensors, the attention operation is performed as follows:</p>
 <p><img src="https://latex.codecogs.com/png.latex?%0A%5Coperatorname%7BAttention%7D(Q,%20K,%20V)%20=%20%5Coperatorname%7BSoftmax%7D%5Cleft(Q%20K%5ET%20/%20%5Csqrt%7BD%7D%5Cright)%20V%0A"></p>
 <p>where <img src="https://latex.codecogs.com/png.latex?Q%20=%20%5Cmathcal%7BP%7D(%5Chat%7BQ%7D%20;%20%5CTheta)">, <img src="https://latex.codecogs.com/png.latex?K%20=%20%5Cmathcal%7BP%7D(%5Chat%7BK%7D%20;%20%5CTheta)">, and <img src="https://latex.codecogs.com/png.latex?V%20=%20%5Cmathcal%7BP%7D(%5Chat%7BV%7D%20;%20%5CTheta)">.</p>
-<p>The paper mentions, “Naturally, the operation induces the constraints <img src="https://latex.codecogs.com/png.latex?s_K%20%5Cequiv%20s_V"> on the pooling operators.” because the matrix multiplication by <img src="https://latex.codecogs.com/png.latex?V"> must be valid, see below:</p>
-<p>The first operation is the matrix multiplication <img src="https://latex.codecogs.com/png.latex?QK%5ET">. For this multiplication to be valid:</p>
+<p>The paper mentions, “Naturally, the operation induces the constraints <img src="https://latex.codecogs.com/png.latex?s_K%20%5Cequiv%20s_V"> on the pooling operators.” because the matrix multiplication by <img src="https://latex.codecogs.com/png.latex?V"> must be valid. For explanation, see below:</p>
+<p>The first operation is the matrix multiplication <img src="https://latex.codecogs.com/png.latex?QK%5ET">. The resulting shape of this multiplication</p>
 <p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0AQ%20&amp;%5Cin%20%20%5Cmathbb%7BR%7D%5E%7BL_Q%20%5Ctimes%20D%7D%20%5C%5C%0AK%5ET%20&amp;%5Cin%20%20%5Cmathbb%7BR%7D%5E%7BD%20%5Ctimes%20L_K%7D%20%5C%5C%0A%5Cend%7Balign%7D%0A"></p>
-<p>The result has shape <img src="https://latex.codecogs.com/png.latex?(L_Q,%20L_K)">.</p>
-<p>After applying softmax, you multiply by <img src="https://latex.codecogs.com/png.latex?V"></p>
+<p>The result has shape <img src="https://latex.codecogs.com/png.latex?(L_Q,%20L_K)">. After applying softmax, you multiply by <img src="https://latex.codecogs.com/png.latex?V">.</p>
 <p>The previous result has shape <img src="https://latex.codecogs.com/png.latex?(L_Q,%20L_K)">. <img src="https://latex.codecogs.com/png.latex?V"> has shape <img src="https://latex.codecogs.com/png.latex?(L_V,%20D)">, so for the multiplication to be valid, <img src="https://latex.codecogs.com/png.latex?L_K"> must equal <img src="https://latex.codecogs.com/png.latex?L_V">.</p>
 <p>and since both <img src="https://latex.codecogs.com/png.latex?K"> and <img src="https://latex.codecogs.com/png.latex?V"> are both derived from the same pooling operation, which reduces the sequence length, <img src="https://latex.codecogs.com/png.latex?L">, by the same factor, stride <img src="https://latex.codecogs.com/png.latex?s">, this means <img src="https://latex.codecogs.com/png.latex?s_K%20%5Cequiv%20s_V">.</p>
+<p>This point is reiterated in a later section of the paper, “Key-Value Pooling”:</p>
+<blockquote class="blockquote">
+<p>Since the sequence length of key and value tensors need to be identical to allow attention weight calculation, the pooling stride used on K and value V tensors needs to be identical.</p>
+</blockquote>
 </section>
 </section>
 <section id="multiscale-transformer-networks" class="level2">
 <h2 class="anchored" data-anchor-id="multiscale-transformer-networks">Multiscale Transformer Networks</h2>
-<p>The key difference between MViT (Multiscale Vision Transformers) and ViT (Vision Transformers) is that MViT “progressively grow the channel resolution (i.e.&nbsp;dimension), while simultaneously reducing the spatiotemporal resolution (i.e.&nbsp;sequence length) throughout the network.”</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/multiscale-vision-transformers/multiscale-vision-transformer.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+<p>The key difference between MViT (Multiscale Vision Transformers) and ViT (Vision Transformers) is that MViT “progressively grows the channel resolution (i.e.&nbsp;dimension), while simultaneously reducing the spatiotemporal resolution (i.e.&nbsp;sequence length) throughout the network.” while ViT “maintains a constant channel capacity and spatial resolution throughout all the blocks”.</p>
 <section id="scale-stage" class="level3">
 <h3 class="anchored" data-anchor-id="scale-stage">Scale Stage</h3>
+<p>Scale stage is a set of <img src="https://latex.codecogs.com/png.latex?N"> transformer blocks that operate with the same channel dimension <img src="https://latex.codecogs.com/png.latex?D"> and sequence length <img src="https://latex.codecogs.com/png.latex?L">.</p>
 <p>At a transition of stages, the “channel dimension is upsampled (increased) while the length of the sequence is downsampled (decreased). This effectively reduces the spatio-temporal resolution of the underlying visual data while allowing the network to assimilate the processed information in more complex features”.</p>
-<p>Claude:</p>
-<blockquote class="blockquote">
-<p>This creates a multiscale hierarchy similar to CNNs - early stages process high-resolution spatial-temporal data with simple features (fewer channels), while later stages process lower-resolution data but with more complex, abstract features (more channels). If you downsample space-time resolution by 4×, you increase channels by 2×. So a resolution change from 2D × T/δₜ × H/8 × T/8 to 4D × T/δₜ × H/16 × T/16 roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of “deeper = more channels, lower resolution” to video transformers, allowing the model to build increasingly abstract representations of the video content.</p>
-</blockquote>
-
-
+<p>This creates a multiscale hierarchy similar to CNNs - early stages process high-resolution spatial-temporal data with simple features (fewer channels), while later stages process lower-resolution data but with more complex, abstract features (more channels).</p>
+<p>If you downsample space-time resolution by 4×, you increase channels by 2×. So a resolution change from 2D × T/δₜ × H/8 × W/8 to 4D × T/δₜ × H/16 × W/16 roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of “deeper = more channels, lower resolution” to video transformers, allowing the model to build increasingly abstract representations of the video content.</p>
 </section>
+<section id="query-key-value-qkv-pooling" class="level3">
+<h3 class="anchored" data-anchor-id="query-key-value-qkv-pooling">Query Key Value (QKV) Pooling</h3>
+<p>“Unlike Query pooling, changing the sequence length of key K and value V tensors does not change the output sequence length and, hence, the space-time resolution.”</p>
+<p>The reason is in the “Pooling Attention” section above: the attention mechanism output length is determined by the query length, <img src="https://latex.codecogs.com/png.latex?L_Q"> because the attention mechanism involves matrix multiplication of <img src="https://latex.codecogs.com/png.latex?QK%5ET%20V">, where the output has shape <img src="https://latex.codecogs.com/png.latex?(L_Q,%20D)"> and <img src="https://latex.codecogs.com/png.latex?L_K"> and <img src="https://latex.codecogs.com/png.latex?L_V"> is only used during matrix multiplication of <img src="https://latex.codecogs.com/png.latex?QK%5ET%20V">.</p>
+<p>The model architecture decreases resolution at the beginning of a stage and then keeps the resolution constant within the stage, so the first pooling attention operator operates at <img src="https://latex.codecogs.com/png.latex?s%5EQ%20%3E%201"> while the rest have <img src="https://latex.codecogs.com/png.latex?s%5EQ%20%5Cequiv%201">.</p>
+</section>
+<section id="skip-connections" class="level3">
+<h3 class="anchored" data-anchor-id="skip-connections">Skip Connections</h3>
+<p>The last step of the “Pooling Attention” architecture shows the skip connection. The skip connection is implemented as follows: The query pooling operator <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D%5Cleft(%5Ccdot%20;%20%5CTheta_Q%5Cright)"> is added, instead of the raw input <img src="https://latex.codecogs.com/png.latex?X">, to the output of the attention operation.</p>
+</section>
+</section>
+<section id="summary" class="level2">
+<h2 class="anchored" data-anchor-id="summary">Summary</h2>
+<p>Walkthrough of the entire model architecture from start to finish:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%5Ctext%7Bcube%7D_1"> stage:</p>
+<p>The raw input data is provided as dense space-time cubes of shape <img src="https://latex.codecogs.com/png.latex?c_T%20%5Ctimes%20c_H%20%5Ctimes%20c_W"> and <img src="https://latex.codecogs.com/png.latex?D"> channels. Then, downsampling is applied to reduce the spatial-temporal resolution with <img src="https://latex.codecogs.com/png.latex?%5Ctext%20%7B%20stride%20%7D%20s_T%20%5Ctimes%204%20%5Ctimes%204">. This results in an output of shape <img src="https://latex.codecogs.com/png.latex?D%20%5Ctimes%20%5Cfrac%7BT%7D%7Bs_T%7D%20%5Ctimes%20%5Cfrac%7BH%7D%7B4%7D%20%5Ctimes%20%5Cfrac%7BW%7D%7B4%7D">.</p>
+<p><img src="https://latex.codecogs.com/png.latex?%5Ctext%7Bscale%7D"> stage:</p>
+<p>Then, the subsequent scale stages down-sample the spatial resolution (sequence length <img src="https://latex.codecogs.com/png.latex?L">) through multiple (<img src="https://latex.codecogs.com/png.latex?N">) transformer blocks with Multi Head Pooling Attention (MHPA) and increase the channel dimension <img src="https://latex.codecogs.com/png.latex?D"> through MLP at stage transitions.</p>
+
+
 </section>
 
  ]]></description>
@@ -545,6 +582,12 @@ font-style: inherit;">"assets/MIL_weights.csv"</span>)</span></code></pre></div>
 </section>
 <section id="deep-learning-research" class="level2">
 <h2 class="anchored" data-anchor-id="deep-learning-research">Deep Learning Research</h2>
+<section id="theory" class="level3">
+<h3 class="anchored" data-anchor-id="theory">Theory</h3>
+<ul>
+<li><a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a> - A research paper on Multiscale Vision Transformers (MViT) for video and image recognition. The model is available on <a href="https://github.com/facebookresearch/SlowFast/tree/main/projects/mvit">GitHub</a>.</li>
+</ul>
+</section>
 <section id="cardiology" class="level3">
 <h3 class="anchored" data-anchor-id="cardiology">Cardiology</h3>
 <ul>

@@ -15,6 +15,10 @@ This post will contain resources I have used and found helpful in my learning jo
 
 ## Deep Learning Research
 
+### Theory
+
+- [Multiscale Vision Transformers](https://arxiv.org/abs/2104.11227) - A research paper on Multiscale Vision Transformers (MViT) for video and image recognition. The model is available on [GitHub](https://github.com/facebookresearch/SlowFast/tree/main/projects/mvit).
+
 ### Cardiology
 
 - [EchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation](https://arxiv.org/abs/2410.09704) - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on [GitHub](https://github.com/echonet/EchoPrime).

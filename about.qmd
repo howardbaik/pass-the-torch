@@ -16,4 +16,4 @@ about:
 
 ---
 
-Pass The Torch is a blog for learning PyTorch written by [Howard Baik](https://www.howardbaik.com/).
+Pass The Torch is a blog for learning PyTorch and deep learning written by [Howard Baik](https://www.howardbaik.com/).
