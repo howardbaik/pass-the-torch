@@ -93,7 +93,7 @@ Scale stage is a set of $N$ transformer blocks that operate with the same channe
 
 This creates a multiscale hierarchy similar to CNNs - early stages process high-resolution spatial-temporal data with simple features (fewer channels), while later stages process lower-resolution data but with more complex, abstract features (more channels). 
 
-If you downsample space-time resolution by 4X, you increase channels by 2X. So a resolution change from $2D \times \frac{T}{δ_t} \times \frac{H}{8} \times \frac{W}{8}$ to $4D \times \frac{T}{δ_t} \times \frac{H}{16} \times \frac{W}{16}$ roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of "deeper = more channels, lower resolution" to video transformers.
+If you downsample space-time resolution by 4, you increase channels by 2. So a resolution change from $2D \times \frac{T}{δ_t} \times \frac{H}{8} \times \frac{W}{8}$ to $4D \times \frac{T}{δ_t} \times \frac{H}{16} \times \frac{W}{16}$ roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of "deeper = more channels, lower resolution" to video transformers.
 
 ### Query Key Value (QKV) Pooling
 
@@ -102,7 +102,7 @@ In the _Key-Value pooling_ section, the authors write:
 > Unlike Query pooling, changing the sequence length of key K and value V tensors does not change
 the output sequence length and, hence, the space-time resolution.
 
-The reason is explained in the _Pooling Attention_ section: the attention mechanism output length is determined by the query length, $L_Q$ because the attention mechanism involves matrix multiplication of $QK^T V$, where the output has shape $(L_Q, D)$ and $L_K$ and $L_V$ is only used during matrix multiplication of $QK^T V$.
+The reason is explained in the _Pooling Attention_ section: the attention mechanism output length is determined by the query length, $L_Q$ because the attention mechanism involves matrix multiplication of $QK^T V$, where the output has shape $(L_Q, D)$ and $L_K$ and $L_V$ is only used during matrix multiplication of $(QK^T) V$.
 
 Also, the model architecture decreases resolution at the beginning of a stage and then keeps the resolution constant within the stage, so the first pooling attention operator operates at $s^Q > 1$ while the rest have $s^Q \equiv 1$.
 
