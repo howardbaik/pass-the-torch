@@ -3,7 +3,7 @@ title: "Deep Dive into EchoPrime"
 draft: true
 format: html
 author: "Howard Baik"
-date: "2025-12-16"
+date: "2025-12-22"
 image: "thumbnail.png"
 categories: [Medical AI]
 execute: 

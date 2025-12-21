@@ -10,7 +10,7 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Tue, 16 Dec 2025 05:00:00 GMT</lastBuildDate>
+<lastBuildDate>Mon, 22 Dec 2025 05:00:00 GMT</lastBuildDate>
 <item>
   <title>Multiscale Vision Transformers (MViT)</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -125,7 +125,7 @@
  ]]></description>
   <category>Computer Vision</category>
   <guid>https://passthetorch.dev/posts/multiscale-vision-transformers/</guid>
-  <pubDate>Tue, 16 Dec 2025 05:00:00 GMT</pubDate>
+  <pubDate>Mon, 22 Dec 2025 05:00:00 GMT</pubDate>
   <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers/thumbnail.png" medium="image" type="image/png" height="92" width="144"/>
 </item>
 <item>
