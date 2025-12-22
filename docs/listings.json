@@ -2,7 +2,6 @@
   {
     "listing": "/index.html",
     "items": [
-      "/posts/attention-is-all-you-need/index.html",
       "/posts/multiscale-vision-transformers/index.html",
       "/posts/learning-journey/index.html"
     ]

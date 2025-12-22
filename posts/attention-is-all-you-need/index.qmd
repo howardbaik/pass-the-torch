@@ -1,6 +1,7 @@
 ---
 title: "Attention Is All You Need"
 author: "Howard Baik"
+draft: true
 date: "2025-12-22"
 format: html
 image: "thumbnail.png"
