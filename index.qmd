@@ -9,7 +9,6 @@ listing:
   sort-ui: false
   filter-ui: false
 page-layout: full
-comments: false
 title-block-banner: true
 ---
 

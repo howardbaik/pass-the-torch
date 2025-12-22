@@ -1,0 +1,13 @@
+---
+title: "Attention Is All You Need"
+author: "Howard Baik"
+date: "2025-12-22"
+format: html
+image: "thumbnail.png"
+categories: [LLM]
+---
+
+Residul Connection: https://medium.com/@mariaprokofieva/attention-in-transformers-residual-connection-layer-a-shortcut-that-makes-it-work-165b52566167
+
+
+

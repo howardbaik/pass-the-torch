@@ -28,6 +28,13 @@
     "text": "Deep Learning Research\n\nTheory\n\nMultiscale Vision Transformers - A research paper on Multiscale Vision Transformers (MViT) for video and image recognition. The model is available on GitHub.\n\n\n\nCardiology\n\nEchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on GitHub.\n\n\n\nOpthalmology\n\nDeep learning applications in opthamology - Talk by Aaron Y. Lee that covers the beginnings of the application of deep learning in the field of ophthalmology and vision science.\nTransforming Healthcare with AI: Lessons from Ophthalmology - Talk by Pearse Keane on how AI is transforming healthcare, with a focus on ophthalmology.\n\n\n\nElectronic Health Record (EHR)\n\nInfEHR: Clinical phenotype resolution through deep geometric learning on electronic health records - A research paper on using deep geometric learning to analyze electronic health records for clinical phenotype resolution. The code is implemented in PyTorch and available on GitHub."
   },
   {
+    "objectID": "posts/attention-is-all-you-need/index.html",
+    "href": "posts/attention-is-all-you-need/index.html",
+    "title": "Attention Is All You Need",
+    "section": "",
+    "text": "Residul Connection: https://medium.com/@mariaprokofieva/attention-in-transformers-residual-connection-layer-a-shortcut-that-makes-it-work-165b52566167"
+  },
+  {
     "objectID": "posts/multiscale-vision-transformers/index.html",
     "href": "posts/multiscale-vision-transformers/index.html",
     "title": "Multiscale Vision Transformers (MViT)",
@@ -67,6 +74,6 @@
     "href": "index.html",
     "title": "Pass The Torch",
     "section": "",
-    "text": "Multiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
+    "text": "Attention Is All You Need\n\n\n\nLLM\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
   }
 ]

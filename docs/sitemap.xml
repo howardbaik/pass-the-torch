@@ -2,11 +2,15 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://passthetorch.dev/about.html</loc>
-    <lastmod>2025-12-21T06:03:12.294Z</lastmod>
+    <lastmod>2025-12-22T22:06:30.207Z</lastmod>
   </url>
   <url>
     <loc>https://passthetorch.dev/posts/learning-journey/index.html</loc>
     <lastmod>2025-12-20T17:59:26.222Z</lastmod>
+  </url>
+  <url>
+    <loc>https://passthetorch.dev/posts/attention-is-all-you-need/index.html</loc>
+    <lastmod>2025-12-21T20:56:20.524Z</lastmod>
   </url>
   <url>
     <loc>https://passthetorch.dev/posts/multiscale-vision-transformers/index.html</loc>
@@ -14,6 +18,6 @@
   </url>
   <url>
     <loc>https://passthetorch.dev/index.html</loc>
-    <lastmod>2025-12-21T06:03:25.258Z</lastmod>
+    <lastmod>2025-12-22T22:06:35.326Z</lastmod>
   </url>
 </urlset>

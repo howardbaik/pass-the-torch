@@ -12,6 +12,26 @@
 <generator>quarto-1.8.24</generator>
 <lastBuildDate>Mon, 22 Dec 2025 05:00:00 GMT</lastBuildDate>
 <item>
+  <title>Attention Is All You Need</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/attention-is-all-you-need/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<p>Residul Connection: https://medium.com/<span class="citation" data-cites="mariaprokofieva/attention-in-transformers-residual-connection-layer-a-shortcut-that-makes-it-work-165b52566167">@mariaprokofieva/attention-in-transformers-residual-connection-layer-a-shortcut-that-makes-it-work-165b52566167</span></p>
+
+
+
+ ]]></description>
+  <category>LLM</category>
+  <guid>https://passthetorch.dev/posts/attention-is-all-you-need/</guid>
+  <pubDate>Mon, 22 Dec 2025 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/attention-is-all-you-need/thumbnail.png" medium="image" type="image/png" height="153" width="144"/>
+</item>
+<item>
   <title>Multiscale Vision Transformers (MViT)</title>
   <dc:creator>Howard Baik</dc:creator>
   <link>https://passthetorch.dev/posts/multiscale-vision-transformers/</link>
