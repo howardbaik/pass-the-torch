@@ -10,7 +10,26 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Mon, 22 Dec 2025 05:00:00 GMT</lastBuildDate>
+<lastBuildDate>Fri, 26 Dec 2025 05:00:00 GMT</lastBuildDate>
+<item>
+  <title>Multiscale Vision Transformers (MViTv2)</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/multiscale-vision-transformers-v2/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+
+
+
+ ]]></description>
+  <category>Computer Vision</category>
+  <guid>https://passthetorch.dev/posts/multiscale-vision-transformers-v2/</guid>
+  <pubDate>Fri, 26 Dec 2025 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers-v2/thumbnail.png" medium="image" type="image/png" height="92" width="144"/>
+</item>
 <item>
   <title>Multiscale Vision Transformers (MViT)</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -129,6 +148,16 @@
   <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers/thumbnail.png" medium="image" type="image/png" height="92" width="144"/>
 </item>
 <item>
+  <title></title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/deep-dive-into-echoprime/</link>
+  <description><![CDATA[ undefined ]]></description>
+  <category>Medical AI</category>
+  <guid>https://passthetorch.dev/posts/deep-dive-into-echoprime/</guid>
+  <pubDate>Mon, 22 Dec 2025 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-echoprime/thumbnail.png" medium="image" type="image/png" height="76" width="144"/>
+</item>
+<item>
   <title>Learning Journey</title>
   <dc:creator>Howard Baik</dc:creator>
   <link>https://passthetorch.dev/posts/learning-journey/</link>
@@ -139,10 +168,11 @@
 
 
 <p>This post will contain resources I have used and found helpful in my learning journey of PyTorch and Deep Learning. I will update this post as I discover more resources.</p>
-<section id="pytorch-videos" class="level2">
-<h2 class="anchored" data-anchor-id="pytorch-videos">PyTorch Videos</h2>
+<section id="coding-videos" class="level2">
+<h2 class="anchored" data-anchor-id="coding-videos">Coding Videos</h2>
 <ul>
-<li><a href="https://youtu.be/V_xro1bcAuA?si=_dZL-au3oIEunfku">PyTorch for Deep Learning &amp; Machine Learning</a> : Beginner PyTorch course taught by Daniel Bourke. It covers the basics of PyTorch, neural networks, and applications in computer vision. Code-first approach with hands-on examples in Google Colab and course textbook, <a href="https://www.learnpytorch.io">Learn PyTorch for Deep Learning: Zero to Mastery book</a>.</li>
+<li><p><a href="https://youtu.be/V_xro1bcAuA?si=_dZL-au3oIEunfku">PyTorch for Deep Learning &amp; Machine Learning</a> : Beginner PyTorch course taught by Daniel Bourke. It covers the basics of PyTorch, neural networks, and applications in computer vision. Code-first approach with hands-on examples in Google Colab and course textbook, <a href="https://www.learnpytorch.io">Learn PyTorch for Deep Learning: Zero to Mastery book</a>.</p></li>
+<li><p><a href="https://youtu.be/JRlyw6LO5qo?si=by9-CrM3ClghQVhq">MNIST classifier from numpy scratch</a>: George Hotz builds a MNIST digit classifier from scratch using only numpy. Great for understanding the fundamentals of neural networks and backpropagation.</p></li>
 </ul>
 </section>
 <section id="deep-learning-research" class="level2">

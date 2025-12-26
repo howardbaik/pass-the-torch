@@ -14,11 +14,11 @@
     "text": "This post will contain resources I have used and found helpful in my learning journey of PyTorch and Deep Learning. I will update this post as I discover more resources."
   },
   {
-    "objectID": "posts/learning-journey/index.html#pytorch-videos",
-    "href": "posts/learning-journey/index.html#pytorch-videos",
+    "objectID": "posts/learning-journey/index.html#coding-videos",
+    "href": "posts/learning-journey/index.html#coding-videos",
     "title": "Learning Journey",
-    "section": "PyTorch Videos",
-    "text": "PyTorch Videos\n\nPyTorch for Deep Learning & Machine Learning : Beginner PyTorch course taught by Daniel Bourke. It covers the basics of PyTorch, neural networks, and applications in computer vision. Code-first approach with hands-on examples in Google Colab and course textbook, Learn PyTorch for Deep Learning: Zero to Mastery book."
+    "section": "Coding Videos",
+    "text": "Coding Videos\n\nPyTorch for Deep Learning & Machine Learning : Beginner PyTorch course taught by Daniel Bourke. It covers the basics of PyTorch, neural networks, and applications in computer vision. Code-first approach with hands-on examples in Google Colab and course textbook, Learn PyTorch for Deep Learning: Zero to Mastery book.\nMNIST classifier from numpy scratch: George Hotz builds a MNIST digit classifier from scratch using only numpy. Great for understanding the fundamentals of neural networks and backpropagation."
   },
   {
     "objectID": "posts/learning-journey/index.html#deep-learning-research",
@@ -67,6 +67,6 @@
     "href": "index.html",
     "title": "Pass The Torch",
     "section": "",
-    "text": "Multiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
+    "text": "Multiscale Vision Transformers (MViTv2)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 26, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoPrime\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
   }
 ]

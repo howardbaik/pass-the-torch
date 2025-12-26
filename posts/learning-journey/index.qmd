@@ -8,10 +8,11 @@ categories: [Learn]
 
 This post will contain resources I have used and found helpful in my learning journey of PyTorch and Deep Learning. I will update this post as I discover more resources.
 
-## PyTorch Videos
+## Coding Videos
 
 - [PyTorch for Deep Learning & Machine Learning](https://youtu.be/V_xro1bcAuA?si=_dZL-au3oIEunfku) : Beginner PyTorch course taught by Daniel Bourke. It covers the basics of PyTorch, neural networks, and applications in computer vision. Code-first approach with hands-on examples in Google Colab and course textbook, [Learn PyTorch for Deep Learning: Zero to Mastery book](https://www.learnpytorch.io).
 
+- [MNIST classifier from numpy scratch](https://youtu.be/JRlyw6LO5qo?si=by9-CrM3ClghQVhq): George Hotz builds a MNIST digit classifier from scratch using only numpy. Great for understanding the fundamentals of neural networks and backpropagation.
 
 ## Deep Learning Research
 
