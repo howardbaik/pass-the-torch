@@ -8,6 +8,7 @@ website:
   site-url: https://passthetorch.dev # you must change this appropriately for RSS feeds to work properly
   title: "Pass The Torch"
   favicon: favicon.ico
+  draft-mode: gone
   navbar:
     right:
       - about.qmd

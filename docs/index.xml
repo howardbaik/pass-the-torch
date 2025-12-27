@@ -10,17 +10,7 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Fri, 26 Dec 2025 05:00:00 GMT</lastBuildDate>
-<item>
-  <title></title>
-  <dc:creator>Howard Baik</dc:creator>
-  <link>https://passthetorch.dev/posts/multiscale-vision-transformers-v2/</link>
-  <description><![CDATA[ undefined ]]></description>
-  <category>Computer Vision</category>
-  <guid>https://passthetorch.dev/posts/multiscale-vision-transformers-v2/</guid>
-  <pubDate>Fri, 26 Dec 2025 05:00:00 GMT</pubDate>
-  <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers-v2/thumbnail.png" medium="image" type="image/png" height="92" width="144"/>
-</item>
+<lastBuildDate>Mon, 22 Dec 2025 05:00:00 GMT</lastBuildDate>
 <item>
   <title>Multiscale Vision Transformers (MViT)</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -137,16 +127,6 @@
   <guid>https://passthetorch.dev/posts/multiscale-vision-transformers/</guid>
   <pubDate>Mon, 22 Dec 2025 05:00:00 GMT</pubDate>
   <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers/thumbnail.png" medium="image" type="image/png" height="92" width="144"/>
-</item>
-<item>
-  <title></title>
-  <dc:creator>Howard Baik</dc:creator>
-  <link>https://passthetorch.dev/posts/deep-dive-into-echoprime/</link>
-  <description><![CDATA[ undefined ]]></description>
-  <category>Medical AI</category>
-  <guid>https://passthetorch.dev/posts/deep-dive-into-echoprime/</guid>
-  <pubDate>Mon, 22 Dec 2025 05:00:00 GMT</pubDate>
-  <media:content url="https://passthetorch.dev/posts/deep-dive-into-echoprime/thumbnail.png" medium="image" type="image/png" height="76" width="144"/>
 </item>
 <item>
   <title>Learning Journey</title>
