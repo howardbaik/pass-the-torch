@@ -34,7 +34,7 @@
 </figure>
 </div>
 <p>Consider an input tensor <img src="https://latex.codecogs.com/png.latex?X"> that is <img src="https://latex.codecogs.com/png.latex?D"> dimensional and has a sequence length of <img src="https://latex.codecogs.com/png.latex?L">, <img src="https://latex.codecogs.com/png.latex?X%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D">. Sequence length <img src="https://latex.codecogs.com/png.latex?L"> is obtained by <img src="https://latex.codecogs.com/png.latex?L=T%20%5Ctimes%20H%20%5Ctimes%20W">, where <img src="https://latex.codecogs.com/png.latex?T"> is the temporal dimension, <img src="https://latex.codecogs.com/png.latex?H"> is the height dimension, and <img src="https://latex.codecogs.com/png.latex?W"> is the width dimension.</p>
-<p>The first step of Multi Head Pooling Attention (MHPA) is to project the input tensor <img src="https://latex.codecogs.com/png.latex?X"> into intermerdiate tensors:</p>
+<p>The first step of Multi Head Pooling Attention (MHPA) is to project the input tensor <img src="https://latex.codecogs.com/png.latex?X"> into intermediate tensors:</p>
 <ul>
 <li>Query tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BQ%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"></li>
 <li>Key tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BK%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"></li>

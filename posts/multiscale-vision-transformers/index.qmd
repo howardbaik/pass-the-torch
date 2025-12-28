@@ -20,7 +20,7 @@ Multiscale Vision Transformers (MViT) is a model for video and image recognition
 
 Consider an input tensor $X$ that is $D$ dimensional and has a sequence length of $L$, $X \in \mathbb{R}^{L \times D}$. Sequence length $L$ is obtained by $L=T \times H \times W$, where $T$ is the temporal dimension, $H$ is the height dimension, and $W$ is the width dimension.
 
-The first step of Multi Head Pooling Attention (MHPA) is to project the input tensor $X$ into intermerdiate tensors:
+The first step of Multi Head Pooling Attention (MHPA) is to project the input tensor $X$ into intermediate tensors:
 
 - Query tensor $\hat{Q} \in \mathbb{R}^{L \times D}$
 - Key tensor $\hat{K} \in \mathbb{R}^{L \times D}$ 
