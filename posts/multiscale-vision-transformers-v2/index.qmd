@@ -8,3 +8,17 @@ image: "thumbnail.png"
 categories: [Computer Vision]
 ---
 
+
+
+
+
+Self-Attention:
+
+$\operatorname{Attn}(Q, K, V)=\operatorname{Softmax}\left(\left(Q K^{\top}+E^{(\mathrm{rel})}\right) / \sqrt{d}\right) V$
+
+where
+
+$E_{i j}^{(\mathrm{rel})}=Q_i \cdot R_{p(i), p(j)}$
+
+
+$R_{p(i), p(j)}=R_{h(i), h(j)}^{\mathrm{h}}+R_{w(i), w(j)}^{\mathrm{w}}+R_{t(i), t(j)}^{\mathrm{t}}$

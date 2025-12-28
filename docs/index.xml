@@ -151,7 +151,9 @@
 <section id="theory" class="level3">
 <h3 class="anchored" data-anchor-id="theory">Theory</h3>
 <ul>
-<li><a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a> - A research paper on Multiscale Vision Transformers (MViT) for video and image recognition. The model is available on <a href="https://github.com/facebookresearch/SlowFast/tree/main/projects/mvit">GitHub</a>.</li>
+<li><p><a href="https://arxiv.org/abs/2010.11929">Vision Transformers</a> - A research paper on Vision Transformers (ViT) for image recognition. Walkthrough implementation by Daniel Bourke <a href="https://www.learnpytorch.io/08_pytorch_paper_replicating/">available</a>.</p></li>
+<li><p><a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a> - A research paper on Multiscale Vision Transformers (MViT) for video and image recognition. The model is available on <a href="https://github.com/facebookresearch/SlowFast/tree/main/projects/mvit">GitHub</a>.</p></li>
+<li><p><a href="https://arxiv.org/pdf/2112.01526">MViTv2: Improved Multiscale Vision Transformers for Classification and Detection</a> - An improved version of MViT</p></li>
 </ul>
 </section>
 <section id="cardiology" class="level3">

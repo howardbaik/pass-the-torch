@@ -18,7 +18,13 @@ This post will contain resources I have used and found helpful in my learning jo
 
 ### Theory
 
+- [Vision Transformers](https://arxiv.org/abs/2010.11929) - A research paper on Vision Transformers (ViT) for image recognition. Walkthrough implementation by Daniel Bourke [available](https://www.learnpytorch.io/08_pytorch_paper_replicating/).
+
 - [Multiscale Vision Transformers](https://arxiv.org/abs/2104.11227) - A research paper on Multiscale Vision Transformers (MViT) for video and image recognition. The model is available on [GitHub](https://github.com/facebookresearch/SlowFast/tree/main/projects/mvit).
+
+- [MViTv2: Improved Multiscale Vision Transformers for Classification and Detection](https://arxiv.org/pdf/2112.01526) - An improved version of MViT
+
+
 
 ### Cardiology
 
