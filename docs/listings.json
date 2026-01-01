@@ -2,6 +2,7 @@
   {
     "listing": "/index.html",
     "items": [
+      "/posts/multiscale-vision-transformers-v2/index.html",
       "/posts/multiscale-vision-transformers/index.html",
       "/posts/learning-journey/index.html"
     ]
