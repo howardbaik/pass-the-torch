@@ -54,7 +54,22 @@ $Z:=\operatorname{Attn}(Q, K, V)+Q$
 Note that the output $Z$ has the same length as the pooled query tensor $Q$.
 
 
-##  Code
+## Code
+
+1. `attention_pool()`: Pooling operation for attention tensors (`Q`, `K`, `V`)
+
+- Takes a tensor and a pooling function (for ex, `nn.AvgPool2d()`), separates the class and patch tokens, and applies the pooling operation to the patch tokens after reshaping them to `[batch×heads, channels, height, width]`, which is the expected input format for PyTorch pooling layers. After pooling is complete, the tensor is reshaped back to `[batch, heads, sequence_length, channels]`
 
 
+2. `cal_rel_pos_spatial()`: Implement decomposed relative positional encoding
+
+- Calculates relative positional embeddings, which only depend on the relative location distance between tokens into the pooled self-attention computation.
+
+
+3. `MultiScaleAttention`: Class for pooling attention
+
+- 
+
+
+4. `MultiScaleBlock`:  Class for MViTv2
 
