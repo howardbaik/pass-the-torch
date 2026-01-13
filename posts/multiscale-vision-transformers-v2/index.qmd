@@ -68,8 +68,41 @@ Note that the output $Z$ has the same length as the pooled query tensor $Q$.
 
 3. `MultiScaleAttention`: Class for pooling attention
 
-- 
+- Inherits from `nn.Module`. 
+
+The init method initializes the `MultiScaleAttention` module's parameters:
+- `self.pool_first`: Whether to pool first before projection
+- `self.num_heads`: Number of attention heads
+- `self.dim_out`: Output dimension after attention
+- `head_dim`: Dimension per attention head
+- `self.scale`: Scaling factor for attention scores
+- `self.has_cls_embed`: Whether there is a class token
+
+If pooling first (before linear projection), there are three separate linear projection layers, which gives more flexibility since $Q$, $K$, $V$ may undergo different pooling operations (different kernel sizes, strides) before being projected.
+
+If linear projection occurs before pooling, the input can be projected once, then split into $Q$, $K$, $V$, then pool each separately. 
+
+Also add an output projection layer, applied after the multi-head attention. 
+
+If kernel and stride size is (1, 1), then skip pooling.
+
+- Define pooling operations based on the specified mode (avg, max, conv, conv_unshared).
+
+- Create learnable parameters that encode the relative spatial distances between tokens in a 2D image grid (initialize Relative Positional Embeddings, `self.rel_pos_h` and `self.rel_pos_w`).
+
+
+
+
+
+`forward()` method 
+
+
+
+
 
 
 4. `MultiScaleBlock`:  Class for MViTv2
 
+
+
+`forward()` method 
