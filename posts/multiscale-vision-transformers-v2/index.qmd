@@ -78,13 +78,13 @@ The init method initializes the `MultiScaleAttention` module's parameters:
 - `self.scale`: Scaling factor for attention scores
 - `self.has_cls_embed`: Whether there is a class token
 
-If pooling first (before linear projection), there are three separate linear projection layers, which gives more flexibility since $Q$, $K$, $V$ may undergo different pooling operations (different kernel sizes, strides) before being projected.
+- If pooling first (before linear projection), there are three separate linear projection layers, which gives more flexibility since $Q$, $K$, $V$ may undergo different pooling operations (different kernel sizes, strides) before being projected.
 
-If linear projection occurs before pooling, the input can be projected once, then split into $Q$, $K$, $V$, then pool each separately. 
+- If linear projection occurs before pooling, the input can be projected once, then split into $Q$, $K$, $V$, then pool each separately. 
 
-Also add an output projection layer, applied after the multi-head attention. 
+- Also add an output projection layer, applied after the multi-head attention. 
 
-If kernel and stride size is (1, 1), then skip pooling.
+- If kernel and stride size is (1, 1), then skip pooling.
 
 - Define pooling operations based on the specified mode (avg, max, conv, conv_unshared).
 
@@ -92,9 +92,11 @@ If kernel and stride size is (1, 1), then skip pooling.
 
 
 
-
-
 `forward()` method 
+
+If pooling first then linear projection, then split the feature dimension into attention heads, and permute to `(B, fold_dim, N, C)` to organize by attention heads. 
+
+If linear projection first, then pooling, then apply linear projection first, then reshape from `(B, N, qkv_dim)` to `(B, N, 3, num_heads, head_dim)` and permutes to `(3, B, num_heads, N, head_dim)` to separate `q/k/v`.
 
 
 
