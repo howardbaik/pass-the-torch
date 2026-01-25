@@ -56,6 +56,8 @@ Note that the output $Z$ has the same length as the pooled query tensor $Q$.
 
 ## Code Walkthrough
 
+**File: `mvit/models/attention.py`**
+
 1. `attention_pool()`: Pooling operation for attention tensors (`Q`, `K`, `V`)
 
 - Takes a tensor and a pooling function (for ex, `nn.AvgPool2d()`), separates the class and patch tokens, and applies the pooling operation to the patch tokens after reshaping them to `[batch×heads, channels, height, width]`, which is the expected input format for PyTorch pooling layers. After pooling is complete, the tensor is reshaped back to `[batch, heads, sequence_length, channels]`
@@ -125,3 +127,13 @@ Also initializes layer norms, attention module drop path, mlp, projection layer,
 Applies LayerNorm, then pooling attention with `MultiScaleAttention`. Then applies another LayerNorm and an MLP to get the output.
 
 
+
+
+
+**File: `mvit/models/mvit_model.py`**
+
+1. `PatchEmbed` class: 
+
+2. `TransformerBasicHead` class:
+
+3. `MViT` class:
