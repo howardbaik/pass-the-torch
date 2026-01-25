@@ -10,7 +10,96 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Mon, 22 Dec 2025 05:00:00 GMT</lastBuildDate>
+<lastBuildDate>Fri, 26 Dec 2025 05:00:00 GMT</lastBuildDate>
+<item>
+  <title>Multiscale Vision Transformers (MViTv2)</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/multiscale-vision-transformers-v2/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>This post provides an overview of the <a href="https://arxiv.org/pdf/2112.01526">paper</a> MViTv2: Improved Multiscale Vision Transformers for Classification and Detection with a focus on the upgrades to the pooling attention in the previous <a href="https://arxiv.org/pdf/2104.11227">MViT architecture</a>. Also, this post dives into the official PyTorch implementation of <a href="https://github.com/facebookresearch/mvit">MViTv2</a>.</p>
+<p>Building on MViT, MViTv2 introduces two improvements to pooling attention: shift-invariant positional embeddings and a residual pooling connection. These enhancements lead to better performance in image and video recognition tasks.</p>
+<p>The improved pooling attention is shown in the figure below:</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/multiscale-vision-transformers-v2/pooling-attention.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+</section>
+<section id="decomposed-relative-position-embeddings" class="level2">
+<h2 class="anchored" data-anchor-id="decomposed-relative-position-embeddings">Decomposed Relative Position Embeddings</h2>
+<p>A shortcoming of MViT is that it uses absolute positional embeddings, which are not “shift-invariant”. The interaction between two patches will change depending on their absolute positions in the image (even if their relative positions remain the same).</p>
+<p>“Shift-invariance in vision” refers to a fundamental property where the recognition or detection of a visual feature should remain consistent regardless of where it appears in an image. In simple terms: if you can recognize a cat in the top-left corner of an image, you should also recognize that same cat if it appears in the bottom-right corner. The object’s identity doesn’t change just because its absolute position in the image has changed.</p>
+<p>To address this shortcoming, the paper introduces <strong>decomposed relative position embeddings</strong> that encode the relationship between patches (“this patch is 2 positions to the right and 1 position down from that patch”) rather than their absolute locations. This makes the model shift-invariant - it can recognize the same spatial patterns regardless of where they appear in the image.</p>
+<p>The authors encode the relative position between two input elements, <img src="https://latex.codecogs.com/png.latex?i"> and <img src="https://latex.codecogs.com/png.latex?j"> into positional embedding <img src="https://latex.codecogs.com/png.latex?R_%7Bp(i),%20p(j)%7D%20%5Cin%20%5Cmathbb%7BR%7D%5Ed"> where <img src="https://latex.codecogs.com/png.latex?p(i)"> and <img src="https://latex.codecogs.com/png.latex?p(j)"> are the spatial position of element <img src="https://latex.codecogs.com/png.latex?i"> and <img src="https://latex.codecogs.com/png.latex?j">. This positional embedding is then embedded into the self-attention module:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0A%5Coperatorname%7BAttn%7D(Q,%20K,%20V)%20=%20%5Coperatorname%7BSoftmax%7D%5Cleft(%5Cleft(Q%20K%5E%7B%5Ctop%7D+E%5E%7B(%5Cmathrm%7Brel%7D)%7D%5Cright)%20/%20%5Csqrt%7Bd%7D%5Cright)%20V%20%5C%5C%0A%5Ctext%7Bwhere%7D%20%5Cquad%0AE_%7Bi%20j%7D%5E%7B(%5Cmathrm%7Brel%7D)%7D=Q_i%20%5Ccdot%20R_%7Bp(i),%20p(j)%7D%0A%5Cend%7Balign%7D%0A"></p>
+<p>The positional embedding <img src="https://latex.codecogs.com/png.latex?R_%7Bp(i),%20p(j)%7D"> is decomposed into three positional embeddings along the height, width, and temporal axes:</p>
+<p><img src="https://latex.codecogs.com/png.latex?R_%7Bp(i),%20p(j)%7D=R_%7Bh(i),%20h(j)%7D%5E%7B%5Cmathrm%7Bh%7D%7D+R_%7Bw(i),%20w(j)%7D%5E%7B%5Cmathrm%7Bw%7D%7D+R_%7Bt(i),%20t(j)%7D%5E%7B%5Cmathrm%7Bt%7D%7D"></p>
+</section>
+<section id="residual-pooling-connection" class="level2">
+<h2 class="anchored" data-anchor-id="residual-pooling-connection">Residual Pooling Connection</h2>
+<p><strong>Asymmetric downsampling strategy</strong>: As detailed in the Multiscale Vision Transformers <a href="https://arxiv.org/pdf/2104.11227">paper</a>, the <img src="https://latex.codecogs.com/png.latex?Q"> tensor is only downsampled when the output sequence resolution actually changes across stages, while <img src="https://latex.codecogs.com/png.latex?K"> and <img src="https://latex.codecogs.com/png.latex?V"> can be downsampled more frequently within stages. This design makes sense because the attention output sequence <img src="https://latex.codecogs.com/png.latex?Z"> will have the same length as the pooled query <img src="https://latex.codecogs.com/png.latex?Q"> (as shown in equation 5), so you want <img src="https://latex.codecogs.com/png.latex?Q"> to control the output resolution while allowing <img src="https://latex.codecogs.com/png.latex?K"> and <img src="https://latex.codecogs.com/png.latex?V"> to be more aggressively compressed to save computation and memory.</p>
+<p>This leads to the authors of this paper to add a residual pooling connection with the pooled <img src="https://latex.codecogs.com/png.latex?Q"> tensor “to increase information flow and facilitate the training of pooling attention blocks in MViT”.</p>
+<p><img src="https://latex.codecogs.com/png.latex?Z:=%5Coperatorname%7BAttn%7D(Q,%20K,%20V)+Q"></p>
+<p>Note that the output <img src="https://latex.codecogs.com/png.latex?Z"> has the same length as the pooled query tensor <img src="https://latex.codecogs.com/png.latex?Q">.</p>
+</section>
+<section id="code-walkthrough" class="level2">
+<h2 class="anchored" data-anchor-id="code-walkthrough">Code Walkthrough</h2>
+<ol type="1">
+<li><code>attention_pool()</code>: Pooling operation for attention tensors (<code>Q</code>, <code>K</code>, <code>V</code>)</li>
+</ol>
+<ul>
+<li>Takes a tensor and a pooling function (for ex, <code>nn.AvgPool2d()</code>), separates the class and patch tokens, and applies the pooling operation to the patch tokens after reshaping them to <code>[batch×heads, channels, height, width]</code>, which is the expected input format for PyTorch pooling layers. After pooling is complete, the tensor is reshaped back to <code>[batch, heads, sequence_length, channels]</code></li>
+</ul>
+<ol start="2" type="1">
+<li><code>cal_rel_pos_spatial()</code>: Implement decomposed relative positional encoding</li>
+</ol>
+<ul>
+<li>Calculates relative positional embeddings, which only depend on the relative location distance between tokens into the pooled self-attention computation.</li>
+</ul>
+<ol start="3" type="1">
+<li><code>MultiScaleAttention</code>: Class for pooling attention</li>
+</ol>
+<ul>
+<li>Inherits from <code>nn.Module</code>.</li>
+</ul>
+<p>The init method initializes the <code>MultiScaleAttention</code> module’s parameters: - <code>self.pool_first</code>: Whether to pool first before projection - <code>self.num_heads</code>: Number of attention heads - <code>self.dim_out</code>: Output dimension after attention - <code>head_dim</code>: Dimension per attention head - <code>self.scale</code>: Scaling factor for attention scores - <code>self.has_cls_embed</code>: Whether there is a class token</p>
+<ul>
+<li><p>If pooling first (before linear projection), there are three separate linear projection layers, which gives more flexibility since <img src="https://latex.codecogs.com/png.latex?Q">, <img src="https://latex.codecogs.com/png.latex?K">, <img src="https://latex.codecogs.com/png.latex?V"> may undergo different pooling operations (different kernel sizes, strides) before being projected.</p></li>
+<li><p>If linear projection occurs before pooling, the input can be projected once, then split into <img src="https://latex.codecogs.com/png.latex?Q">, <img src="https://latex.codecogs.com/png.latex?K">, <img src="https://latex.codecogs.com/png.latex?V">, then pool each separately.</p></li>
+<li><p>Also add an output projection layer, applied after the multi-head attention.</p></li>
+<li><p>If kernel and stride size is (1, 1), then skip pooling.</p></li>
+<li><p>Define pooling operations based on the specified mode (avg, max, conv, conv_unshared).</p></li>
+<li><p>Create learnable parameters that encode the relative spatial distances between tokens in a 2D image grid (initialize Relative Positional Embeddings, <code>self.rel_pos_h</code> and <code>self.rel_pos_w</code>).</p></li>
+</ul>
+<section id="forward-method" class="level4">
+<h4 class="anchored" data-anchor-id="forward-method"><code>forward()</code> method</h4>
+<p>If pooling first then linear projection, then split the feature dimension into attention heads, and permute to <code>(B, fold_dim, N, C)</code> to organize by attention heads.</p>
+<p>If linear projection first, then pooling, then apply linear projection first, then reshape from <code>(B, N, qkv_dim)</code> to <code>(B, N, 3, num_heads, head_dim)</code> and permutes to <code>(3, B, num_heads, N, head_dim)</code> to separate <code>q/k/v</code>.</p>
+<p>Then, apply the <code>attention_pool()</code> function to <code>q/k/v</code>.</p>
+<ol start="4" type="1">
+<li><code>MultiScaleBlock</code>: Class for MViTv2</li>
+</ol>
+</section>
+<section id="forward-method-1" class="level4">
+<h4 class="anchored" data-anchor-id="forward-method-1"><code>forward()</code> method</h4>
+
+
+</section>
+</section>
+
+ ]]></description>
+  <category>Computer Vision</category>
+  <guid>https://passthetorch.dev/posts/multiscale-vision-transformers-v2/</guid>
+  <pubDate>Fri, 26 Dec 2025 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers-v2/thumbnail.png" medium="image" type="image/png" height="92" width="144"/>
+</item>
 <item>
   <title>Multiscale Vision Transformers (MViT)</title>
   <dc:creator>Howard Baik</dc:creator>

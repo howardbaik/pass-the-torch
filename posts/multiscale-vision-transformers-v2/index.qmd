@@ -10,9 +10,9 @@ categories: [Computer Vision]
 
 ## Introduction
 
-This post provides an overview of the paper [MViTv2: Improved Multiscale Vision Transformers for Classification and Detection](https://arxiv.org/pdf/2112.01526) with a focus on the upgrades to the pooling attention in the previous [MViT architecture](https://arxiv.org/pdf/2104.11227). Also, this post dives into the official PyTorch implementation of MViTv2: <https://github.com/facebookresearch/mvit>
+This post provides an overview of the [paper](https://arxiv.org/pdf/2112.01526) MViTv2: Improved Multiscale Vision Transformers for Classification and Detection with a focus on the upgrades to the pooling attention in the previous [MViT architecture](https://arxiv.org/pdf/2104.11227). Also, this post dives into the official PyTorch implementation of [MViTv2](https://github.com/facebookresearch/mvit).
 
-Building on MViT from the [Multiscale Vision Transformers](https://arxiv.org/pdf/2104.11227) paper, MViTv2 introduces two  improvements to pooling attention: (a) shift-invariant positional embeddings and (b) a residual pooling connection. These enhancements lead to better performance in image and video recognition tasks.
+Building on MViT, MViTv2 introduces two  improvements to pooling attention: shift-invariant positional embeddings and a residual pooling connection. These enhancements lead to better performance in image and video recognition tasks.
 
 The improved pooling attention is shown in the figure below:
 
@@ -45,7 +45,7 @@ $R_{p(i), p(j)}=R_{h(i), h(j)}^{\mathrm{h}}+R_{w(i), w(j)}^{\mathrm{w}}+R_{t(i),
 
 ## Residual Pooling Connection
 
-**Asymmetric downsampling strategy**: As detailed in the [Multiscale Vision Transformers paper](https://arxiv.org/pdf/2104.11227), the $Q$ tensor is only downsampled when the output sequence resolution actually changes across stages, while $K$ and $V$ can be downsampled more frequently within stages. This design makes sense because the attention output sequence $Z$ will have the same length as the pooled query $Q$ (as shown in equation 5), so you want $Q$ to control the output resolution while allowing $K$ and $V$ to be more aggressively compressed to save computation and memory.
+**Asymmetric downsampling strategy**: As detailed in the Multiscale Vision Transformers [paper](https://arxiv.org/pdf/2104.11227), the $Q$ tensor is only downsampled when the output sequence resolution actually changes across stages, while $K$ and $V$ can be downsampled more frequently within stages. This design makes sense because the attention output sequence $Z$ will have the same length as the pooled query $Q$ (as shown in equation 5), so you want $Q$ to control the output resolution while allowing $K$ and $V$ to be more aggressively compressed to save computation and memory.
 
 This leads to the authors of this paper to add a residual pooling connection with the pooled $Q$ tensor "to increase information flow and facilitate the training of pooling attention blocks in MViT".
 
@@ -54,7 +54,7 @@ $Z:=\operatorname{Attn}(Q, K, V)+Q$
 Note that the output $Z$ has the same length as the pooled query tensor $Q$.
 
 
-## Code
+## Code Walkthrough
 
 1. `attention_pool()`: Pooling operation for attention tensors (`Q`, `K`, `V`)
 
@@ -70,6 +70,8 @@ Note that the output $Z$ has the same length as the pooled query tensor $Q$.
 
 - Inherits from `nn.Module`. 
 
+#### init method
+
 The init method initializes the `MultiScaleAttention` module's parameters:
 - `self.pool_first`: Whether to pool first before projection
 - `self.num_heads`: Number of attention heads
@@ -78,9 +80,9 @@ The init method initializes the `MultiScaleAttention` module's parameters:
 - `self.scale`: Scaling factor for attention scores
 - `self.has_cls_embed`: Whether there is a class token
 
-- If pooling first (before linear projection), there are three separate linear projection layers, which gives more flexibility since $Q$, $K$, $V$ may undergo different pooling operations (different kernel sizes, strides) before being projected.
+If pooling first (before linear projection), there are three separate linear projection layers, which gives more flexibility since $Q$, $K$, $V$ may undergo different pooling operations (different kernel sizes, strides) before being projected.
 
-- If linear projection occurs before pooling, the input can be projected once, then split into $Q$, $K$, $V$, then pool each separately. 
+If linear projection occurs before pooling, the input can be projected once, then split into $Q$, $K$, $V$, then pool each separately. 
 
 - Also add an output projection layer, applied after the multi-head attention. 
 
@@ -102,11 +104,24 @@ Then, apply the `attention_pool()` function to `q/k/v`.
 
 
 
-
-
-
 4. `MultiScaleBlock`:  Class for MViTv2
 
+#### init method
 
+Initializes different parameters:
+- Input and output feature dimensions (`dim`, `dim_out`)
+- Number of attention heads (`num_heads`)
+- Spatial Size (`input_size`)
+- Expansion ratio for the MLP hidden layer (`mlp_ratio`)
+- Pooling strides for Q and K/V (`stride_q`, `stride_kv`)
+- Pooling kernel sizes (`kernel_q`, `kernel_kv`)
+- Stochastic depth probability (`drop_path`)
+- Whether dimension change happens in attention or MLP (`dim_mul_in_att`)
+
+Also initializes layer norms, attention module drop path, mlp, projection layer, and skip connection pooling.
 
 #### `forward()` method 
+
+Applies LayerNorm, then pooling attention with `MultiScaleAttention`. Then applies another LayerNorm and an MLP to get the output.
+
+
