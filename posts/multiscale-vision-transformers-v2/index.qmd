@@ -92,11 +92,13 @@ The init method initializes the `MultiScaleAttention` module's parameters:
 
 
 
-`forward()` method 
+#### `forward()` method 
 
 If pooling first then linear projection, then split the feature dimension into attention heads, and permute to `(B, fold_dim, N, C)` to organize by attention heads. 
 
 If linear projection first, then pooling, then apply linear projection first, then reshape from `(B, N, qkv_dim)` to `(B, N, 3, num_heads, head_dim)` and permutes to `(3, B, num_heads, N, head_dim)` to separate `q/k/v`.
+
+Then, apply the `attention_pool()` function to `q/k/v`.
 
 
 
@@ -107,4 +109,4 @@ If linear projection first, then pooling, then apply linear projection first, th
 
 
 
-`forward()` method 
+#### `forward()` method 

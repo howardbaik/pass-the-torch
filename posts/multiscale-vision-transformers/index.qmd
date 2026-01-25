@@ -11,7 +11,7 @@ categories: [Computer Vision]
 
 This post summarizes the [Multiscale Vision Transformers (MViT) paper](https://arxiv.org/abs/2104.11227) with a focus on the model architecture and does not cover experimental model performance. 
 
-Multiscale Vision Transformers (MViT) is a model for video and image recognition and is heavily inspired by the Vision Transformer (ViT) architecture. The main idea of MViT is to combine the multiscale feature hierarchies with the transformer model. The model architecture is built on _stages_, which consists of multiple transformer blocks. The idea is to progressively increase the channel capacity while reducing the spatial-temporal resolution.
+Multiscale Vision Transformers (MViT) is a model for video and image recognition and is heavily inspired by the [Vision Transformer (ViT)](https://arxiv.org/pdf/2010.11929) architecture. The main idea of MViT is to combine the multiscale feature hierarchies with the transformer model. The model architecture is built on _stages_, which consists of multiple transformer blocks. The idea is to progressively increase the channel capacity while reducing the spatial-temporal resolution.
 
 
 ## Multi Head Pooling Attention (MHPA):
