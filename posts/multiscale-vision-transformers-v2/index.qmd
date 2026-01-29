@@ -90,7 +90,7 @@ If linear projection occurs before pooling, the input can be projected once, the
 
 - If kernel and stride size is (1, 1), then skip pooling.
 
-- Define pooling operations based on the specified mode (avg, max, conv, conv_unshared).
+- Define pooling operations based on the specified mode (`avg`, `max`, `conv`, `conv_unshared`).
 
 - Create learnable parameters that encode the relative spatial distances between tokens in a 2D image grid (initialize Relative Positional Embeddings, `self.rel_pos_h` and `self.rel_pos_w`).
 
@@ -134,6 +134,61 @@ Applies LayerNorm, then pooling attention with `MultiScaleAttention`. Then appli
 
 1. `PatchEmbed` class: 
 
+Patch embedding layer that converts raw input images into sequence of token embeddings for transformer. Uses a 2D convolution (`nn.Conv2d`)
+
+#### Init method:
+- `kernel=(7, 7)`: Each patch covers a 7×7 pixel region
+- `stride=(4, 4)`: Patches are extracted every 4 pixels (overlapping patches)
+- `padding=(3, 3)`: Preserves spatial dimensions
+- `dim_in=3`: RGB input channels
+- `dim_out=768`: Output embedding dimension'
+
+#### Forward method:
+- 2D convolution converts input `x`: `(B, 3, H, W) → (B, 768, H', W')`. It projects each path into a high dimensional embedding space (768). Using `Conv2d` is more efficient than the ViT approach (linear layer on flattened patches).
+
+
+
 2. `TransformerBasicHead` class:
 
+#### Init method:
+- Dropout: if dropout_rate > 0, apply dropout for regularization
+- Linear Projection: Map from `dim_in` to `num_classes`
+- Activation Function: Either softmax or sigmoid and is only applied during inference (`not self.training`).
+
+#### Forward method:
+1. Applies dropout (if applicable)
+2. Applies linear projection
+3. Applies activation function (during inference)
+
+
 3. `MViT` class:
+
+#### Init method:
+
+Pulls settings from the config: 
+- input size
+- number of classes
+- embedding dimension
+- number of heads
+- depth (number of transformer blocks)
+- flags for CLS token and positional embeddings.
+
+Initializes the patch embedding layer that converts raw input images into sequence of token embeddings. 
+
+Also creates `depth` number of transformer blocks in for loop. At certain layers, `stride_q` reduces spatial resolution (e.g., 56×56 → 28×28) while `dim_mul` increases channel dimensions. This creates a hierarchical pyramid like CNNs.
+
+
+#### Forward method:
+
+The forward pass of MViT transforms a raw input image into class predictions through a sequence of operations:
+
+1. The patch embedding layer converts the input image (e.g., 224×224×3) into a sequence of flattened patch tokens by applying a convolutional projection.
+2. A learnable CLS (classification) token is then prepended to this sequence; this special token doesn't correspond to any image region but instead learns to aggregate global information from all patches through attention. 
+3. Position embeddings are added element-wise to inject spatial awareness, since self-attention is otherwise permutation-invariant and would treat patches as an unordered set.
+4. The sequence then passes through multiple transformer blocks, where each block applies multi-head self-attention followed by an MLP. Some blocks also pool the spatial dimensions, progressively reducing resolution while increasing channel capacity—similar to how CNNs downsample through the network.
+5. After all blocks, a LayerNorm stabilizes the representations. 
+6. Finally, the model extracts a single feature vector for classification: either the CLS token (which has attended to all patches) or a global average pool across all patch tokens. 
+7. This vector passes through the classification head (a linear layer) to produce logits over the target classes.
+
+
+
