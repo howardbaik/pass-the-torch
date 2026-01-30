@@ -1,8 +1,7 @@
 ---
 title: "Multiscale Vision Transformers (MViTv2)"
-draft: true
 author: "Howard Baik"
-date: "2025-12-26"
+date: "2026-01-29"
 format: html
 image: "thumbnail.png"
 categories: [Computer Vision]
@@ -12,7 +11,7 @@ categories: [Computer Vision]
 
 This post provides an overview of the [paper](https://arxiv.org/pdf/2112.01526) MViTv2: Improved Multiscale Vision Transformers for Classification and Detection with a focus on the upgrades to the pooling attention in the previous [MViT architecture](https://arxiv.org/pdf/2104.11227). Also, this post dives into the official PyTorch implementation of [MViTv2](https://github.com/facebookresearch/mvit).
 
-Building on MViT, MViTv2 introduces two  improvements to pooling attention: shift-invariant positional embeddings and a residual pooling connection. These enhancements lead to better performance in image and video recognition tasks.
+Building on MViT, MViTv2 introduces two improvements to pooling attention: shift-invariant positional embeddings and a residual pooling connection. These enhancements lead to better performance in image and video recognition tasks.
 
 The improved pooling attention is shown in the figure below:
 
@@ -56,25 +55,24 @@ Note that the output $Z$ has the same length as the pooled query tensor $Q$.
 
 ## Code Walkthrough
 
-**File: `mvit/models/attention.py`**
+The rest of this post will focus on the official PyTorch implementation of [MViTv2](https://github.com/facebookresearch/mvit).
 
-1. `attention_pool()`: Pooling operation for attention tensors (`Q`, `K`, `V`)
+#### From [**`mvit/models/attention.py`**](https://github.com/facebookresearch/mvit/blob/main/mvit/models/attention.py):
 
-- Takes a tensor and a pooling function (for ex, `nn.AvgPool2d()`), separates the class and patch tokens, and applies the pooling operation to the patch tokens after reshaping them to `[batch×heads, channels, height, width]`, which is the expected input format for PyTorch pooling layers. After pooling is complete, the tensor is reshaped back to `[batch, heads, sequence_length, channels]`
+#### 1. `attention_pool()`: Pooling operation for attention tensors (`Q`, `K`, `V`)
 
-
-2. `cal_rel_pos_spatial()`: Implement decomposed relative positional encoding
-
-- Calculates relative positional embeddings, which only depend on the relative location distance between tokens into the pooled self-attention computation.
+Takes a tensor and a pooling function (for ex, `nn.AvgPool2d()`), separates the class and patch tokens, and applies the pooling operation to the patch tokens after reshaping them to `[batch×heads, channels, height, width]`, which is the expected input format for PyTorch pooling layers. After pooling is complete, the tensor is reshaped back to `[batch, heads, sequence_length, channels]`
 
 
-3. `MultiScaleAttention`: Class for pooling attention
+#### 2. `cal_rel_pos_spatial()`: Decomposed relative positional encoding
 
-- Inherits from `nn.Module`. 
+Calculates relative positional embeddings, which only depend on the relative location distance between tokens into the pooled self-attention computation.
 
-#### init method
 
-The init method initializes the `MultiScaleAttention` module's parameters:
+#### 3. `MultiScaleAttention`: Class for pooling attention
+
+The `__init__` method initializes the `MultiScaleAttention` module's parameters:
+
 - `self.pool_first`: Whether to pool first before projection
 - `self.num_heads`: Number of attention heads
 - `self.dim_out`: Output dimension after attention
@@ -86,17 +84,11 @@ If pooling first (before linear projection), there are three separate linear pro
 
 If linear projection occurs before pooling, the input can be projected once, then split into $Q$, $K$, $V$, then pool each separately. 
 
-- Also add an output projection layer, applied after the multi-head attention. 
-
-- If kernel and stride size is (1, 1), then skip pooling.
-
-- Define pooling operations based on the specified mode (`avg`, `max`, `conv`, `conv_unshared`).
-
-- Create learnable parameters that encode the relative spatial distances between tokens in a 2D image grid (initialize Relative Positional Embeddings, `self.rel_pos_h` and `self.rel_pos_w`).
+The method also adds an output projection layer applied after multi-head attention, and defines pooling operations based on the specified mode (`avg`, `max`, `conv`, `conv_unshared`). If the kernel and stride size is (1, 1), pooling is skipped entirely. Finally, it creates learnable parameters (`self.rel_pos_h` and `self.rel_pos_w`) that encode relative spatial distances between tokens in a 2D image grid, initializing the Relative Positional Embeddings.
 
 
 
-#### `forward()` method 
+In the `forward` method,
 
 If pooling first then linear projection, then split the feature dimension into attention heads, and permute to `(B, fold_dim, N, C)` to organize by attention heads. 
 
@@ -106,11 +98,10 @@ Then, apply the `attention_pool()` function to `q/k/v`.
 
 
 
-4. `MultiScaleBlock`:  Class for MViTv2
+#### 4. `MultiScaleBlock`:  Class for MViTv2
 
-#### init method
+The `__init__` method initializes different parameters:
 
-Initializes different parameters:
 - Input and output feature dimensions (`dim`, `dim_out`)
 - Number of attention heads (`num_heads`)
 - Spatial Size (`input_size`)
@@ -120,52 +111,52 @@ Initializes different parameters:
 - Stochastic depth probability (`drop_path`)
 - Whether dimension change happens in attention or MLP (`dim_mul_in_att`)
 
-Also initializes layer norms, attention module drop path, mlp, projection layer, and skip connection pooling.
+It also initializes layer norms, attention module drop path, mlp, projection layer, and skip connection pooling.
 
-#### `forward()` method 
+The `forward()` method first normalizes the input with LayerNorm, then passes it through `MultiScaleAttention` to compute pooling attention. A residual connection adds the pooled query tensor back to the attention output, implementing the residual pooling connection described earlier. If there is a dimension change (when `dim != dim_out`), a projection layer is applied to the skip connection to match dimensions.
 
-Applies LayerNorm, then pooling attention with `MultiScaleAttention`. Then applies another LayerNorm and an MLP to get the output.
-
-
+After the attention block, the method applies a second LayerNorm followed by an MLP for non-linear feature transformation. Drop path (stochastic depth) is applied to both the attention and MLP outputs for regularization during training. The final output combines these components through residual connections: `x = x_skip + attn_output` followed by `x = x + mlp_output`.
 
 
+---
 
-**File: `mvit/models/mvit_model.py`**
 
-1. `PatchEmbed` class: 
+#### From [**`mvit/models/mvit_model.py`**](https://github.com/facebookresearch/mvit/blob/main/mvit/models/mvit_model.py)
 
-Patch embedding layer that converts raw input images into sequence of token embeddings for transformer. Uses a 2D convolution (`nn.Conv2d`)
+#### 1. `PatchEmbed` class: 
 
-#### Init method:
+Patch embedding layer that converts raw input images into sequence of token embeddings for transformer by using a 2D convolution (`nn.Conv2d`).
+
+The `__init__` method initializes the following parameters:
+
 - `kernel=(7, 7)`: Each patch covers a 7×7 pixel region
 - `stride=(4, 4)`: Patches are extracted every 4 pixels (overlapping patches)
 - `padding=(3, 3)`: Preserves spatial dimensions
 - `dim_in=3`: RGB input channels
 - `dim_out=768`: Output embedding dimension'
 
-#### Forward method:
-- 2D convolution converts input `x`: `(B, 3, H, W) → (B, 768, H', W')`. It projects each path into a high dimensional embedding space (768). Using `Conv2d` is more efficient than the ViT approach (linear layer on flattened patches).
+The `forward` method applies the 2D convolution to the input image `x`, flattens the spatial dimensions, and transposes the result to shape `(B, N, C)` where `B` is batch size, `N` is number of patches, and `C` is embedding dimension.
 
 
 
-2. `TransformerBasicHead` class:
+#### 2. `TransformerBasicHead` class:
 
-#### Init method:
-- Dropout: if dropout_rate > 0, apply dropout for regularization
+The `__init__` method initializes the the following parameters:
+
+- Dropout: if `dropout_rate` > 0, apply dropout for regularization
 - Linear Projection: Map from `dim_in` to `num_classes`
 - Activation Function: Either softmax or sigmoid and is only applied during inference (`not self.training`).
 
-#### Forward method:
+The forward method sequentially processes the input tensor `x` through three steps:
 1. Applies dropout (if applicable)
 2. Applies linear projection
 3. Applies activation function (during inference)
 
 
-3. `MViT` class:
+#### 3. `MViT` class:
 
-#### Init method:
+The `__init__` method initializes the the following parameters:
 
-Pulls settings from the config: 
 - input size
 - number of classes
 - embedding dimension
@@ -177,10 +168,7 @@ Initializes the patch embedding layer that converts raw input images into sequen
 
 Also creates `depth` number of transformer blocks in for loop. At certain layers, `stride_q` reduces spatial resolution (e.g., 56×56 → 28×28) while `dim_mul` increases channel dimensions. This creates a hierarchical pyramid like CNNs.
 
-
-#### Forward method:
-
-The forward pass of MViT transforms a raw input image into class predictions through a sequence of operations:
+The `forward` method of MViT transforms a raw input image into class predictions through a sequence of operations:
 
 1. The patch embedding layer converts the input image (e.g., 224×224×3) into a sequence of flattened patch tokens by applying a convolutional projection.
 2. A learnable CLS (classification) token is then prepended to this sequence; this special token doesn't correspond to any image region but instead learns to aggregate global information from all patches through attention. 
