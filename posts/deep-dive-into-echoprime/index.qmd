@@ -10,6 +10,8 @@ execute:
   eval: false
 ---
 
+This post will do a deep dive into the code behind EchoPrime. 
+
 Let's first initialize the EchoPrime class and make an instance of it. The __init__ function contains the majority of the setup code:
 
 ## Setup
@@ -93,8 +95,6 @@ The line extracts phrase lists from the nested dictionary structure for each sec
 For example, it extracts all the phrases related to `"Left Ventricle"` and stores them in `t_list` under the same key. For the key `"Left Ventricle"`, t_list will contain a list of all phrases associated with that section, such as `"Left ventricle not well visualized."`, `"Left ventricle is grossly normal in size and systolic function."`, `"Left ventricle is normal in size and systolic function."`, `"The left ventricle is small by linear cavity dimension."`
 
 
-
-
 ```{python}
 phrases_per_section_list = {
     k: functools.reduce(lambda a, b: a + b, v) for (k, v) in t_list.items()
@@ -142,7 +142,7 @@ Device agnostic code setup for PyTorch to use GPU if available, otherwise CPU.
 checkpoint = torch.load("model_data/weights/echo_prime_encoder.pt", map_location=device)
 ```
 
-checkpoint is an OrderedDict from the collections module 
+checkpoint is an OrderedDict from the collections module that contains the MViT v2 model sate dictionary, which contains 3D convolution, 
 
 
 ```{python}
