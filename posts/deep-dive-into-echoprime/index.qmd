@@ -14,34 +14,6 @@ This post will do a deep dive into the code behind EchoPrime.
 
 Let's first initialize the EchoPrime class and make an instance of it. The __init__ function contains the majority of the setup code:
 
-## Setup
-```{python}
-# Standard library imports
-import os
-import math
-import glob
-import json
-import pickle
-import random
-
-# Third-party library imports
-import torch
-import torchvision
-import torch.nn.functional as F
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-import cv2
-import pydicom
-import sklearn
-import sklearn.metrics
-import transformers
-
-# Local module imports
-import utils
-```
-
 ```{python}
 # load language specific files
 utils.initialize_language(lang)
@@ -142,7 +114,7 @@ Device agnostic code setup for PyTorch to use GPU if available, otherwise CPU.
 checkpoint = torch.load("model_data/weights/echo_prime_encoder.pt", map_location=device)
 ```
 
-checkpoint is an OrderedDict from the collections module that contains the MViT v2 model sate dictionary, which contains 3D convolution, 
+checkpoint is an OrderedDict from the collections module that contains the MViT v2 model state dictionary, which contains 3D convolution 
 
 
 ```{python}
@@ -188,7 +160,193 @@ lang = lang
 ```
 
 
-Load MIL weights per section
+Load MIL (multiple instance learning) weights per section
 ```{python}
 MIL_weights = pd.read_csv("assets/MIL_weights.csv")
+non_empty_sections = MIL_weights['Section']
+section_weights = MIL_weights.iloc[:,1:].to_numpy()
 ```
+
+Load candidate reports:
+```{python}
+candidate_studies = list(pd.read_csv("model_data/candidates_data/candidate_studies.csv")['Study'])
+candidate_embeddings_p1 = torch.load("model_data/candidates_data/candidate_embeddings_p1.pt")
+candidate_embeddings_p2 = torch.load("model_data/candidates_data/candidate_embeddings_p2.pt")
+candidate_embeddings = torch.cat((candidate_embeddings_p1, candidate_embeddings_p2), dim=0)
+candidate_reports = pd.read_pickle("model_data/candidates_data/candidate_reports.pkl")
+candidate_reports = [utils.phrase_decode(vec_phr) for vec_phr in tqdm(candidate_reports)]
+candidate_labels = pd.read_pickle("model_data/candidates_data/candidate_labels.pkl")
+section_to_phenotypes = pd.read_pickle("assets/section_to_phenotypes.pkl")
+```
+
+Here's a summary of each file:
+
+1. `candidate_studies.csv`: A single-column CSV with a Study column containing integer study IDs (0, 1, 2, ...). These are identifiers for each echocardiogram study in the candidate pool.
+
+2. `candidate_embeddings_p1.pt` & `candidate_embeddings_p2.pt`: PyTorch float32 tensors, each of shape (615,338 × 512).
+Combined they form a (1,230,676 × 512) matrix — one 512-dimensional embedding vector per candidate study.
+Split into two files likely due to file-size constraints.
+
+3. `candidate_reports.pkl`: A list of 1,230,676 entries (one per candidate study).
+Each entry is a list of tuples (section_id, phenotype_id, value), representing the structured echocardiogram findings for that study.
+Values are either numeric measurements (e.g., 76.41, 1.04, 8.59) or NaN (indicating presence of a finding without a numeric value). These get decoded into natural-language phrases by utils.phrase_decode().
+
+4. `candidate_labels.pkl`: A dict with 21 keys, each a cardiac phenotype (e.g., impella, ejection_fraction, pacemaker, aortic_stenosis, pericardial_effusion, etc.).
+Each key maps to a dict of {study_index: label_value}:
+
+- Binary phenotypes (e.g., impella, pacemaker): values are 0 or 1.
+- Continuous phenotypes (e.g., ejection_fraction): values are floats (e.g., 38.0, 72.0). Not all studies have values (only 607K of 1.23M for EF).
+
+5. `section_to_phenotypes.pkl`: A dict mapping 11 echo report sections to the phenotypes they contain:
+
+- Left Ventricle → [impella, ejection_fraction]
+- Right Ventricle → [pacemaker, rv_systolic_function_depressed, right_ventricle_dilation]
+- Left Atrium → [left_atrium_dilation]
+- Mitral Valve, Aortic Valve, Tricuspid Valve, Pericardium, Aorta, IVC, Pulmonary Artery, etc.
+
+This serves as the schema that organizes the 21 phenotypes into anatomical sections for report generation.
+
+
+### Summary of Setup
+We've gone through all the code that runs when `from echo_prime import EchoPrime` is executed. This includes loading language-specific phrases, initializing the MViT encoder and ConvNeXt view classifier with pre-trained weights, setting up data structures for candidate studies and their associated embeddings, reports, and labels. The MIL weights for each section are also loaded to be used in the report generation process.
+
+Now, let's go through the code for the EchoPrimeDemo.ipynb notebook, which demonstrates how to use the EchoPrime class to process echocardiogram videos and generate structured reports.
+
+
+## EchoPrimeDemo.ipynb
+
+`process_dicoms()`: Reads MP4 video data from the specified folder and returns a tensor formatted for input into the EchoPrime model.
+
+All per-video tensors are stacked into a single tensor of shape `(N, 3, 16, 224, 224)`, where N is the number of successfully processed videos, 3 is the number of color channels (RGB), 16 is the number of subsampled frames taken from each video, and 224x224 is the spatial resolution of each frame.
+
+
+`encode_study()`: Takes the processed video tensor and passes it through `embed_videos()`, which uses the MViT (v2) encoder to generate a 512-dimensional embedding vector for the entire study. 
+
+Through `get_views()`, it also uses the ConvNeXt view classifier to predict the view type of each video, which is used to weight the video embeddings before averaging them into a single study-level embedding.
+
+`predict_metrics()`
+
+```{python}
+# per_section_study_embedding has shape (15,512)
+per_section_study_embedding = torch.zeros(len(self.non_empty_sections), 512)
+study_embedding = study_embedding.cpu()
+```
+
+Create a zero-filled tensor of shape (15, 512) - one row per cardiac section, and 512 columns for the embedding dimensions. Then, it moves the `study_embedding` to CPU for further processing.
+
+```{python}
+for s_dx, sec in enumerate(self.non_empty_sections):
+  # get section weights
+  this_section_weights = [
+    self.section_weights[s_dx][torch.where(view_encoding == 1)[0]]
+    for view_encoding in study_embedding[:, 512:]
+  ]
+  this_section_study_embedding = study_embedding[:, :512] * torch.tensor(
+              this_section_weights, dtype=torch.float
+  ).unsqueeze(1)
+
+  # weighted average
+  this_section_study_embedding = torch.sum(
+    this_section_study_embedding, dim=0
+  )
+  per_section_study_embedding[s_dx] = this_section_study_embedding
+```
+
+Extracts the one-hot view encodings from the last 11 dimensions of `study_embedding` and look up the weights for the current section based on the view type. Then, it multiplies the first 512 dimensions of `study_embedding` (the video embedding) by the corresponding section weights to get a weighted embedding for that section. Finally, it sums across all videos to get a single embedding vector for that section and stores it in `per_section_study_embedding`.
+
+For each of 15 sections, 
+1. Look up view relevance weights          → (N,) scalars
+2. Scale each video's embedding by weight  → (N, 512)
+3. Sum across videos                       → (512,)
+4. Store as section row                    → per_section_study_embedding[s_dx]
+
+This results in a (15, 512) tensor where each row is a weighted average embedding for that section, reflecting the relevance of each video view to that section's findings.
+
+```{python}
+per_section_study_embedding = torch.nn.functional.normalize(
+  per_section_study_embedding
+)
+```
+
+This normalizes each section embedding to have unit length (magnitude = 1).
+
+```{python}
+similarities = per_section_study_embedding @ self.candidate_embeddings.T
+```
+
+This computes the cosine similarity between each section embedding and all candidate report embeddings. The result is a (15, 1,230,676) tensor where each entry represents the similarity score between a section embedding and a candidate report embedding.
+
+Example:
+
+row 0 (Left Ventricle embedding) · candidate_0  = 0.92  ← very similar
+row 0 (Left Ventricle embedding) · candidate_1  = 0.31  ← not very similar
+row 0 (Left Ventricle embedding) · candidate_2  = 0.87  ← similar
+
+A candidate is a real echocardiogram study from the training database, and its embedding represents the findings in that study. A high similarity score indicates that the current study's section embedding closely matches the findings of that candidate study.
+
+So far, `similarities` is a (15, 1,230,676) matrix of similarity scores between each section embedding and all candidate report embeddings. A score for every (section, candidate) pair.
+
+```{python}
+top_candidate_ids = torch.topk(similarities, k=k, dim=1).indices
+```
+
+This retrieves the indices of the top k most similar candidate reports for each section. The result is a (15, k) tensor where each row contains the indices of the k candidate reports that are most similar to that section's embedding.
+
+So top_candidate_ids[0] gives the 50 best-matching candidates for the first section, top_candidate_ids[1] for the next section, etc.
+
+```{python}
+for s_dx, section in enumerate(self.section_to_phenotypes.keys()):
+    for pheno in self.section_to_phenotypes[section]:
+        preds[pheno] = np.nanmean(
+            [
+              self.candidate_labels[pheno][self.candidate_studies[c_ids]]
+              for c_ids in top_candidate_ids[s_dx]
+              if self.candidate_studies[c_ids] in self.candidate_labels[pheno]
+            ]
+        )
+```
+
+For each phenotype, predict its value by averaging that measurement across the 50 most similar historical echo studies.
+
+The final output is a dictionary `preds` where each key is a phenotype and the value is the predicted measurement or binary label for that phenotype.
+
+
+
+`generate_report()`:
+
+
+```{python}
+for s_dx, sec in enumerate(self.non_empty_sections):
+    # need to multiply it based on what section does the view belong to.
+    cur_weights = [
+        self.section_weights[s_dx][torch.where(ten == 1)[0]]
+        for ten in study_embedding[:, 512:]
+    ]
+    ...
+    while extracted_section == "Section not found.":
+      max_id = torch.argmax(similarities)
+      predicted_section = self.candidate_reports[max_id]
+      extracted_section = utils.extract_section(predicted_section, sec)
+      if extracted_section != "Section not found.":
+        generated_report += extracted_section
+      similarities[max_id] = float("-inf")
+```
+
+The code leading up to `similarities` is equal to the code in `predict_metrics()`. `similarities` is computed as the cosine similarity between each section embedding and all candidate report embeddings and is (15, 1,230,676) in shape.
+
+The `while` loop:
+
+1. Finds the top candidate report with the highest similarity score to the current section embedding.
+2. Extracts the text for the current section from that candidate report using `utils.extract_section()`.
+3. If a valid section is found, it appends that text to the `generated_report`. If not, it sets that similarity score to negative infinity to exclude it from future consideration and continues searching for the next best candidate until a valid section is found.
+
+The final output is `generated_report`, a string that concatenates the extracted sections for all 15 sections, forming a complete echocardiogram report based on the most similar historical cases.
+
+For example,
+```
+Left Ventricle: Normal left ventricular size by linear cavity dimension. Normal left ventricular size by volume Mild left ventricular hypertrophy. Normal left ventricular systolic function. LV Ejection Fraction is 60.0 %. Mild diastolic dysfunction. There is reversal of the E to A ratio and/or prolonged deceleration time consistent with impaired left ventricular relaxation. Doppler parameters and/or lateral mitral annular (E`) velocities are consistent with normal left ventricular filling pressures. [SEP]Resting Segmental Wall Motion Analysis: Total wall motion score is 1.0. There are no regional wall motion abnormalities
+```
+
+## Conclusion
+
+
