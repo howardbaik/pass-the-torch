@@ -1,44 +1,48 @@
 ---
 title: "Deep Dive into EchoPrime"
-draft: true
 format: html
+engine: none
 author: "Howard Baik"
 date: "2026-02-27"
 image: "thumbnail.png"
 categories: [Medical AI]
-execute: 
-  eval: false
 ---
 
-This post is a code-forward deep dive into EchoPrime, a multi-video, view-informed Vision-Language Model designed for comprehensive echocardiography interpretation.
-
-The code repository for EchoPrime is available at <https://github.com/echonet/EchoPrime> and the Nature paper for EchoPrime is available at <https://www.nature.com/articles/s41586-025-09850-x>.
+## Introduction
 
 ![](thumbnail.png)
 
+This post is a code-forward deep dive into EchoPrime, a multi-video, view-informed Vision-Language Model designed for comprehensive echocardiography interpretation. The code repository for EchoPrime is available on [GitHub](https://github.com/echonet/EchoPrime) and the accompanying Nature paper is available at <https://www.nature.com/articles/s41586-025-09850-x>.
+
+## Initialization of EchoPrime
+
 Let's first examine the `__init__` method in the EchoPrime class, which loads everything the EchoPrime model needs:
 
-```{python}
+```python
 # load language specific files
 utils.initialize_language(lang)
 ```
 
 The code loads language-specific phrases from a JSON file, flattens the resulting nested lists into single flat lists  (`phrases_per_section_list` and `phrases_per_section_list_org`) and then converts these phrases into regex patterns for later text matching (`regex_per_section`).
 
-```{python}
+```python
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ```
 
 This sets up device-agnostic code for PyTorch, using a GPU if one is available and falling back to CPU otherwise.
 
-```{python}
+### Model Architectures
+
+#### MViT (Multiscale Vision Transformer) Encoder
+
+```python
 checkpoint = torch.load("model_data/weights/echo_prime_encoder.pt", map_location=device)
 ```
 
-`checkpoint` contains the trained weights for a small MViT V2 model state dictionary. The weights are loaded onto the appropriate device (CPU or GPU) based on the earlier device setup.
+`checkpoint` contains the trained weights for a small MViT V2 model state dictionary. The weights are loaded onto the appropriate device (CPU or GPU) based on the earlier `device` setup.
 
 
-```{python}
+```python
 echo_encoder = torchvision.models.video.mvit_v2_s() 
 echo_encoder.head[-1] = torch.nn.Linear(echo_encoder.head[-1].in_features, 512)
 echo_encoder.load_state_dict(checkpoint)
@@ -50,14 +54,15 @@ for param in echo_encoder.parameters():
 
 Constructs a small MViTV2 architecture and loads the pre-trained weights from the checkpoint. The model is set to evaluation mode, moved to the appropriate device (CPU or GPU), and all parameters are frozen to prevent further training.
 
+#### ConvNeXt View Classifier
 
-```{python}
+```python
 vc_state_dict = torch.load("model_data/weights/view_classifier.pt")
 ```
 
 `vc_state_dict` contains the trained weights for a ConvNeXt base model that serves as the view classifier. The weights are loaded onto the appropriate device (CPU or GPU) based on the earlier device setup.
 
-```{python}
+```python
 view_classifier = torchvision.models.convnext_base()
 view_classifier.classifier[-1] = torch.nn.Linear(
     view_classifier.classifier[-1].in_features, 11
@@ -71,7 +76,9 @@ for param in view_classifier.parameters():
 
 This code constructs a ConvNeXt base architecture for view classification (11 views), loads pre-trained weights, sets the model to evaluation mode, moves it to the appropriate device, and removes gradients from all parameters to prevent further training.
 
-```{python}
+#### Multiple Instance Learning (MIL)
+
+```python
 MIL_weights = pd.read_csv("assets/MIL_weights.csv")
 non_empty_sections = MIL_weights['Section']
 section_weights = MIL_weights.iloc[:,1:].to_numpy()
@@ -79,13 +86,18 @@ section_weights = MIL_weights.iloc[:,1:].to_numpy()
 
 This code chunk loads MIL (Multiple Instance Learning) weights that encode how relevant each of the 11 echo video views are to each of the 15 cardiac sections. The `non_empty_sections` variable contains the names of the 15 sections, and `section_weights` is a 15x11 matrix where each row corresponds to a section and each column corresponds to a view.
 
-```{python}
+#### Candidate Studies
+
+```python
 candidate_studies = list(pd.read_csv("model_data/candidates_data/candidate_studies.csv")['Study'])
+
 candidate_embeddings_p1 = torch.load("model_data/candidates_data/candidate_embeddings_p1.pt")
 candidate_embeddings_p2 = torch.load("model_data/candidates_data/candidate_embeddings_p2.pt")
 candidate_embeddings = torch.cat((candidate_embeddings_p1, candidate_embeddings_p2), dim=0)
+
 candidate_reports = pd.read_pickle("model_data/candidates_data/candidate_reports.pkl")
 candidate_reports = [utils.phrase_decode(vec_phr) for vec_phr in tqdm(candidate_reports)]
+
 candidate_labels = pd.read_pickle("model_data/candidates_data/candidate_labels.pkl")
 section_to_phenotypes = pd.read_pickle("assets/section_to_phenotypes.pkl")
 ```
@@ -99,7 +111,7 @@ Combined they form a (1,230,676 × 512) matrix `candidate_embeddings` — one 51
 
 3. `candidate_reports.pkl`: A list of 1,230,676 entries (one per candidate study).
 Each entry is a list of tuples (section_id, phenotype_id, value), representing the structured echocardiogram findings for that study.
-Values are either numeric measurements (e.g., 76.41, 1.04, 8.59) or NaN (indicating presence of a finding without a numeric value). These get decoded into natural-language phrases by utils.phrase_decode().
+Values are either numeric measurements (e.g., 76.41, 1.04, 8.59) or NaN (indicating presence of a finding without a numeric value). These get decoded into natural-language phrases by `utils.phrase_decode()`.
 
 4. `candidate_labels.pkl`: A dict with 21 keys, each a cardiac phenotype (e.g., impella, ejection_fraction, pacemaker, aortic_stenosis, pericardial_effusion, etc.).
 Each key maps to a dict of {study_index: label_value}:
@@ -107,48 +119,44 @@ Each key maps to a dict of {study_index: label_value}:
 - Binary phenotypes (e.g., impella, pacemaker): values are 0 or 1.
 - Continuous phenotypes (e.g., ejection_fraction): values are floats (e.g., 38.0, 72.0). Not all studies have values (only 607K of 1.23M for EF).
 
-5. `section_to_phenotypes.pkl`: A dict mapping 11 echo report sections to the phenotypes they contain:
+5. `section_to_phenotypes.pkl`: A dict mapping 11 echo report sections to the phenotypes they contain.
 
 For example:
+
 - Left Ventricle → [impella, ejection_fraction]
 - Right Ventricle → [pacemaker, rv_systolic_function_depressed, right_ventricle_dilation]
 - Left Atrium → [left_atrium_dilation]
 - Mitral Valve, Aortic Valve, Tricuspid Valve, Pericardium, Aorta, IVC, Pulmonary Artery, etc.
 
-This serves as the schema that organizes the 21 phenotypes into anatomical sections for report generation.
 
 
-### Summary of Setup
+### Summary of Initialization
+
 We've gone through all the code that runs when an EchoPrime model is initialized. This includes loading language-specific phrases, initializing the MViT encoder and ConvNeXt view classifier with pre-trained weights, setting up data structures for candidate studies and their associated embeddings, reports, and labels. The MIL weights for each section are also loaded to be used in the report generation process.
-
-Now, let's go through the code for the EchoPrimeDemo.ipynb notebook, which demonstrates how to use the EchoPrime class to process echocardiogram videos and generate structured reports.
-
 
 ## Demo of EchoPrime
 
-EchoPrimeDemo.ipynb:
+Now, let's go through the code for the [EchoPrimeDemo.ipynb](https://github.com/echonet/EchoPrime/blob/main/EchoPrimeDemo.ipynb) notebook, which demonstrates how to use the EchoPrime class to process echocardiogram videos and generate structured reports.
 
-`process_dicoms()`: Reads MP4 video data from the specified folder and returns a tensor formatted for input into the EchoPrime model.
+### Preprocessing and Encoding
 
-All per-video tensors are stacked into a single tensor of shape `(N, 3, 16, 224, 224)`, where `N` is the number of successfully processed videos, `3` is the number of color channels (RGB), `16` is the number of subsampled frames taken from each video, and `224x224` is the spatial resolution of each frame.
+`process_dicoms()`: Reads MP4 video data from the specified folder and returns a tensor formatted for input into the EchoPrime model. All per-video tensors are stacked into a single tensor of shape `(N, 3, 16, 224, 224)`, where `N` is the number of successfully processed videos, `3` is the number of color channels (RGB), `16` is the number of subsampled frames taken from each video, and `224x224` is the spatial resolution of each frame.
 
 
-`encode_study()`: Takes the processed video tensor and passes it through `embed_videos()`, which uses the MViT (v2) encoder to generate a 512-dimensional embedding vector for the entire study. 
-
-Through `get_views()`, it also uses the ConvNeXt view classifier to predict the view type of each video, which is used to weight the video embeddings before averaging them into a single study-level embedding.
+`encode_study()`: Takes the processed video tensor and passes it through `embed_videos()`, which uses the MViT (v2) encoder to generate a 512-dimensional embedding vector for the entire study. The processed video tensor is also passed through `get_views()`, which uses the ConvNeXt view classifier to predict the view type of each video, which is used to weight the video embeddings before averaging them into a single study-level embedding.
 
 
 ### Function `predict_metrics()`
 
-```{python}
+```python
 # per_section_study_embedding has shape (15,512)
 per_section_study_embedding = torch.zeros(len(self.non_empty_sections), 512)
 study_embedding = study_embedding.cpu()
 ```
 
-Create a zero-filled tensor of shape (15, 512) - one row per cardiac section, and 512 columns for the embedding dimensions. Then, it moves the `study_embedding` to CPU for further processing.
+Creates a zero-filled tensor of shape (15, 512), one row per cardiac section and 512 columns for the embedding dimensions. Then, it moves the `study_embedding` to CPU for further processing.
 
-```{python}
+```python
 for s_dx, sec in enumerate(self.non_empty_sections):
   # get section weights
   this_section_weights = [
@@ -168,9 +176,8 @@ for s_dx, sec in enumerate(self.non_empty_sections):
 
 Extracts the one-hot view encodings from the last 11 dimensions of `study_embedding` and look up the weights for the current section based on the view type. Then, it multiplies the first 512 dimensions of `study_embedding` (the video embedding) by the corresponding section weights to get a weighted embedding for that section. Finally, it sums across all videos to get a single embedding vector for that section and stores it in `per_section_study_embedding`.
 
-To summarize, 
-
 For each of 15 sections, 
+
 1. Look up view relevance weights          → (N,) scalars
 2. Scale each video's embedding by weight  → (N, 512)
 3. Sum across videos                       → (512,)
@@ -179,7 +186,7 @@ For each of 15 sections,
 
 This results in a (15, 512) tensor `per_section_study_embedding` where each row is a weighted average embedding for that section, reflecting the relevance of each video view to that section's findings.
 
-```{python}
+```python
 per_section_study_embedding = torch.nn.functional.normalize(
   per_section_study_embedding
 )
@@ -187,7 +194,7 @@ per_section_study_embedding = torch.nn.functional.normalize(
 
 This normalizes each section embedding to have unit length.
 
-```{python}
+```python
 similarities = per_section_study_embedding @ self.candidate_embeddings.T
 ```
 
@@ -195,15 +202,15 @@ This computes the cosine similarity between each section embedding and all candi
 
 Example:
 
-row 0 (Left Ventricle embedding) · candidate_0  = 0.92  ← very similar
-row 0 (Left Ventricle embedding) · candidate_1  = 0.31  ← not very similar
-row 0 (Left Ventricle embedding) · candidate_2  = 0.87  ← similar
+- row 0 (Left Ventricle embedding) · candidate_0  = 0.92  ← very similar
+- row 0 (Left Ventricle embedding) · candidate_1  = 0.31  ← not very similar
+- row 0 (Left Ventricle embedding) · candidate_2  = 0.87  ← similar
 
 A candidate is a real echocardiogram study from the training database, and its embedding represents the findings in that study. A high similarity score indicates that the current study's section embedding closely matches the findings of that candidate study.
 
 So far, `similarities` is a (15, 1,230,676) matrix of similarity scores between each section embedding and all candidate report embeddings. A score for every (section, candidate) pair.
 
-```{python}
+```python
 top_candidate_ids = torch.topk(similarities, k=k, dim=1).indices
 ```
 
@@ -211,7 +218,7 @@ This retrieves the indices of the top k most similar candidate reports for each 
 
 So top_candidate_ids[0] gives the `k=50` best-matching candidates for the first section, top_candidate_ids[1] for the next section, etc.
 
-```{python}
+```python
 for s_dx, section in enumerate(self.section_to_phenotypes.keys()):
     for pheno in self.section_to_phenotypes[section]:
         preds[pheno] = np.nanmean(
@@ -226,29 +233,13 @@ for s_dx, section in enumerate(self.section_to_phenotypes.keys()):
 For each phenotype, predict its value by averaging that measurement across the 50 most similar historical echo studies. The final output is a dictionary `preds` where each key is a phenotype and the value is the predicted measurement or binary label for that phenotype.
 
 `preds` example output:
-```{python}
-{'impella': np.float64(0.0),
- 'ejection_fraction': np.float64(56.28),
+```python
+{'ejection_fraction': np.float64(56.28),
  'pacemaker': np.float64(0.02),
- 'rv_systolic_function_depressed': np.float64(0.0),
- 'right_ventricle_dilation': np.float64(0.0),
- 'left_atrium_dilation': np.float64(0.0),
- 'right_atrium_dilation': np.float64(0.0),
- 'mitraclip': np.float64(0.0),
- 'mitral_annular_calcification': np.float64(0.0),
- 'mitral_stenosis': np.float64(0.0),
- 'mitral_regurgitation': np.float64(0.0),
- 'tavr': np.float64(0.0),
- 'bicuspid_aov_morphology': np.float64(0.0),
- 'aortic_stenosis': np.float64(0.0),
- 'aortic_regurgitation': np.float64(0.0),
- 'tricuspid_stenosis': np.float64(0.0),
- 'tricuspid_valve_regurgitation': np.float64(0.0),
- 'pericardial_effusion': np.float64(0.0),
- 'aortic_root_dilation': np.float64(0.0),
  'dilated_ivc': np.float64(0.02),
- 'pulmonary_artery_pressure_continuous': np.float64(22.08823529411765)}
- ```
+ 'pulmonary_artery_pressure_continuous': np.float64(22.08823529411765)
+ }
+```
 
 
 
@@ -256,7 +247,7 @@ For each phenotype, predict its value by averaging that measurement across the 5
 
 ### Function `generate_report()`:
 
-```{python}
+```python
 for s_dx, sec in enumerate(self.non_empty_sections):
     # need to multiply it based on what section does the view belong to.
     cur_weights = [
@@ -284,9 +275,9 @@ The `while` loop:
 The final output is `generated_report`, a string that concatenates the extracted sections for all 15 sections, forming a complete echocardiogram report based on the most similar historical cases.
 
 `generated_report` example output:
-```
-Left Ventricle: Normal left ventricular size by linear cavity dimension. Normal left ventricular size by volume Mild left ventricular hypertrophy. Normal left ventricular systolic function. LV Ejection Fraction is 60.0 %. Mild diastolic dysfunction. There is reversal of the E to A ratio and/or prolonged deceleration time consistent with impaired left ventricular relaxation. Doppler parameters and/or lateral mitral annular (E`) velocities are consistent with normal left ventricular filling pressures. [SEP]Resting Segmental Wall Motion Analysis: Total wall motion score is 1.0. There are no regional wall motion abnormalities
-```
+
+> Left Ventricle: Normal left ventricular size by linear cavity dimension. Normal left ventricular size by volume Mild left ventricular hypertrophy. Normal left ventricular systolic function. LV Ejection Fraction is 60.0 %. Mild diastolic dysfunction. There is reversal of the E to A ratio and/or prolonged deceleration time consistent with impaired left ventricular relaxation. Doppler parameters and/or lateral mitral annular (E`) velocities are consistent with normal left ventricular filling pressures. [SEP]Resting Segmental Wall Motion Analysis: Total wall motion score is 1.0. There are no regional wall motion abnormalities
+
 
 ## Conclusion
 

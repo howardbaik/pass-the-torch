@@ -10,7 +10,554 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Thu, 29 Jan 2026 05:00:00 GMT</lastBuildDate>
+<lastBuildDate>Fri, 27 Feb 2026 05:00:00 GMT</lastBuildDate>
+<item>
+  <title>Deep Dive into EchoPrime</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/deep-dive-into-echoprime/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-echoprime/thumbnail.png" class="img-fluid"></p>
+<p>This post is a code-forward deep dive into EchoPrime, a multi-video, view-informed Vision-Language Model designed for comprehensive echocardiography interpretation. The code repository for EchoPrime is available on <a href="https://github.com/echonet/EchoPrime">GitHub</a> and the accompanying Nature paper is available at <a href="https://www.nature.com/articles/s41586-025-09850-x" class="uri">https://www.nature.com/articles/s41586-025-09850-x</a>.</p>
+</section>
+<section id="initialization-of-echoprime" class="level2">
+<h2 class="anchored" data-anchor-id="initialization-of-echoprime">Initialization of EchoPrime</h2>
+<p>Let’s first examine the <code>__init__</code> method in the EchoPrime class, which loads everything the EchoPrime model needs:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># load language specific files</span></span>
+<span id="cb1-2">utils.initialize_language(lang)</span></code></pre></div></div>
+<p>The code loads language-specific phrases from a JSON file, flattens the resulting nested lists into single flat lists (<code>phrases_per_section_list</code> and <code>phrases_per_section_list_org</code>) and then converts these phrases into regex patterns for later text matching (<code>regex_per_section</code>).</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">device <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.device(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cuda"</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> torch.cuda.is_available() <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cpu"</span>)</span></code></pre></div></div>
+<p>This sets up device-agnostic code for PyTorch, using a GPU if one is available and falling back to CPU otherwise.</p>
+<section id="model-architectures" class="level3">
+<h3 class="anchored" data-anchor-id="model-architectures">Model Architectures</h3>
+<section id="mvit-multiscale-vision-transformer-encoder" class="level4">
+<h4 class="anchored" data-anchor-id="mvit-multiscale-vision-transformer-encoder">MViT (Multiscale Vision Transformer) Encoder</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">checkpoint <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/weights/echo_prime_encoder.pt"</span>, map_location<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>device)</span></code></pre></div></div>
+<p><code>checkpoint</code> contains the trained weights for a small MViT V2 model state dictionary. The weights are loaded onto the appropriate device (CPU or GPU) based on the earlier <code>device</code> setup.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">echo_encoder <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.video.mvit_v2_s() </span>
+<span id="cb4-2">echo_encoder.head[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(echo_encoder.head[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].in_features, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>)</span>
+<span id="cb4-3">echo_encoder.load_state_dict(checkpoint)</span>
+<span id="cb4-4">echo_encoder.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">eval</span>() <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Set the model in evaluation mode</span></span>
+<span id="cb4-5">echo_encoder.to(device)</span>
+<span id="cb4-6"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> param <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> echo_encoder.parameters():</span>
+<span id="cb4-7">    param.requires_grad <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span></span></code></pre></div></div>
+<p>Constructs a small MViTV2 architecture and loads the pre-trained weights from the checkpoint. The model is set to evaluation mode, moved to the appropriate device (CPU or GPU), and all parameters are frozen to prevent further training.</p>
+</section>
+<section id="convnext-view-classifier" class="level4">
+<h4 class="anchored" data-anchor-id="convnext-view-classifier">ConvNeXt View Classifier</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">vc_state_dict <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/weights/view_classifier.pt"</span>)</span></code></pre></div></div>
+<p><code>vc_state_dict</code> contains the trained weights for a ConvNeXt base model that serves as the view classifier. The weights are loaded onto the appropriate device (CPU or GPU) based on the earlier device setup.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">view_classifier <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.convnext_base()</span>
+<span id="cb6-2">view_classifier.classifier[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(</span>
+<span id="cb6-3">    view_classifier.classifier[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].in_features, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">11</span></span>
+<span id="cb6-4">)</span>
+<span id="cb6-5">view_classifier.load_state_dict(vc_state_dict)</span>
+<span id="cb6-6">view_classifier.to(device)</span>
+<span id="cb6-7">view_classifier.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">eval</span>()</span>
+<span id="cb6-8"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> param <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> view_classifier.parameters():</span>
+<span id="cb6-9">    param.requires_grad <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span></span></code></pre></div></div>
+<p>This code constructs a ConvNeXt base architecture for view classification (11 views), loads pre-trained weights, sets the model to evaluation mode, moves it to the appropriate device, and removes gradients from all parameters to prevent further training.</p>
+</section>
+<section id="multiple-instance-learning-mil" class="level4">
+<h4 class="anchored" data-anchor-id="multiple-instance-learning-mil">Multiple Instance Learning (MIL)</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">MIL_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_csv(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"assets/MIL_weights.csv"</span>)</span>
+<span id="cb7-2">non_empty_sections <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> MIL_weights[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Section'</span>]</span>
+<span id="cb7-3">section_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> MIL_weights.iloc[:,<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>:].to_numpy()</span></code></pre></div></div>
+<p>This code chunk loads MIL (Multiple Instance Learning) weights that encode how relevant each of the 11 echo video views are to each of the 15 cardiac sections. The <code>non_empty_sections</code> variable contains the names of the 15 sections, and <code>section_weights</code> is a 15x11 matrix where each row corresponds to a section and each column corresponds to a view.</p>
+</section>
+<section id="candidate-studies" class="level4">
+<h4 class="anchored" data-anchor-id="candidate-studies">Candidate Studies</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1">candidate_studies <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">list</span>(pd.read_csv(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_studies.csv"</span>)[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Study'</span>])</span>
+<span id="cb8-2"></span>
+<span id="cb8-3">candidate_embeddings_p1 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_embeddings_p1.pt"</span>)</span>
+<span id="cb8-4">candidate_embeddings_p2 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_embeddings_p2.pt"</span>)</span>
+<span id="cb8-5">candidate_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.cat((candidate_embeddings_p1, candidate_embeddings_p2), dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>)</span>
+<span id="cb8-6"></span>
+<span id="cb8-7">candidate_reports <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_pickle(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_reports.pkl"</span>)</span>
+<span id="cb8-8">candidate_reports <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [utils.phrase_decode(vec_phr) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> vec_phr <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> tqdm(candidate_reports)]</span>
+<span id="cb8-9"></span>
+<span id="cb8-10">candidate_labels <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_pickle(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_labels.pkl"</span>)</span>
+<span id="cb8-11">section_to_phenotypes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_pickle(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"assets/section_to_phenotypes.pkl"</span>)</span></code></pre></div></div>
+<p>Here’s a summary of each file:</p>
+<ol type="1">
+<li><p><code>candidate_studies.csv</code>: A single-column CSV with a Study column containing integer study IDs (0, 1, 2, …). These are identifiers for each echocardiogram study in the candidate pool.</p></li>
+<li><p><code>candidate_embeddings_p1.pt</code> &amp; <code>candidate_embeddings_p2.pt</code>: PyTorch float32 tensors, each of shape (615,338 × 512). Combined they form a (1,230,676 × 512) matrix <code>candidate_embeddings</code> — one 512-dimensional embedding vector per candidate study. Split into two files likely due to file-size constraints.</p></li>
+<li><p><code>candidate_reports.pkl</code>: A list of 1,230,676 entries (one per candidate study). Each entry is a list of tuples (section_id, phenotype_id, value), representing the structured echocardiogram findings for that study. Values are either numeric measurements (e.g., 76.41, 1.04, 8.59) or NaN (indicating presence of a finding without a numeric value). These get decoded into natural-language phrases by <code>utils.phrase_decode()</code>.</p></li>
+<li><p><code>candidate_labels.pkl</code>: A dict with 21 keys, each a cardiac phenotype (e.g., impella, ejection_fraction, pacemaker, aortic_stenosis, pericardial_effusion, etc.). Each key maps to a dict of {study_index: label_value}:</p></li>
+</ol>
+<ul>
+<li>Binary phenotypes (e.g., impella, pacemaker): values are 0 or 1.</li>
+<li>Continuous phenotypes (e.g., ejection_fraction): values are floats (e.g., 38.0, 72.0). Not all studies have values (only 607K of 1.23M for EF).</li>
+</ul>
+<ol start="5" type="1">
+<li><code>section_to_phenotypes.pkl</code>: A dict mapping 11 echo report sections to the phenotypes they contain.</li>
+</ol>
+<p>For example:</p>
+<ul>
+<li>Left Ventricle → [impella, ejection_fraction]</li>
+<li>Right Ventricle → [pacemaker, rv_systolic_function_depressed, right_ventricle_dilation]</li>
+<li>Left Atrium → [left_atrium_dilation]</li>
+<li>Mitral Valve, Aortic Valve, Tricuspid Valve, Pericardium, Aorta, IVC, Pulmonary Artery, etc.</li>
+</ul>
+</section>
+</section>
+<section id="summary-of-initialization" class="level3">
+<h3 class="anchored" data-anchor-id="summary-of-initialization">Summary of Initialization</h3>
+<p>We’ve gone through all the code that runs when an EchoPrime model is initialized. This includes loading language-specific phrases, initializing the MViT encoder and ConvNeXt view classifier with pre-trained weights, setting up data structures for candidate studies and their associated embeddings, reports, and labels. The MIL weights for each section are also loaded to be used in the report generation process.</p>
+</section>
+</section>
+<section id="demo-of-echoprime" class="level2">
+<h2 class="anchored" data-anchor-id="demo-of-echoprime">Demo of EchoPrime</h2>
+<p>Now, let’s go through the code for the <a href="https://github.com/echonet/EchoPrime/blob/main/EchoPrimeDemo.ipynb">EchoPrimeDemo.ipynb</a> notebook, which demonstrates how to use the EchoPrime class to process echocardiogram videos and generate structured reports.</p>
+<section id="preprocessing-and-encoding" class="level3">
+<h3 class="anchored" data-anchor-id="preprocessing-and-encoding">Preprocessing and Encoding</h3>
+<p><code>process_dicoms()</code>: Reads MP4 video data from the specified folder and returns a tensor formatted for input into the EchoPrime model. All per-video tensors are stacked into a single tensor of shape <code>(N, 3, 16, 224, 224)</code>, where <code>N</code> is the number of successfully processed videos, <code>3</code> is the number of color channels (RGB), <code>16</code> is the number of subsampled frames taken from each video, and <code>224x224</code> is the spatial resolution of each frame.</p>
+<p><code>encode_study()</code>: Takes the processed video tensor and passes it through <code>embed_videos()</code>, which uses the MViT (v2) encoder to generate a 512-dimensional embedding vector for the entire study. The processed video tensor is also passed through <code>get_views()</code>, which uses the ConvNeXt view classifier to predict the view type of each video, which is used to weight the video embeddings before averaging them into a single study-level embedding.</p>
+</section>
+<section id="function-predict_metrics" class="level3">
+<h3 class="anchored" data-anchor-id="function-predict_metrics">Function <code>predict_metrics()</code></h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># per_section_study_embedding has shape (15,512)</span></span>
+<span id="cb9-2">per_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.zeros(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.non_empty_sections), <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>)</span>
+<span id="cb9-3">study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> study_embedding.cpu()</span></code></pre></div></div>
+<p>Creates a zero-filled tensor of shape (15, 512), one row per cardiac section and 512 columns for the embedding dimensions. Then, it moves the <code>study_embedding</code> to CPU for further processing.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> s_dx, sec <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.non_empty_sections):</span>
+<span id="cb10-2">  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># get section weights</span></span>
+<span id="cb10-3">  this_section_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [</span>
+<span id="cb10-4">    <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.section_weights[s_dx][torch.where(view_encoding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]]</span>
+<span id="cb10-5">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> view_encoding <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> study_embedding[:, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>:]</span>
+<span id="cb10-6">  ]</span>
+<span id="cb10-7">  this_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> study_embedding[:, :<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> torch.tensor(</span>
+<span id="cb10-8">              this_section_weights, dtype<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>torch.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span></span>
+<span id="cb10-9">  ).unsqueeze(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)</span>
+<span id="cb10-10"></span>
+<span id="cb10-11">  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># weighted average</span></span>
+<span id="cb10-12">  this_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sum</span>(</span>
+<span id="cb10-13">    this_section_study_embedding, dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span></span>
+<span id="cb10-14">  )</span>
+<span id="cb10-15">  per_section_study_embedding[s_dx] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> this_section_study_embedding</span></code></pre></div></div>
+<p>Extracts the one-hot view encodings from the last 11 dimensions of <code>study_embedding</code> and look up the weights for the current section based on the view type. Then, it multiplies the first 512 dimensions of <code>study_embedding</code> (the video embedding) by the corresponding section weights to get a weighted embedding for that section. Finally, it sums across all videos to get a single embedding vector for that section and stores it in <code>per_section_study_embedding</code>.</p>
+<p>For each of 15 sections,</p>
+<ol type="1">
+<li>Look up view relevance weights → (N,) scalars</li>
+<li>Scale each video’s embedding by weight → (N, 512)</li>
+<li>Sum across videos → (512,)</li>
+<li>Store as section row → per_section_study_embedding[s_dx]</li>
+<li>Repeat for all 15 sections</li>
+</ol>
+<p>This results in a (15, 512) tensor <code>per_section_study_embedding</code> where each row is a weighted average embedding for that section, reflecting the relevance of each video view to that section’s findings.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1">per_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.functional.normalize(</span>
+<span id="cb11-2">  per_section_study_embedding</span>
+<span id="cb11-3">)</span></code></pre></div></div>
+<p>This normalizes each section embedding to have unit length.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">similarities <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> per_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">@</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_embeddings.T</span></code></pre></div></div>
+<p>This computes the cosine similarity between each section embedding and all candidate report embeddings. The result is a <code>(15, 1,230,676)</code> tensor where each entry represents the similarity score between a section embedding and a candidate report embedding.</p>
+<p>Example:</p>
+<ul>
+<li>row 0 (Left Ventricle embedding) · candidate_0 = 0.92 ← very similar</li>
+<li>row 0 (Left Ventricle embedding) · candidate_1 = 0.31 ← not very similar</li>
+<li>row 0 (Left Ventricle embedding) · candidate_2 = 0.87 ← similar</li>
+</ul>
+<p>A candidate is a real echocardiogram study from the training database, and its embedding represents the findings in that study. A high similarity score indicates that the current study’s section embedding closely matches the findings of that candidate study.</p>
+<p>So far, <code>similarities</code> is a (15, 1,230,676) matrix of similarity scores between each section embedding and all candidate report embeddings. A score for every (section, candidate) pair.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1">top_candidate_ids <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.topk(similarities, k<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>k, dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>).indices</span></code></pre></div></div>
+<p>This retrieves the indices of the top k most similar candidate reports for each section. The result is a (15, k) tensor where each row contains the indices of the k candidate reports that are most similar to that section’s embedding.</p>
+<p>So top_candidate_ids[0] gives the <code>k=50</code> best-matching candidates for the first section, top_candidate_ids[1] for the next section, etc.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> s_dx, section <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.section_to_phenotypes.keys()):</span>
+<span id="cb14-2">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> pheno <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.section_to_phenotypes[section]:</span>
+<span id="cb14-3">        preds[pheno] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.nanmean(</span>
+<span id="cb14-4">            [</span>
+<span id="cb14-5">              <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_labels[pheno][<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_studies[c_ids]]</span>
+<span id="cb14-6">              <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> c_ids <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> top_candidate_ids[s_dx]</span>
+<span id="cb14-7">              <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_studies[c_ids] <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_labels[pheno]</span>
+<span id="cb14-8">            ]</span>
+<span id="cb14-9">        )</span></code></pre></div></div>
+<p>For each phenotype, predict its value by averaging that measurement across the 50 most similar historical echo studies. The final output is a dictionary <code>preds</code> where each key is a phenotype and the value is the predicted measurement or binary label for that phenotype.</p>
+<p><code>preds</code> example output:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1">{<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'ejection_fraction'</span>: np.float64(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">56.28</span>),</span>
+<span id="cb15-2"> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'pacemaker'</span>: np.float64(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.02</span>),</span>
+<span id="cb15-3"> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'dilated_ivc'</span>: np.float64(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.02</span>),</span>
+<span id="cb15-4"> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'pulmonary_artery_pressure_continuous'</span>: np.float64(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">22.08823529411765</span>)</span>
+<span id="cb15-5"> }</span></code></pre></div></div>
+</section>
+<section id="function-generate_report" class="level3">
+<h3 class="anchored" data-anchor-id="function-generate_report">Function <code>generate_report()</code>:</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> s_dx, sec <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.non_empty_sections):</span>
+<span id="cb16-2">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># need to multiply it based on what section does the view belong to.</span></span>
+<span id="cb16-3">    cur_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [</span>
+<span id="cb16-4">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.section_weights[s_dx][torch.where(ten <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]]</span>
+<span id="cb16-5">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> ten <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> study_embedding[:, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>:]</span>
+<span id="cb16-6">    ]</span>
+<span id="cb16-7">    ...</span>
+<span id="cb16-8">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">while</span> extracted_section <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Section not found."</span>:</span>
+<span id="cb16-9">      max_id <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.argmax(similarities)</span>
+<span id="cb16-10">      predicted_section <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_reports[max_id]</span>
+<span id="cb16-11">      extracted_section <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> utils.extract_section(predicted_section, sec)</span>
+<span id="cb16-12">      <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> extracted_section <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Section not found."</span>:</span>
+<span id="cb16-13">        generated_report <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+=</span> extracted_section</span>
+<span id="cb16-14">      similarities[max_id] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"-inf"</span>)</span></code></pre></div></div>
+<p>The code leading up to <code>similarities</code> is equal to the code in <code>predict_metrics()</code>. <code>similarities</code> is computed as the cosine similarity between each section embedding and all candidate report embeddings and is (15, 1,230,676) in shape.</p>
+<p>The <code>while</code> loop:</p>
+<ol type="1">
+<li>Finds the top candidate report with the highest similarity score to the current section embedding.</li>
+<li>Extracts the text for the current section from that candidate report using <code>utils.extract_section()</code>.</li>
+<li>If a valid section is found, it appends that text to the <code>generated_report</code>. If not, it sets that similarity score to negative infinity to exclude it from future consideration and continues searching for the next best candidate until a valid section is found.</li>
+</ol>
+<p>The final output is <code>generated_report</code>, a string that concatenates the extracted sections for all 15 sections, forming a complete echocardiogram report based on the most similar historical cases.</p>
+<p><code>generated_report</code> example output:</p>
+<blockquote class="blockquote">
+<p>Left Ventricle: Normal left ventricular size by linear cavity dimension. Normal left ventricular size by volume Mild left ventricular hypertrophy. Normal left ventricular systolic function. LV Ejection Fraction is 60.0 %. Mild diastolic dysfunction. There is reversal of the E to A ratio and/or prolonged deceleration time consistent with impaired left ventricular relaxation. Doppler parameters and/or lateral mitral annular (E`) velocities are consistent with normal left ventricular filling pressures. [SEP]Resting Segmental Wall Motion Analysis: Total wall motion score is 1.0. There are no regional wall motion abnormalities</p>
+</blockquote>
+</section>
+</section>
+<section id="conclusion" class="level2">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>In this post, we walked through the EchoPrime codebase — from model initialization with pre-trained weights, to how the demo notebook leverages similarity to historical echo studies to predict cardiac phenotypes and generate structured reports.</p>
+
+
+</section>
+
+ ]]></description>
+  <category>Medical AI</category>
+  <guid>https://passthetorch.dev/posts/deep-dive-into-echoprime/</guid>
+  <pubDate>Fri, 27 Feb 2026 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-echoprime/thumbnail.png" medium="image" type="image/png" height="76" width="144"/>
+</item>
 <item>
   <title>Multiscale Vision Transformers (MViTv2)</title>
   <dc:creator>Howard Baik</dc:creator>
