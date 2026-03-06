@@ -12,6 +12,316 @@
 <generator>quarto-1.8.24</generator>
 <lastBuildDate>Fri, 27 Feb 2026 05:00:00 GMT</lastBuildDate>
 <item>
+  <title>Deep Dive into EchoCLIP</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/deep-dive-into-echoclip/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-echoclip/thumbnail.jpg" class="img-fluid"></p>
+<p>This post is a code-forward deep dive into EchoCLIP, a vision-language model for echocardiogram interpretation. The code repository for EchoCLIP is available on <a href="https://github.com/echonet/echo_CLIP">GitHub</a> and the accompanying Nature paper is available at <a href="https://www.nature.com/articles/s41591-024-02959-y#Sec9" class="uri">https://www.nature.com/articles/s41591-024-02959-y#Sec9</a>.</p>
+<p>TODO: Add more details about EchoCLIP, its relation to CLIP</p>
+</section>
+<section id="initialization-of-echoclip" class="level2">
+<h2 class="anchored" data-anchor-id="initialization-of-echoclip">Initialization of EchoCLIP</h2>
+<div id="bda8e567" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1">echo_clip, _, preprocess_val <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> create_model_and_transforms(</span>
+<span id="cb1-2">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"hf-hub:mkaichristensen/echo-clip"</span>, precision<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"fp32"</span>, device<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cpu"</span></span>
+<span id="cb1-3">)</span></code></pre></div></div>
+</div>
+<p><code>create_model_and_transforms()</code> is a function from the <code>open_clip</code> library that loads a pretrained CLIP model from Hugging Face Hub, <code>hf-hub:mkaichristensen/echo-clip</code>, sets it to 32-bit precision, and runs it on a CPU.</p>
+</section>
+<section id="video-embedding" class="level2">
+<h2 class="anchored" data-anchor-id="video-embedding">Video Embedding</h2>
+<div id="1179b245" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">test_video <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> read_avi(</span>
+<span id="cb2-2">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"example_video.avi"</span>,</span>
+<span id="cb2-3">    (<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">224</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">224</span>),</span>
+<span id="cb2-4">)</span>
+<span id="cb2-5">test_video <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.stack(</span>
+<span id="cb2-6">    [preprocess_val(T.ToPILImage()(frame)) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> frame <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> test_video], dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span></span>
+<span id="cb2-7">)</span>
+<span id="cb2-8">test_video <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> test_video[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>:<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">min</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">40</span>, <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(test_video)):<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>]</span></code></pre></div></div>
+</div>
+<p>The code above reads an example echocardiogram video, preprocesses each frame using the validation transformations defined in <code>preprocess_val</code>, and selects every other frame up to a maximum of 40 frames. The resulting <code>test_video</code> tensor has shape <code>(num_frames, 3, 224, 224)</code>.</p>
+<div id="07ab2298" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">test_video_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> F.normalize(echo_clip.encode_image(test_video), dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)</span></code></pre></div></div>
+</div>
+<p>Normalizes the CLIP embedding for easier calculation of cosine similarity later on.</p>
+<p>Cosine similarity = (A . B) / (||A|| * ||B||) and when A and B are normalized to unit length, this simplifies to A . B, which is just the dot product of the two vectors. Much cheaper than calculating the full cosine similarity with unnormalized vectors.</p>
+<p>In this case, A would be the test video embedding and B would be the prompt embedding.</p>
+</section>
+<section id="text-embedding" class="level2">
+<h2 class="anchored" data-anchor-id="text-embedding">Text Embedding</h2>
+<div id="e82d8ca2" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">pacemaker_prompts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> tokenize(pacemaker_prompts).cpu()</span></code></pre></div></div>
+</div>
+<p>Use the CLIP BPE tokenizer to tokenize the pacemaker prompts</p>
+<pre><code>['ECHO DENSITY IN RIGHT VENTRICLE SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ',
+ 'ECHO DENSITY IN RIGHT ATRIUM SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ']</code></pre>
+<p>and the move the tokenized prompts to the CPU for later use in calculating similarity with the video embedding.</p>
+<div id="7c1487e1" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">pacemaker_prompt_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> F.normalize(</span>
+<span id="cb6-2">    echo_clip.encode_text(pacemaker_prompts), dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb6-3">)</span></code></pre></div></div>
+</div>
+<p>Encode the tokenized pacemaker prompts using the CLIP text encoder and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
+<div id="16b91fbe" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">pacemaker_predictions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_binary_metric(</span>
+<span id="cb7-2">    test_video_embedding, pacemaker_prompt_embeddings</span>
+<span id="cb7-3">)</span></code></pre></div></div>
+</div>
+<div id="be7a0d6d" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> compute_binary_metric(</span>
+<span id="cb8-2">    video_embeddings: torch.Tensor,</span>
+<span id="cb8-3">    prompt_embeddings: torch.Tensor,</span>
+<span id="cb8-4">):</span>
+<span id="cb8-5">    per_frame_similarities <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> video_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">@</span> prompt_embeddings.T</span>
+<span id="cb8-6">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Average along the candidate dimension and frame dimension</span></span>
+<span id="cb8-7">    predictions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> per_frame_similarities.mean(dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>).mean(dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)</span>
+<span id="cb8-8"></span>
+<span id="cb8-9">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> predictions</span></code></pre></div></div>
+</div>
+<p>The <code>compute_binary_metric</code> function calculates the cosine similarity between the video embeddings and the prompt embeddings by performing a matrix multiplication (dot product) between the video embeddings and the transposed prompt embeddings. This results in a tensor of shape <code>(batch_size, num_frames, num_prompts)</code>. The function then averages the similarities across both the candidate dimension (e.g., if there are 2 pacemaker prompts, their similarities are averaged into one score per frame) and the frame dimension (collapses all frame-level scores into one score per video) to produce a single prediction score for each video in the batch.</p>
+</section>
+<section id="predicting-continuous-values" class="level2">
+<h2 class="anchored" data-anchor-id="predicting-continuous-values">Predicting Continuous Values</h2>
+<div id="b0e43aa6" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1">ejection_fraction_prompts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> zero_shot_prompts[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"ejection_fraction"</span>]</span></code></pre></div></div>
+</div>
+<pre><code>['THE LEFT VENTRICULAR EJECTION FRACTION IS ESTIMATED TO BE &lt;#&gt;% ',
+ 'LV EJECTION FRACTION IS &lt;#&gt;%. ']</code></pre>
+<p>Ejection fraction can range from 0% to 100%, so we make 100 versions of each prompt, replacing <code>&lt;#&gt;</code> with each integer from 0 to 100.</p>
+<div id="c1041435" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1">ejection_fraction_prompts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> tokenize(ejection_fraction_prompts).cpu()</span>
+<span id="cb11-2">ejection_fraction_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> F.normalize(</span>
+<span id="cb11-3">    echo_clip.encode_text(ejection_fraction_prompts), dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb11-4">)</span></code></pre></div></div>
+</div>
+<p>Once again tokenize and embed the ejection fraction prompts using the CLIP text encoder, and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
+<div id="16a63500" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">ejection_fraction_predictions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_regression_metric(</span>
+<span id="cb12-2">    test_video_embedding, ejection_fraction_embeddings, prompt_values</span>
+<span id="cb12-3">)</span></code></pre></div></div>
+</div>
+<p>Computing the regression metric:</p>
+<div id="a70cc5a4" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> compute_regression_metric(</span>
+<span id="cb13-2">    video_embeddings: torch.Tensor,</span>
+<span id="cb13-3">    prompt_embeddings: torch.Tensor,</span>
+<span id="cb13-4">    prompt_values: torch.Tensor,</span>
+<span id="cb13-5">):</span>
+<span id="cb13-6">    per_frame_similarities <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (</span>
+<span id="cb13-7">        video_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">@</span> prompt_embeddings.T</span>
+<span id="cb13-8">    )  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># (N x Frames x Candidates)</span></span>
+<span id="cb13-9"></span>
+<span id="cb13-10">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Sort the candidates by their similarity to the video</span></span>
+<span id="cb13-11">    ranked_candidate_phrase_indices <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.argsort(</span>
+<span id="cb13-12">        per_frame_similarities, dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, descending<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span></span>
+<span id="cb13-13">    )</span>
+<span id="cb13-14"></span>
+<span id="cb13-15">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Convert matrix of indices to their corresponding continuous values.</span></span>
+<span id="cb13-16">    prompt_values <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.tensor(</span>
+<span id="cb13-17">        prompt_values, device<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>video_embeddings.device</span>
+<span id="cb13-18">    )  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># (N x Frames x Candidates)</span></span>
+<span id="cb13-19">    all_frames_ranked_values <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> prompt_values[ranked_candidate_phrase_indices]</span>
+<span id="cb13-20"></span>
+<span id="cb13-21">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Taking the mean along dim=1 collapses the frames dimension</span></span>
+<span id="cb13-22">    avg_frame_ranked_values <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> all_frames_ranked_values.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>().mean(</span>
+<span id="cb13-23">        dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb13-24">    )  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># (N x Candidates)</span></span>
+<span id="cb13-25"></span>
+<span id="cb13-26">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># The median of only the top 20% of predicted values is taken</span></span>
+<span id="cb13-27">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># as the final predicted value</span></span>
+<span id="cb13-28">    twenty_percent <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">int</span>(avg_frame_ranked_values.shape[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.2</span>)</span>
+<span id="cb13-29">    final_prediction <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> avg_frame_ranked_values[:, :twenty_percent].median(dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]</span>
+<span id="cb13-30"></span>
+<span id="cb13-31">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> final_prediction</span></code></pre></div></div>
+</div>
+</section>
+<section id="conclusion" class="level2">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>In this post, we walked through the EchoPrime codebase — from model initialization with pre-trained weights, to how the demo notebook leverages similarity to historical echo studies to predict cardiac phenotypes and generate structured reports.</p>
+
+
+</section>
+
+ ]]></description>
+  <category>Medical AI</category>
+  <guid>https://passthetorch.dev/posts/deep-dive-into-echoclip/</guid>
+  <pubDate>Fri, 27 Feb 2026 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-echoclip/thumbnail.png" medium="image" type="image/png"/>
+</item>
+<item>
   <title>Deep Dive into EchoPrime</title>
   <dc:creator>Howard Baik</dc:creator>
   <link>https://passthetorch.dev/posts/deep-dive-into-echoprime/</link>
