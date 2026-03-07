@@ -34,7 +34,7 @@
 </section>
 <section id="initialization-of-echoclip" class="level2">
 <h2 class="anchored" data-anchor-id="initialization-of-echoclip">Initialization of EchoCLIP</h2>
-<div id="a0461f2e" class="cell" data-execution_count="1">
+<div id="3f0e51a3" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1">echo_clip, _, preprocess_val <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> create_model_and_transforms(</span>
@@ -51,11 +51,11 @@ background-color: null;
 font-style: inherit;">"cpu"</span></span>
 <span id="cb1-3">)</span></code></pre></div></div>
 </div>
-<p><code>create_model_and_transforms()</code> is a function from the <code>open_clip</code> library that loads a pretrained CLIP model from Hugging Face Hub, <code>hf-hub:mkaichristensen/echo-clip</code>, sets it to 32-bit precision, and runs it on a CPU. The function returns the model configuration, <code>echo_clip</code>, and the preprocessing transformations for validation, <code>preprocess_val</code>, which will be used later to preprocess the video frames before feeding them into the model.</p>
+<p><code>create_model_and_transforms()</code> is a function from the <a href="https://github.com/mlfoundations/open_clip"><code>open_clip</code> library</a> that loads a pretrained CLIP model from Hugging Face Hub, <code>hf-hub:mkaichristensen/echo-clip</code>, sets it to 32-bit precision, and runs it on a CPU. The function returns the model configuration, <code>echo_clip</code>, and the preprocessing transformations for validation, <code>preprocess_val</code>, which will be used later to preprocess the video frames before feeding them into the model.</p>
 </section>
 <section id="video-embedding" class="level2">
 <h2 class="anchored" data-anchor-id="video-embedding">Video Embedding</h2>
-<div id="33495036" class="cell" data-execution_count="2">
+<div id="49cf544e" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">test_video <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> read_avi(</span>
@@ -98,7 +98,7 @@ background-color: null;
 font-style: inherit;">2</span>]</span></code></pre></div></div>
 </div>
 <p>The code above reads an example echocardiogram video, preprocesses each frame using the validation transformations defined in <code>preprocess_val</code>, and selects every other frame up to a maximum of 40 frames. The resulting <code>test_video</code> tensor has shape <code>(20, 3, 224, 224)</code>, where 20 is the number of frames, 3 is the number of color channels (RGB), and 224x224 is the spatial resolution of each frame.</p>
-<div id="71ff8482" class="cell" data-execution_count="3">
+<div id="c05d4fbd" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">test_video_embedding <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> F.normalize(echo_clip.encode_image(test_video), dim<span class="op" style="color: #5E5E5E;
@@ -112,7 +112,7 @@ font-style: inherit;">1</span>)</span></code></pre></div></div>
 </section>
 <section id="text-embedding" class="level2">
 <h2 class="anchored" data-anchor-id="text-embedding">Text Embedding</h2>
-<div id="a16b4b03" class="cell" data-execution_count="4">
+<div id="8e75dc3d" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">pacemaker_prompts <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> tokenize(pacemaker_prompts).cpu()</span></code></pre></div></div>
@@ -121,7 +121,7 @@ font-style: inherit;">=</span> tokenize(pacemaker_prompts).cpu()</span></code></
 <pre><code>['ECHO DENSITY IN RIGHT VENTRICLE SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ',
  'ECHO DENSITY IN RIGHT ATRIUM SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ']</code></pre>
 <p>and then move the tokenized prompts to the CPU for later use in calculating similarity with the video embedding.</p>
-<div id="8e9a4f7e" class="cell" data-execution_count="5">
+<div id="f77ed10d" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">pacemaker_prompt_embeddings <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> F.normalize(</span>
@@ -133,7 +133,7 @@ font-style: inherit;">1</span></span>
 <span id="cb6-3">)</span></code></pre></div></div>
 </div>
 <p>We then encode the tokenized pacemaker prompts using the CLIP text encoder and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
-<div id="5dbe177f" class="cell" data-execution_count="6">
+<div id="51fa343c" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">pacemaker_predictions <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> compute_binary_metric(</span>
@@ -141,7 +141,7 @@ font-style: inherit;">=</span> compute_binary_metric(</span>
 <span id="cb7-3">)</span></code></pre></div></div>
 </div>
 <p>We compute the binary metric for pacemaker presence by calculating the cosine similarity between the video embedding and the pacemaker prompt embeddings. The <code>compute_binary_metric</code> function is defined as follows:</p>
-<div id="ad07b889" class="cell" data-execution_count="7">
+<div id="a478df61" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -178,7 +178,7 @@ font-style: inherit;">return</span> predictions</span></code></pre></div></div>
 </section>
 <section id="predicting-continuous-values" class="level2">
 <h2 class="anchored" data-anchor-id="predicting-continuous-values">Predicting Continuous Values</h2>
-<div id="8ae8519a" class="cell" data-execution_count="8">
+<div id="1e8fcefd" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1">ejection_fraction_prompts <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> zero_shot_prompts[<span class="st" style="color: #20794D;
@@ -188,7 +188,7 @@ font-style: inherit;">"ejection_fraction"</span>]</span></code></pre></div></div
 <pre><code>['THE LEFT VENTRICULAR EJECTION FRACTION IS ESTIMATED TO BE &lt;#&gt;% ',
  'LV EJECTION FRACTION IS &lt;#&gt;%. ']</code></pre>
 <p>Ejection fraction can range from 0% to 100%, so we make 100 versions of each prompt, replacing <code>&lt;#&gt;</code> with each integer from 0 to 100.</p>
-<div id="83068e9d" class="cell" data-execution_count="9">
+<div id="86141ef1" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1">ejection_fraction_prompts <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> tokenize(ejection_fraction_prompts).cpu()</span>
@@ -203,7 +203,7 @@ font-style: inherit;">1</span></span>
 <span id="cb11-4">)</span></code></pre></div></div>
 </div>
 <p>Once again, we tokenize the ejection fraction prompts and encode them using the CLIP text encoder, normalizing the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
-<div id="b77bd679" class="cell" data-execution_count="10">
+<div id="648c87d9" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">ejection_fraction_predictions <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> compute_regression_metric(</span>
@@ -211,7 +211,7 @@ font-style: inherit;">=</span> compute_regression_metric(</span>
 <span id="cb12-3">)</span></code></pre></div></div>
 </div>
 <p>The <code>compute_regression_metric</code> function is defined as follows:</p>
-<div id="343278ef" class="cell" data-execution_count="11">
+<div id="89a576c3" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
