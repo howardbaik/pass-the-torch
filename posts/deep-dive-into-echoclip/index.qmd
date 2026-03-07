@@ -3,7 +3,7 @@ title: "Deep Dive into EchoCLIP"
 format: html
 engine: none
 author: "Howard Baik"
-date: "2026-03-09"
+date: "2026-03-06"
 image: "thumbnail.png"
 eval: false
 categories: [Medical AI]
