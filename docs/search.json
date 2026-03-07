@@ -98,6 +98,55 @@
     "text": "Deep Learning Research\n\nTheory\n\nVision Transformers - A research paper on Vision Transformers (ViT) for image recognition. Walkthrough implementation by Daniel Bourke available.\nMultiscale Vision Transformers - A research paper on Multiscale Vision Transformers (MViT) for video and image recognition. The model is available on GitHub.\nMViTv2: Improved Multiscale Vision Transformers for Classification and Detection - An improved version of MViT\n\n\n\nCardiology\n\nEchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on GitHub.\n\n\n\nOpthalmology\n\nDeep learning applications in opthamology - Talk by Aaron Y. Lee that covers the beginnings of the application of deep learning in the field of ophthalmology and vision science.\nTransforming Healthcare with AI: Lessons from Ophthalmology - Talk by Pearse Keane on how AI is transforming healthcare, with a focus on ophthalmology.\n\n\n\nElectronic Health Record (EHR)\n\nInfEHR: Clinical phenotype resolution through deep geometric learning on electronic health records - A research paper on using deep geometric learning to analyze electronic health records for clinical phenotype resolution. The code is implemented in PyTorch and available on GitHub."
   },
   {
+    "objectID": "posts/deep-dive-into-echoclip/index.html",
+    "href": "posts/deep-dive-into-echoclip/index.html",
+    "title": "Deep Dive into EchoCLIP",
+    "section": "",
+    "text": "EchoCLIP workflow\n\n\nThis post is a code-forward deep dive into EchoCLIP, a vision-language model for echocardiogram interpretation. The code repository for EchoCLIP is available on GitHub and the accompanying Nature paper is available here.\nEchoCLIP learns the relationship between echo images and text interpretations by expert cardiologists. It is trained on 1,032,975 cardiac ultrasound videos and corresponding text and can assess cardiac function and identify implanted intracardiac devices."
+  },
+  {
+    "objectID": "posts/deep-dive-into-echoclip/index.html#introduction",
+    "href": "posts/deep-dive-into-echoclip/index.html#introduction",
+    "title": "Deep Dive into EchoCLIP",
+    "section": "",
+    "text": "EchoCLIP workflow\n\n\nThis post is a code-forward deep dive into EchoCLIP, a vision-language model for echocardiogram interpretation. The code repository for EchoCLIP is available on GitHub and the accompanying Nature paper is available here.\nEchoCLIP learns the relationship between echo images and text interpretations by expert cardiologists. It is trained on 1,032,975 cardiac ultrasound videos and corresponding text and can assess cardiac function and identify implanted intracardiac devices."
+  },
+  {
+    "objectID": "posts/deep-dive-into-echoclip/index.html#initialization-of-echoclip",
+    "href": "posts/deep-dive-into-echoclip/index.html#initialization-of-echoclip",
+    "title": "Deep Dive into EchoCLIP",
+    "section": "Initialization of EchoCLIP",
+    "text": "Initialization of EchoCLIP\n\necho_clip, _, preprocess_val = create_model_and_transforms(\n    \"hf-hub:mkaichristensen/echo-clip\", precision=\"fp32\", device=\"cpu\"\n)\n\ncreate_model_and_transforms() is a function from the open_clip library that loads a pretrained CLIP model from Hugging Face Hub, hf-hub:mkaichristensen/echo-clip, sets it to 32-bit precision, and runs it on a CPU. The function returns the model configuration, echo_clip, and the preprocessing transformations for validation, preprocess_val, which will be used later to preprocess the video frames before feeding them into the model."
+  },
+  {
+    "objectID": "posts/deep-dive-into-echoclip/index.html#video-embedding",
+    "href": "posts/deep-dive-into-echoclip/index.html#video-embedding",
+    "title": "Deep Dive into EchoCLIP",
+    "section": "Video Embedding",
+    "text": "Video Embedding\n\ntest_video = read_avi(\n    \"example_video.avi\",\n    (224, 224),\n)\ntest_video = torch.stack(\n    [preprocess_val(T.ToPILImage()(frame)) for frame in test_video], dim=0\n)\ntest_video = test_video[0:min(40, len(test_video)):2]\n\nThe code above reads an example echocardiogram video, preprocesses each frame using the validation transformations defined in preprocess_val, and selects every other frame up to a maximum of 40 frames. The resulting test_video tensor has shape (20, 3, 224, 224), where 20 is the number of frames, 3 is the number of color channels (RGB), and 224x224 is the spatial resolution of each frame.\n\ntest_video_embedding = F.normalize(echo_clip.encode_image(test_video), dim=-1)\n\nFirst, the preprocessed video frames are passed through the CLIP image encoder, echo_clip.encode_image(), to obtain a video embedding. The video embedding has a shape of (20, 512), where 20 is the number of frames and 512 is the dimensionality of the embedding space. Each frame is represented as a 512-dimensional vector. The resulting embedding is then normalized using F.normalize() along the last dimension (feature dimension) to ensure that each embedding vector has unit length.\nCosine similarity is (A · B) / (||A|| * ||B||) and when A and B are normalized to unit length, this simplifies to A · B, which is just the dot product of the two vectors. The dot product operation alone is much cheaper than calculating the full cosine similarity with unnormalized vectors. A would be the test video embedding and B would be the prompt embedding."
+  },
+  {
+    "objectID": "posts/deep-dive-into-echoclip/index.html#text-embedding",
+    "href": "posts/deep-dive-into-echoclip/index.html#text-embedding",
+    "title": "Deep Dive into EchoCLIP",
+    "section": "Text Embedding",
+    "text": "Text Embedding\n\npacemaker_prompts = tokenize(pacemaker_prompts).cpu()\n\nWe use the CLIP BPE tokenizer to tokenize the pacemaker prompts.\n['ECHO DENSITY IN RIGHT VENTRICLE SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ',\n 'ECHO DENSITY IN RIGHT ATRIUM SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ']\nand then move the tokenized prompts to the CPU for later use in calculating similarity with the video embedding.\n\npacemaker_prompt_embeddings = F.normalize(\n    echo_clip.encode_text(pacemaker_prompts), dim=-1\n)\n\nWe then encode the tokenized pacemaker prompts using the CLIP text encoder and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.\n\npacemaker_predictions = compute_binary_metric(\n    test_video_embedding, pacemaker_prompt_embeddings\n)\n\nWe compute the binary metric for pacemaker presence by calculating the cosine similarity between the video embedding and the pacemaker prompt embeddings. The compute_binary_metric function is defined as follows:\n\ndef compute_binary_metric(\n    video_embeddings: torch.Tensor,\n    prompt_embeddings: torch.Tensor,\n):\n    per_frame_similarities = video_embeddings @ prompt_embeddings.T\n    # Average along the candidate dimension and frame dimension\n    predictions = per_frame_similarities.mean(dim=-1).mean(dim=-1)\n\n    return predictions\n\nThe function calculates the cosine similarity between the video embeddings and the prompt embeddings by performing a matrix multiplication (dot product) between the video embeddings and the transposed prompt embeddings. This results in a tensor of shape (batch_size, num_frames, num_prompts). The function then averages the similarities across both the candidate dimension (e.g., if there are 2 pacemaker prompts, their similarities are averaged into one score per frame) and the frame dimension (collapses all frame-level scores into one score per video) to produce a single prediction score for each video in the batch."
+  },
+  {
+    "objectID": "posts/deep-dive-into-echoclip/index.html#predicting-continuous-values",
+    "href": "posts/deep-dive-into-echoclip/index.html#predicting-continuous-values",
+    "title": "Deep Dive into EchoCLIP",
+    "section": "Predicting Continuous Values",
+    "text": "Predicting Continuous Values\n\nejection_fraction_prompts = zero_shot_prompts[\"ejection_fraction\"]\n\n['THE LEFT VENTRICULAR EJECTION FRACTION IS ESTIMATED TO BE &lt;#&gt;% ',\n 'LV EJECTION FRACTION IS &lt;#&gt;%. ']\nEjection fraction can range from 0% to 100%, so we make 100 versions of each prompt, replacing &lt;#&gt; with each integer from 0 to 100.\n\nejection_fraction_prompts = tokenize(ejection_fraction_prompts).cpu()\nejection_fraction_embeddings = F.normalize(\n    echo_clip.encode_text(ejection_fraction_prompts), dim=-1\n)\n\nOnce again, we tokenize the ejection fraction prompts and encode them using the CLIP text encoder, normalizing the resulting embeddings for later use in calculating cosine similarity with the video embedding.\n\nejection_fraction_predictions = compute_regression_metric(\n    test_video_embedding, ejection_fraction_embeddings, prompt_values\n)\n\nThe compute_regression_metric function is defined as follows:\n\ndef compute_regression_metric(\n    video_embeddings: torch.Tensor,\n    prompt_embeddings: torch.Tensor,\n    prompt_values: torch.Tensor,\n):\n    per_frame_similarities = (\n        video_embeddings @ prompt_embeddings.T\n    )  # (N x Frames x Candidates)\n\n    # Sort the candidates by their similarity to the video\n    ranked_candidate_phrase_indices = torch.argsort(\n        per_frame_similarities, dim=-1, descending=True\n    )\n\n    # Convert matrix of indices to their corresponding continuous values.\n    prompt_values = torch.tensor(\n        prompt_values, device=video_embeddings.device\n    )  # (N x Frames x Candidates)\n    all_frames_ranked_values = prompt_values[ranked_candidate_phrase_indices]\n\n    # Taking the mean along dim=1 collapses the frames dimension\n    avg_frame_ranked_values = all_frames_ranked_values.float().mean(\n        dim=1\n    )  # (N x Candidates)\n\n    # The median of only the top 20% of predicted values is taken\n    # as the final predicted value\n    twenty_percent = int(avg_frame_ranked_values.shape[1] * 0.2)\n    final_prediction = avg_frame_ranked_values[:, :twenty_percent].median(dim=-1)[0]\n\n    return final_prediction\n\nThe function calculate the cosine similarity between the video embeddings and the prompt embeddings, resulting in a tensor of shape (20, 2), equivalent to (num_frames, num_prompts). The candidates (prompts) are then ranked by their similarity to the video for each frame. The corresponding continuous values for each prompt are retrieved and averaged across frames. Finally, the median of the top 20% of predicted values is taken as the final predicted value for each video in the batch."
+  },
+  {
+    "objectID": "posts/deep-dive-into-echoclip/index.html#conclusion",
+    "href": "posts/deep-dive-into-echoclip/index.html#conclusion",
+    "title": "Deep Dive into EchoCLIP",
+    "section": "Conclusion",
+    "text": "Conclusion\nIn this post, we walked through the EchoCLIP codebase — from model initialization with pre-trained weights, to video and text embedding, to calculating similarity for both binary classification and regression tasks. EchoCLIP is a powerful vision-language model that can learn complex relationships between echocardiogram videos and their corresponding text interpretations, enabling it to perform a variety of tasks such as assessing cardiac function and identifying implanted devices."
+  },
+  {
     "objectID": "posts/multiscale-vision-transformers/index.html",
     "href": "posts/multiscale-vision-transformers/index.html",
     "title": "Multiscale Vision Transformers (MViT)",
@@ -137,55 +186,6 @@
     "href": "index.html",
     "title": "Pass The Torch",
     "section": "",
-    "text": "Deep Dive into EchoCLIP\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nFeb 27, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoPrime\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nFeb 27, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViTv2)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nJan 29, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
-  },
-  {
-    "objectID": "posts/deep-dive-into-echoclip/index.html",
-    "href": "posts/deep-dive-into-echoclip/index.html",
-    "title": "Deep Dive into EchoCLIP",
-    "section": "",
-    "text": "This post is a code-forward deep dive into EchoCLIP, a vision-language model for echocardiogram interpretation. The code repository for EchoCLIP is available on GitHub and the accompanying Nature paper is available at https://www.nature.com/articles/s41591-024-02959-y#Sec9.\nTODO: Add more details about EchoCLIP, its relation to CLIP"
-  },
-  {
-    "objectID": "posts/deep-dive-into-echoclip/index.html#introduction",
-    "href": "posts/deep-dive-into-echoclip/index.html#introduction",
-    "title": "Deep Dive into EchoCLIP",
-    "section": "",
-    "text": "This post is a code-forward deep dive into EchoCLIP, a vision-language model for echocardiogram interpretation. The code repository for EchoCLIP is available on GitHub and the accompanying Nature paper is available at https://www.nature.com/articles/s41591-024-02959-y#Sec9.\nTODO: Add more details about EchoCLIP, its relation to CLIP"
-  },
-  {
-    "objectID": "posts/deep-dive-into-echoclip/index.html#initialization-of-echoclip",
-    "href": "posts/deep-dive-into-echoclip/index.html#initialization-of-echoclip",
-    "title": "Deep Dive into EchoCLIP",
-    "section": "Initialization of EchoCLIP",
-    "text": "Initialization of EchoCLIP\n\necho_clip, _, preprocess_val = create_model_and_transforms(\n    \"hf-hub:mkaichristensen/echo-clip\", precision=\"fp32\", device=\"cpu\"\n)\n\ncreate_model_and_transforms() is a function from the open_clip library that loads a pretrained CLIP model from Hugging Face Hub, hf-hub:mkaichristensen/echo-clip, sets it to 32-bit precision, and runs it on a CPU."
-  },
-  {
-    "objectID": "posts/deep-dive-into-echoclip/index.html#video-embedding",
-    "href": "posts/deep-dive-into-echoclip/index.html#video-embedding",
-    "title": "Deep Dive into EchoCLIP",
-    "section": "Video Embedding",
-    "text": "Video Embedding\n\ntest_video = read_avi(\n    \"example_video.avi\",\n    (224, 224),\n)\ntest_video = torch.stack(\n    [preprocess_val(T.ToPILImage()(frame)) for frame in test_video], dim=0\n)\ntest_video = test_video[0:min(40, len(test_video)):2]\n\nThe code above reads an example echocardiogram video, preprocesses each frame using the validation transformations defined in preprocess_val, and selects every other frame up to a maximum of 40 frames. The resulting test_video tensor has shape (num_frames, 3, 224, 224).\n\ntest_video_embedding = F.normalize(echo_clip.encode_image(test_video), dim=-1)\n\nNormalizes the CLIP embedding for easier calculation of cosine similarity later on.\nCosine similarity = (A . B) / (||A|| * ||B||) and when A and B are normalized to unit length, this simplifies to A . B, which is just the dot product of the two vectors. Much cheaper than calculating the full cosine similarity with unnormalized vectors.\nIn this case, A would be the test video embedding and B would be the prompt embedding."
-  },
-  {
-    "objectID": "posts/deep-dive-into-echoclip/index.html#text-embedding",
-    "href": "posts/deep-dive-into-echoclip/index.html#text-embedding",
-    "title": "Deep Dive into EchoCLIP",
-    "section": "Text Embedding",
-    "text": "Text Embedding\n\npacemaker_prompts = tokenize(pacemaker_prompts).cpu()\n\nUse the CLIP BPE tokenizer to tokenize the pacemaker prompts\n['ECHO DENSITY IN RIGHT VENTRICLE SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ',\n 'ECHO DENSITY IN RIGHT ATRIUM SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ']\nand the move the tokenized prompts to the CPU for later use in calculating similarity with the video embedding.\n\npacemaker_prompt_embeddings = F.normalize(\n    echo_clip.encode_text(pacemaker_prompts), dim=-1\n)\n\nEncode the tokenized pacemaker prompts using the CLIP text encoder and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.\n\npacemaker_predictions = compute_binary_metric(\n    test_video_embedding, pacemaker_prompt_embeddings\n)\n\n\ndef compute_binary_metric(\n    video_embeddings: torch.Tensor,\n    prompt_embeddings: torch.Tensor,\n):\n    per_frame_similarities = video_embeddings @ prompt_embeddings.T\n    # Average along the candidate dimension and frame dimension\n    predictions = per_frame_similarities.mean(dim=-1).mean(dim=-1)\n\n    return predictions\n\nThe compute_binary_metric function calculates the cosine similarity between the video embeddings and the prompt embeddings by performing a matrix multiplication (dot product) between the video embeddings and the transposed prompt embeddings. This results in a tensor of shape (batch_size, num_frames, num_prompts). The function then averages the similarities across both the candidate dimension (e.g., if there are 2 pacemaker prompts, their similarities are averaged into one score per frame) and the frame dimension (collapses all frame-level scores into one score per video) to produce a single prediction score for each video in the batch."
-  },
-  {
-    "objectID": "posts/deep-dive-into-echoclip/index.html#predicting-continuous-values",
-    "href": "posts/deep-dive-into-echoclip/index.html#predicting-continuous-values",
-    "title": "Deep Dive into EchoCLIP",
-    "section": "Predicting Continuous Values",
-    "text": "Predicting Continuous Values\n\nejection_fraction_prompts = zero_shot_prompts[\"ejection_fraction\"]\n\n['THE LEFT VENTRICULAR EJECTION FRACTION IS ESTIMATED TO BE &lt;#&gt;% ',\n 'LV EJECTION FRACTION IS &lt;#&gt;%. ']\nEjection fraction can range from 0% to 100%, so we make 100 versions of each prompt, replacing &lt;#&gt; with each integer from 0 to 100.\n\nejection_fraction_prompts = tokenize(ejection_fraction_prompts).cpu()\nejection_fraction_embeddings = F.normalize(\n    echo_clip.encode_text(ejection_fraction_prompts), dim=-1\n)\n\nOnce again tokenize and embed the ejection fraction prompts using the CLIP text encoder, and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.\n\nejection_fraction_predictions = compute_regression_metric(\n    test_video_embedding, ejection_fraction_embeddings, prompt_values\n)\n\nComputing the regression metric:\n\ndef compute_regression_metric(\n    video_embeddings: torch.Tensor,\n    prompt_embeddings: torch.Tensor,\n    prompt_values: torch.Tensor,\n):\n    per_frame_similarities = (\n        video_embeddings @ prompt_embeddings.T\n    )  # (N x Frames x Candidates)\n\n    # Sort the candidates by their similarity to the video\n    ranked_candidate_phrase_indices = torch.argsort(\n        per_frame_similarities, dim=-1, descending=True\n    )\n\n    # Convert matrix of indices to their corresponding continuous values.\n    prompt_values = torch.tensor(\n        prompt_values, device=video_embeddings.device\n    )  # (N x Frames x Candidates)\n    all_frames_ranked_values = prompt_values[ranked_candidate_phrase_indices]\n\n    # Taking the mean along dim=1 collapses the frames dimension\n    avg_frame_ranked_values = all_frames_ranked_values.float().mean(\n        dim=1\n    )  # (N x Candidates)\n\n    # The median of only the top 20% of predicted values is taken\n    # as the final predicted value\n    twenty_percent = int(avg_frame_ranked_values.shape[1] * 0.2)\n    final_prediction = avg_frame_ranked_values[:, :twenty_percent].median(dim=-1)[0]\n\n    return final_prediction"
-  },
-  {
-    "objectID": "posts/deep-dive-into-echoclip/index.html#conclusion",
-    "href": "posts/deep-dive-into-echoclip/index.html#conclusion",
-    "title": "Deep Dive into EchoCLIP",
-    "section": "Conclusion",
-    "text": "Conclusion\nIn this post, we walked through the EchoPrime codebase — from model initialization with pre-trained weights, to how the demo notebook leverages similarity to historical echo studies to predict cardiac phenotypes and generate structured reports."
+    "text": "Deep Dive into EchoCLIP\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMar 9, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoPrime\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nFeb 27, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViTv2)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nJan 29, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
   }
 ]

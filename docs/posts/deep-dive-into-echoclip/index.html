@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Howard Baik">
-<meta name="dcterms.date" content="2026-02-27">
+<meta name="dcterms.date" content="2026-03-09">
 
 <title>Deep Dive into EchoCLIP – Pass The Torch</title>
 <style>
@@ -170,7 +170,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div>
       <div class="quarto-title-meta-heading">Published</div>
       <div class="quarto-title-meta-contents">
-        <p class="date">February 27, 2026</p>
+        <p class="date">March 9, 2026</p>
       </div>
     </div>
     
@@ -191,22 +191,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
-<p><img src="thumbnail.jpg" class="img-fluid"></p>
-<p>This post is a code-forward deep dive into EchoCLIP, a vision-language model for echocardiogram interpretation. The code repository for EchoCLIP is available on <a href="https://github.com/echonet/echo_CLIP">GitHub</a> and the accompanying Nature paper is available at <a href="https://www.nature.com/articles/s41591-024-02959-y#Sec9" class="uri">https://www.nature.com/articles/s41591-024-02959-y#Sec9</a>.</p>
-<p>TODO: Add more details about EchoCLIP, its relation to CLIP</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="thumbnail.png" class="img-fluid figure-img"></p>
+<figcaption>EchoCLIP workflow</figcaption>
+</figure>
+</div>
+<p>This post is a code-forward deep dive into EchoCLIP, a vision-language model for echocardiogram interpretation. The code repository for EchoCLIP is available on <a href="https://github.com/echonet/echo_CLIP">GitHub</a> and the accompanying Nature paper is available <a href="https://www.nature.com/articles/s41591-024-02959-y">here</a>.</p>
+<p>EchoCLIP learns the relationship between echo images and text interpretations by expert cardiologists. It is trained on 1,032,975 cardiac ultrasound videos and corresponding text and can assess cardiac function and identify implanted intracardiac devices.</p>
 </section>
 <section id="initialization-of-echoclip" class="level2">
 <h2 class="anchored" data-anchor-id="initialization-of-echoclip">Initialization of EchoCLIP</h2>
-<div id="bda8e567" class="cell" data-execution_count="1">
+<div id="a0461f2e" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>echo_clip, _, preprocess_val <span class="op">=</span> create_model_and_transforms(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"hf-hub:mkaichristensen/echo-clip"</span>, precision<span class="op">=</span><span class="st">"fp32"</span>, device<span class="op">=</span><span class="st">"cpu"</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p><code>create_model_and_transforms()</code> is a function from the <code>open_clip</code> library that loads a pretrained CLIP model from Hugging Face Hub, <code>hf-hub:mkaichristensen/echo-clip</code>, sets it to 32-bit precision, and runs it on a CPU.</p>
+<p><code>create_model_and_transforms()</code> is a function from the <code>open_clip</code> library that loads a pretrained CLIP model from Hugging Face Hub, <code>hf-hub:mkaichristensen/echo-clip</code>, sets it to 32-bit precision, and runs it on a CPU. The function returns the model configuration, <code>echo_clip</code>, and the preprocessing transformations for validation, <code>preprocess_val</code>, which will be used later to preprocess the video frames before feeding them into the model.</p>
 </section>
 <section id="video-embedding" class="level2">
 <h2 class="anchored" data-anchor-id="video-embedding">Video Embedding</h2>
-<div id="1179b245" class="cell" data-execution_count="2">
+<div id="33495036" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>test_video <span class="op">=</span> read_avi(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"example_video.avi"</span>,</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    (<span class="dv">224</span>, <span class="dv">224</span>),</span>
@@ -216,35 +221,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>test_video <span class="op">=</span> test_video[<span class="dv">0</span>:<span class="bu">min</span>(<span class="dv">40</span>, <span class="bu">len</span>(test_video)):<span class="dv">2</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>The code above reads an example echocardiogram video, preprocesses each frame using the validation transformations defined in <code>preprocess_val</code>, and selects every other frame up to a maximum of 40 frames. The resulting <code>test_video</code> tensor has shape <code>(num_frames, 3, 224, 224)</code>.</p>
-<div id="07ab2298" class="cell" data-execution_count="3">
+<p>The code above reads an example echocardiogram video, preprocesses each frame using the validation transformations defined in <code>preprocess_val</code>, and selects every other frame up to a maximum of 40 frames. The resulting <code>test_video</code> tensor has shape <code>(20, 3, 224, 224)</code>, where 20 is the number of frames, 3 is the number of color channels (RGB), and 224x224 is the spatial resolution of each frame.</p>
+<div id="71ff8482" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>test_video_embedding <span class="op">=</span> F.normalize(echo_clip.encode_image(test_video), dim<span class="op">=-</span><span class="dv">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>Normalizes the CLIP embedding for easier calculation of cosine similarity later on.</p>
-<p>Cosine similarity = (A . B) / (||A|| * ||B||) and when A and B are normalized to unit length, this simplifies to A . B, which is just the dot product of the two vectors. Much cheaper than calculating the full cosine similarity with unnormalized vectors.</p>
-<p>In this case, A would be the test video embedding and B would be the prompt embedding.</p>
+<p>First, the preprocessed video frames are passed through the CLIP image encoder, <code>echo_clip.encode_image()</code>, to obtain a video embedding. The video embedding has a shape of <code>(20, 512)</code>, where 20 is the number of frames and 512 is the dimensionality of the embedding space. Each frame is represented as a 512-dimensional vector. The resulting embedding is then normalized using <code>F.normalize()</code> along the last dimension (feature dimension) to ensure that each embedding vector has unit length.</p>
+<p>Cosine similarity is <code>(A · B) / (||A|| * ||B||)</code> and when <code>A</code> and <code>B</code> are normalized to unit length, this simplifies to <code>A · B</code>, which is just the dot product of the two vectors. The dot product operation alone is much cheaper than calculating the full cosine similarity with unnormalized vectors. <code>A</code> would be the test video embedding and <code>B</code> would be the prompt embedding.</p>
 </section>
 <section id="text-embedding" class="level2">
 <h2 class="anchored" data-anchor-id="text-embedding">Text Embedding</h2>
-<div id="e82d8ca2" class="cell" data-execution_count="4">
+<div id="a16b4b03" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>pacemaker_prompts <span class="op">=</span> tokenize(pacemaker_prompts).cpu()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>Use the CLIP BPE tokenizer to tokenize the pacemaker prompts</p>
+<p>We use the CLIP BPE tokenizer to tokenize the pacemaker prompts.</p>
 <pre><code>['ECHO DENSITY IN RIGHT VENTRICLE SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ',
  'ECHO DENSITY IN RIGHT ATRIUM SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ']</code></pre>
-<p>and the move the tokenized prompts to the CPU for later use in calculating similarity with the video embedding.</p>
-<div id="7c1487e1" class="cell" data-execution_count="5">
+<p>and then move the tokenized prompts to the CPU for later use in calculating similarity with the video embedding.</p>
+<div id="8e9a4f7e" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>pacemaker_prompt_embeddings <span class="op">=</span> F.normalize(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    echo_clip.encode_text(pacemaker_prompts), dim<span class="op">=-</span><span class="dv">1</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>Encode the tokenized pacemaker prompts using the CLIP text encoder and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
-<div id="16b91fbe" class="cell" data-execution_count="6">
+<p>We then encode the tokenized pacemaker prompts using the CLIP text encoder and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
+<div id="5dbe177f" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>pacemaker_predictions <span class="op">=</span> compute_binary_metric(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    test_video_embedding, pacemaker_prompt_embeddings</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="be7a0d6d" class="cell" data-execution_count="7">
+<p>We compute the binary metric for pacemaker presence by calculating the cosine similarity between the video embedding and the pacemaker prompt embeddings. The <code>compute_binary_metric</code> function is defined as follows:</p>
+<div id="ad07b889" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_binary_metric(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    video_embeddings: torch.Tensor,</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    prompt_embeddings: torch.Tensor,</span>
@@ -255,30 +260,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> predictions</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>The <code>compute_binary_metric</code> function calculates the cosine similarity between the video embeddings and the prompt embeddings by performing a matrix multiplication (dot product) between the video embeddings and the transposed prompt embeddings. This results in a tensor of shape <code>(batch_size, num_frames, num_prompts)</code>. The function then averages the similarities across both the candidate dimension (e.g., if there are 2 pacemaker prompts, their similarities are averaged into one score per frame) and the frame dimension (collapses all frame-level scores into one score per video) to produce a single prediction score for each video in the batch.</p>
+<p>The function calculates the cosine similarity between the video embeddings and the prompt embeddings by performing a matrix multiplication (dot product) between the video embeddings and the transposed prompt embeddings. This results in a tensor of shape <code>(batch_size, num_frames, num_prompts)</code>. The function then averages the similarities across both the candidate dimension (e.g., if there are 2 pacemaker prompts, their similarities are averaged into one score per frame) and the frame dimension (collapses all frame-level scores into one score per video) to produce a single prediction score for each video in the batch.</p>
 </section>
 <section id="predicting-continuous-values" class="level2">
 <h2 class="anchored" data-anchor-id="predicting-continuous-values">Predicting Continuous Values</h2>
-<div id="b0e43aa6" class="cell" data-execution_count="8">
+<div id="8ae8519a" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>ejection_fraction_prompts <span class="op">=</span> zero_shot_prompts[<span class="st">"ejection_fraction"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <pre><code>['THE LEFT VENTRICULAR EJECTION FRACTION IS ESTIMATED TO BE &lt;#&gt;% ',
  'LV EJECTION FRACTION IS &lt;#&gt;%. ']</code></pre>
 <p>Ejection fraction can range from 0% to 100%, so we make 100 versions of each prompt, replacing <code>&lt;#&gt;</code> with each integer from 0 to 100.</p>
-<div id="c1041435" class="cell" data-execution_count="9">
+<div id="83068e9d" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>ejection_fraction_prompts <span class="op">=</span> tokenize(ejection_fraction_prompts).cpu()</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>ejection_fraction_embeddings <span class="op">=</span> F.normalize(</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    echo_clip.encode_text(ejection_fraction_prompts), dim<span class="op">=-</span><span class="dv">1</span></span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>Once again tokenize and embed the ejection fraction prompts using the CLIP text encoder, and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
-<div id="16a63500" class="cell" data-execution_count="10">
+<p>Once again, we tokenize the ejection fraction prompts and encode them using the CLIP text encoder, normalizing the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
+<div id="b77bd679" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>ejection_fraction_predictions <span class="op">=</span> compute_regression_metric(</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    test_video_embedding, ejection_fraction_embeddings, prompt_values</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p>Computing the regression metric:</p>
-<div id="a70cc5a4" class="cell" data-execution_count="11">
+<p>The <code>compute_regression_metric</code> function is defined as follows:</p>
+<div id="343278ef" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_regression_metric(</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    video_embeddings: torch.Tensor,</span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    prompt_embeddings: torch.Tensor,</span>
@@ -311,10 +316,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> final_prediction</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
+<p>The function calculate the cosine similarity between the video embeddings and the prompt embeddings, resulting in a tensor of shape <code>(20, 2)</code>, equivalent to <code>(num_frames, num_prompts)</code>. The candidates (prompts) are then ranked by their similarity to the video for each frame. The corresponding continuous values for each prompt are retrieved and averaged across frames. Finally, the median of the top 20% of predicted values is taken as the final predicted value for each video in the batch.</p>
 </section>
 <section id="conclusion" class="level2">
 <h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
-<p>In this post, we walked through the EchoPrime codebase — from model initialization with pre-trained weights, to how the demo notebook leverages similarity to historical echo studies to predict cardiac phenotypes and generate structured reports.</p>
+<p>In this post, we walked through the EchoCLIP codebase — from model initialization with pre-trained weights, to video and text embedding, to calculating similarity for both binary classification and regression tasks. EchoCLIP is a powerful vision-language model that can learn complex relationships between echocardiogram videos and their corresponding text interpretations, enabling it to perform a variety of tasks such as assessing cardiac function and identifying implanted devices.</p>
 
 
 </section>
