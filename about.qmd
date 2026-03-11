@@ -16,6 +16,6 @@ about:
 
 ---
 
-Pass The Torch is a blog for learning PyTorch and deep learning written by [Howard Baik](https://www.howardbaik.com/).
+Pass The Torch is a blog exploring PyTorch, deep learning, and medical AI written by [Howard Baik](https://www.howardbaik.com/).
 
 📬 Contact: howardbaik43@gmail.com
