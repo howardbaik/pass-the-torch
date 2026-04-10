@@ -3,6 +3,7 @@ title: "Finetuning with TRL"
 author: "Howard Baik"
 date: "2026-04-16"
 image: "thumbnail.png"
+eval: false
 categories: [Hugging Face]
 ---
 
