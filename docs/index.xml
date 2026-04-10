@@ -10,7 +10,41 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Fri, 06 Mar 2026 05:00:00 GMT</lastBuildDate>
+<lastBuildDate>Mon, 06 Apr 2026 04:00:00 GMT</lastBuildDate>
+<item>
+  <title>Deep Dive into TabPFN</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/deep-dive-into-tabpfn/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="notes" class="level2">
+<h2 class="anchored" data-anchor-id="notes">Notes</h2>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-tabpfn/thumbnail.jpeg" class="img-fluid figure-img"></p>
+<figcaption>TabPFN Workflow</figcaption>
+</figure>
+</div>
+<p>The key idea behind TabPFN is to generate a large corpus of synthetic tabular datasets and then train a transformer-based12 neural network to learn to solve these synthetic prediction tasks.</p>
+<p>Our ICL approach differs fundamentally from standard supervised deep learning. Usually, models are trained per dataset, updating model parameters on individual samples or batches according to hand-crafted weight-updating algorithms, such as Adam24. At inference time, the learned model is applied to test samples. By contrast, our approach is trained across datasets and is applied to entire datasets at inference time rather than individual samples. Before being applied to real-world datasets, the model is once pre-trained on millions of synthetic datasets representing different prediction tasks. At inference time, the model receives an unseen dataset with both labelled training and unlabelled test samples and performs training and prediction on this dataset in a single neural network forward pass.</p>
+<p>Although transformer-based models can be applied to tabular data26,27, TabPFN addresses two key limitations inherent to them. First, as transformers are designed for sequences, they treat the input data as a single sequence, not using the tabular structure. Second, machine learning models are often used in a fit-predict model, in which a model is fitted on the training set once and then reused for multiple test datasets. Transformer-based ICL algorithms, however, receive train and test data in a single pass and thus perform training and prediction at once. Thus, when a fitted model is reused, it has to redo computations for the training set.</p>
+<p>To better use the tabular structure, we propose an architecture that assigns a separate representation to each cell in the table, inspired by refs. 22,28. Our architecture, visualized in Fig. 1b, uses a two-way attention mechanism, with each cell attending to the other features in its row (that is, its sample) and then attending to the same feature across its column (that is, all other samples). This design enables the architecture to be invariant to the order of both samples and features and enables more efficient training and extrapolation to larger tables than those encountered during training, in terms of both the number of samples and features.</p>
+<p>By relying on synthetic data instead of large collections of public tabular data, we avoid common problems of foundational models, such as privacy and copyright infringements, contaminating our training data with test data32 or limited data availability.</p>
+<p>The main advantage of TabPFN over all baselines is its inherent ability to model uncertainty at no extra cost. Whereas classical regression methods output a single real-valued prediction, TabPFN returns a target distribution, capturing the uncertainty of predictions. These uncertainty modelling abilities of TabPFN extend beyond simple distributions and can handle complex, multi-modal distributions.</p>
+
+
+</section>
+
+ ]]></description>
+  <category>Medical AI</category>
+  <guid>https://passthetorch.dev/posts/deep-dive-into-tabpfn/</guid>
+  <pubDate>Mon, 06 Apr 2026 04:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-tabpfn/thumbnail.jpeg" medium="image" type="image/jpeg"/>
+</item>
 <item>
   <title>Deep Dive into EchoCLIP</title>
   <dc:creator>Howard Baik</dc:creator>

@@ -1,0 +1,342 @@
+---
+title: "Finetuning with TRL"
+author: "Howard Baik"
+date: "2026-04-16"
+image: "thumbnail.png"
+categories: [Hugging Face]
+---
+
+## Introduction
+
+In this post, I will walkthrough code for finetuning a language model using the [TRL (Transformer Reinforcement Learning)](https://huggingface.co/docs/trl/index) library from Hugging Face. TRL is a general-purpose library for training transformer-based models with methods like Supervised Fine-Tuning (SFT), Proximal Policy Optimization (PPO), and more. It provides a high-level API for training language models and is integrated with the transformers Hugging Face library.
+
+This tutorial is based on the [Sunny MedGemma Fine-Tuning Notebook](https://github.com/mrdbourke/sunny/blob/main/sunny_MedGemma_fine_tuning.ipynb), which demonstrates how to finetune MedGemma-1.5 for strutured skin and sunscreen photo extraction. I will adapt the code to finetune a language model on the [ShenLab/MentalChat16K dataset](https://huggingface.co/datasets/ShenLab/MentalChat16K) for generating responses in a mental health context.
+
+## Setup
+
+First, we install the necessary libraries. We will need `transformers`, `torch`, `accelerate`, and `trl` for this tutorial:
+
+```{python}
+!pip install -U transformers torch accelerate trl
+```
+
+The dataset is the [MentalChat16K dataset](https://huggingface.co/datasets/ShenLab/MentalChat16K), which contains approximately 16,000 conversations between a mental health professional and a patient. We will use this dataset to finetune a language model for generating responses in a mental health context. 
+
+We can load the dataset using the `datasets` library from Hugging Face:
+```{python}
+from datasets import load_dataset
+
+dataset = load_dataset("ShenLab/MentalChat16K")
+dataset
+```
+
+where `dataset` is a dictionary containing the train dataset, which we can access using `dataset["train"]`. Each example in the dataset contains a conversation between a mental health professional and a patient, with the following fields:
+
+```
+Dataset({
+    features: ['instruction', 'input', 'output'],
+    num_rows: 16084
+})
+```
+
+The `instruction` field contains the prompt or instruction for the model ("You are a helpful mental health counselling assistant"), the `input` field contains the patient transcript, and the `output` field contains the response from the mental health professional.
+
+## Data Formatting
+
+We then format the data in conversational message format that the model can understand and split the train dataset into training and validation sets:
+
+```{python}
+full_train_data = [format_data(sample) for sample in dataset["train"]]
+
+train_dataset, val_dataset = train_test_split(
+    full_train_data, test_size=0.3, random_state=42
+)
+```
+
+The output of the `format_data()` function we run below:
+```
+"messages": [
+            # [USER] Prompt
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": sample["input"],
+                    }
+                ],
+            },
+            # [ASSISTANT] Desired model output
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": output_text,
+                    }
+                ],
+            }
+        ]
+```
+
+
+## Test Base Model on Example
+
+Before finetuning, we can test the base model on an example to see what the base model output looks like. We will use the `transformers` library to load a pre-trained language model and tokenizer, and then generate a response for a sample input from the dataset:
+
+```{python}
+from transformers import AutoProcessor, AutoModelForCausalLM
+
+MODEL_ID = "google/gemma-4-E4B-it"
+
+# Load model
+processor = AutoProcessor.from_pretrained(MODEL_ID)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_ID,
+    dtype="auto",
+    device_map="auto"
+)
+```
+
+Our base model is [`google/gemma-4-E4B-it`](https://huggingface.co/google/gemma-4-E4B-it), which is a 4 billion effective parameter language model from Google. The "E" in "E4B" stands for "effective". 
+
+We load a processor with `AutoProcessor` and the `from_pretrained()` method. Processors preprocess multimodal inputs into the expected Transformers format. Also, we load a pre-trained language model with `AutoModelForCausalLM` and the `from_pretrained()` method. 
+
+We then generate a response for a sample input inserted into the base model:
+
+```{python}
+import torch
+import json
+
+with torch.no_grad():
+    output_ids = model.generate(
+        **example_inputs,
+        max_new_tokens=512,
+        do_sample=False,
+    )
+    input_len = example_inputs['input_ids'].shape[-1] # Ensure input_len is correctly retrieved
+    generated_ids = output_ids[0][input_len:]
+
+base_model_output = processor.decode(generated_ids, skip_special_tokens=True)
+desired_output = train_dataset[0]["messages"][-1]["content"][0]["text"]
+
+print(f"\n[INFO] Base model output:\n{base_model_output}")
+print(f"\n[INFO] Desired output:\n{desired_output}")
+```
+
+
+```
+[INFO] Base model output:
+It sounds like you are under an immense amount of pressure right now, and it's completely understandable that this is affecting your sleep, mood, and focus. Work stress, especially when coupled with high demands and tight deadlines, is a serious issue that needs proactive management.
+
+The key here is finding a balance: **managing the external demands** while **strengthening your internal resilience.**
+
+Here is a comprehensive, multi-layered approach broken down into immediate, short-term, and long-term strategies.
+
+---
+
+## 🧠 Phase 1: Immediate Relief (When You Feel Overwhelmed *Right Now*)
+
+These techniques are for when you are in the middle of a stressful moment (e.g., before a big meeting, after a frustrating email).
+
+1. **The 4-7-8 Breathing Technique:** This is a powerful, quick nervous system reset.
+    * Exhale completely through your mouth, making a whoosh sound.
+    * Close your mouth and **inhale quietly through your nose for a count of 4.**
+    * **Hold your breath for a count of 7.**
+    * **Exhale completely through your mouth with a whoosh sound for a count of 8.**
+    * Repeat this cycle 3-4 times.
+2. **The 5-4-3-2-1 Grounding Technique:** This pulls your mind out of anxious future-planning and anchors it in the present moment.
+    * **5:** Name five things you can **see**.
+    * **4:** Name four things you can **feel** (the chair beneath you, your shirt fabric).
+    * **3:** Name three things you can **hear**.
+    * **2:** Name two things you can **smell**.
+    * **1:** Name one thing you can **taste**.
+3. **Micro-Breaks:** Do not power through exhaustion. Set a timer for every 45-60 minutes. When it goes off, stand up, walk to a window, stretch, or get a glass of water. Even 2 minutes of movement helps reset cognitive fatigue.
+
+---
+
+## 🛠️ Phase 2: Short-Term Management (Tackling the Workload)
+
+These strategies help you regain a sense of control over the chaos.
+
+### 1. Taming the To-Do List (Prioritization)
+When everything feels urgent, nothing is. You need a system to decide what
+
+[INFO] Desired output:
+It can be incredibly challenging when work-related stress starts to impact our mental well-being. The demands and deadlines can feel overwhelming, leading to sleepless nights, irritability, and difficulty concentrating. It's important to prioritize your mental health and find effective ways to manage this stress. Here are some suggestions that may help:
+
+1. Take breaks: Allow yourself regular breaks throughout the day to recharge and reset. Step away from your workspace, take a short walk, or engage in a quick relaxation exercise. These moments of rest can help reduce stress levels and improve focus.
+
+2. Prioritize self-care: Make sure you're taking care of yourself outside of work as well. Engage in activities that bring you joy and help you relax. This could include hobbies, exercise, spending time with loved ones, or practicing mindfulness techniques such as deep breathing or meditation.
+
+3. Set boundaries: Establish clear boundaries between work and personal life. Avoid bringing work home whenever possible and try to disconnect from work-related tasks during your non-working hours. Creating a healthy work-life balance can contribute to reducing stress and improving overall well-being.
+
+4. Seek support: Reach out to trusted friends, family members, or colleagues who can provide emotional support. Talking about your experiences and feelings with someone who understands can be cathartic and help alleviate stress. Additionally, consider joining support groups or seeking professional counseling if needed.
+
+5. Time management: Develop effective time management strategies to help you stay organized and meet deadlines without feeling overwhelmed. Break down larger tasks into smaller, more manageable steps, and prioritize them based on importance and urgency. This can help create a sense of control and reduce stress levels.
+
+6. Practice stress-reducing techniques: Explore different stress-management techniques that work for you. This could include deep breathing exercises, progressive muscle relaxation, journaling, listening to calming music, or engaging in creative outlets like painting or writing. Experiment with various methods until you find what resonates with you.
+
+Remember, it's essential to be patient and kind to yourself during this process. Finding effective ways to handle work-related stress takes time and experimentation. If the stress continues to impact your mental well-being significantly, consider seeking professional help from a mental health expert who can provide personalized guidance tailored to your specific needs.
+```
+
+Compared to the desired output (shown below "[INFO] Desired output:"), the base model output is quite verbose and comprehensive. The desired output is more concise and to the point. Different styles.
+
+## Data Collation
+
+
+```{python}
+import torch
+
+def collate_fn(examples):
+    """Collate function to batch text for training, masking prompt tokens in labels."""
+    all_input_ids = []
+    all_labels = []
+    all_attention_masks = []
+
+    for example in examples:
+        # Get tokens for the full conversation (prompt + response) for model input
+        full_conversation_encoding = processor.apply_chat_template(
+            example["messages"],
+            add_generation_prompt=False, # We want the full conversation as input for the model
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt"
+        )
+        # Squeeze to remove batch dimension if it's a single example
+        input_ids = full_conversation_encoding["input_ids"].squeeze(0)
+        attention_mask = full_conversation_encoding["attention_mask"].squeeze(0)
+
+        # Get tokens for only the prompt (user message) to determine its length
+        prompt_only_encoding = processor.apply_chat_template(
+            example["messages"][:-1], # Exclude the last (assistant) message
+            add_generation_prompt=True, # Add the generation prompt
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt"
+        )
+        prompt_len = prompt_only_encoding["input_ids"].shape[-1]
+
+        # Create labels: clone input_ids and mask tokens we don't want loss on
+        labels = input_ids.clone()
+        # Mask the prompt tokens by setting them to -100
+        labels[:prompt_len] = -100
+
+        all_input_ids.append(input_ids)
+        all_labels.append(labels)
+        all_attention_masks.append(attention_mask)
+
+    # Pad sequences manually using PyTorch
+    pad_token_id = processor.tokenizer.pad_token_id if processor.tokenizer.pad_token_id is not None else 0
+
+    padded_input_ids = torch.nn.utils.rnn.pad_sequence(
+        all_input_ids, batch_first=True, padding_value=pad_token_id
+    )
+    padded_attention_masks = torch.nn.utils.rnn.pad_sequence(
+        all_attention_masks, batch_first=True, padding_value=0
+    )
+    # It's crucial to pad labels with -100 so they are ignored in loss computation
+    padded_labels = torch.nn.utils.rnn.pad_sequence(
+        all_labels, batch_first=True, padding_value=-100
+    )
+
+    return {
+        "input_ids": padded_input_ids,
+        "attention_mask": padded_attention_masks,
+        "labels": padded_labels
+    }
+```
+
+
+### Setup SFT Trainer for Supervised Fine-Tuning
+
+
+```{python}
+from trl import SFTConfig, SFTTrainer
+
+OUTPUT_DIR = "finetune"
+
+training_args = SFTConfig(
+    output_dir=OUTPUT_DIR,
+
+    # Training duration
+    num_train_epochs=3, # Because of its vast pretraining, we don't need too many epochs to our model to perform how we'd like
+
+    # Batch size & accumulation
+    per_device_train_batch_size=2, # Adjust based on GPU memory
+    per_device_eval_batch_size=2,
+    gradient_accumulation_steps=8, # Effective batch size = 2 * 8 = 16
+
+    # Memory optimization
+    gradient_checkpointing=True,
+    gradient_checkpointing_kwargs={"use_reentrant": False},
+
+    # Optimizer
+    optim="adamw_torch_fused",
+    learning_rate=2e-5, # Lower LR for larger model
+    max_grad_norm=1.0,
+    #warmup_ratio=0.03, # Note: warmup_ratio is deprecated and will be removed, use `warmup_steps` instead
+    warmup_steps=5, # total_steps = (num_samples // (batch_size * gradient_accumulation_steps)) * num_epochs, we'll use 3% of steps for warmup, 0.03 * 183 (num total steps) = 5
+    lr_scheduler_type="cosine",
+
+    # Precision
+    bf16=True,
+
+    # Logging & saving
+    logging_strategy="epoch",
+    eval_strategy="epoch",
+    save_strategy="epoch",
+    save_total_limit=2,
+    load_best_model_at_end=True,
+
+    # Hub
+    push_to_hub=False, # We could push our model straight to the hub after training if we like
+    report_to="none", # Optional: track experiments with trackio or Weights & Biases
+
+    # Dataset handling (important for custom collate)
+    dataset_text_field="",
+    dataset_kwargs={"skip_prepare_dataset": True},
+    remove_unused_columns=False,
+)
+
+print(f"[INFO] Training config:")
+print(f"Output dir: {OUTPUT_DIR}")
+print(f"Epochs: {training_args.num_train_epochs}")
+print(f"Batch size: {training_args.per_device_train_batch_size}")
+print(f"Grad accum: {training_args.gradient_accumulation_steps}")
+print(f"Effective batch: {training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps}")
+print(f"Learning rate: {training_args.learning_rate}")
+print(f"LR scheduler: {training_args.lr_scheduler_type}")
+```
+
+
+## Train the model using the `SFTTrainer`
+
+
+```{python}
+print(f"[INFO] Setting up SFTTrainer...")
+print(f"Number of train samples: {len(train_dataset)}")
+print(f"Number of val samples: {len(val_dataset)}")
+
+trainer = SFTTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=val_dataset,
+    processing_class=processor,
+    data_collator=collate_fn
+)
+
+print(f"\n[INFO] Starting training...")
+print("=" * 60)
+train_result = trainer.train()
+print("=" * 60)
+print(f"[INFO] Training complete!")
+print(f"Total steps: {train_result.global_step}")
+print(f"Training loss: {train_result.training_loss:.4f}")
+
+# Save the final model
+trainer.save_model()
+print(f"[INFO] Model saved to: {OUTPUT_DIR}")
+```
+
