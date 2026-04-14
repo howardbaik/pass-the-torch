@@ -375,3 +375,5 @@ Remember, finding effective ways to handle work-related stress is a process that
 ```
 
 The fine-tuned model output is more concise and closely resembles the desired output compared to the base model output. This demonstrates that the fine-tuning process has successfully adapted the model to generate responses that are more relevant to the mental health context in the dataset.
+
+You can find the fine-tuned model on Hugging Face at [howardbaik/gemma-4-E4B-it-mentalchat16k](https://huggingface.co/howardbaik/gemma-4-E4B-it-mentalchat16k).
