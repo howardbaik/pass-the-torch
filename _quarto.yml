@@ -3,6 +3,8 @@ project:
   output-dir: docs
   resources: CNAME
 
+jupyter: python3
+
 website:
   description: "A Quarto blog for PyTorch."
   site-url: https://passthetorch.dev # you must change this appropriately for RSS feeds to work properly

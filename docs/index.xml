@@ -1,0 +1,1993 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss  xmlns:atom="http://www.w3.org/2005/Atom" 
+      xmlns:media="http://search.yahoo.com/mrss/" 
+      xmlns:content="http://purl.org/rss/1.0/modules/content/" 
+      xmlns:dc="http://purl.org/dc/elements/1.1/" 
+      version="2.0">
+<channel>
+<title>Pass The Torch</title>
+<link>https://passthetorch.dev/</link>
+<atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
+<description>A Quarto blog for PyTorch.</description>
+<generator>quarto-1.8.24</generator>
+<lastBuildDate>Mon, 13 Apr 2026 04:00:00 GMT</lastBuildDate>
+<item>
+  <title>Finetuning with TRL - Transformers Reinforcement Learning</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/finetuning-with-trl/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>In this post, I will walk through code for finetuning a language model using the <a href="https://huggingface.co/docs/trl/index">TRL (Transformer Reinforcement Learning)</a> library from Hugging Face. TRL is a general-purpose library for training transformer-based models with methods like Supervised Fine-Tuning (SFT), Proximal Policy Optimization (PPO), and more. It provides a high-level API for training language models and is integrated with the transformers Hugging Face library.</p>
+<p>This tutorial is based on the <a href="https://github.com/mrdbourke/sunny/blob/main/sunny_MedGemma_fine_tuning.ipynb">Sunny MedGemma Fine-Tuning Notebook</a>, which demonstrates how to finetune MedGemma-1.5 for strutured skin and sunscreen photo extraction. I will adapt the code to finetune a language model on the <a href="https://huggingface.co/datasets/ShenLab/MentalChat16K">ShenLab/MentalChat16K dataset</a> for generating responses in a mental health context.</p>
+<p>The code for this tutorial is available in this <a href="https://colab.research.google.com/drive/14eeL-_ukmb8fbRijAgAwhOSiaDzF2WBY?usp=sharing">Google Colab notebook</a> and the final finetuned model is available on the Hugging Face Hub at <a href="https://huggingface.co/howardbaik/gemma-4-E4B-it-mentalchat16k">howardbaik/gemma-4-E4B-it-mentalchat16k</a>.</p>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">Setup</h2>
+<p>First, we install the necessary libraries. We will need <code>transformers</code>, <code>torch</code>, <code>accelerate</code>, and <code>trl</code> for this tutorial:</p>
+<div id="cfd04a48" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!</span>pip install <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span>U transformers torch accelerate trl</span></code></pre></div></div>
+</div>
+<p>The dataset is the <a href="https://huggingface.co/datasets/ShenLab/MentalChat16K">MentalChat16K dataset</a>, which contains approximately 16,000 conversations between a mental health professional and a patient. We will use this dataset to finetune a language model for generating responses in a mental health context.</p>
+<p>We can load the dataset using the <code>datasets</code> library from Hugging Face:</p>
+<div id="09f8f97b" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> datasets <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> load_dataset</span>
+<span id="cb2-2"></span>
+<span id="cb2-3">dataset <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> load_dataset(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"ShenLab/MentalChat16K"</span>)</span>
+<span id="cb2-4">dataset</span></code></pre></div></div>
+</div>
+<p>where <code>dataset</code> is a dictionary containing the train dataset, which we can access using <code>dataset["train"]</code>.</p>
+<p>Each example in the dataset contains a conversation between a mental health professional and a patient, with the following fields:</p>
+<pre><code>Dataset({
+    features: ['instruction', 'input', 'output'],
+    num_rows: 16084
+})</code></pre>
+<p>The <code>instruction</code> field contains the prompt or instruction for the model (“You are a helpful mental health counselling assistant”), the <code>input</code> field contains the patient transcript, and the <code>output</code> field contains the response from the mental health professional.</p>
+<p>An example of the <code>input</code> field:</p>
+<blockquote class="blockquote">
+<p>Another aspect of my anxiety is related to social situations. I find myself constantly worrying about what others think of me and fearing judgment or rejection. For example, attending parties or meeting new people can be incredibly stressful for me because I’m always concerned about saying or doing something embarrassing.</p>
+</blockquote>
+<p>An example of the <code>output</code> field:</p>
+<blockquote class="blockquote">
+<p>It can be challenging to navigate social situations when anxiety is present, especially when worrying about others’ opinions and the fear of judgment or rejection. Here are some suggestions that may help you manage these anxieties:. Challenge negative thoughts: When you catch yourself worrying about what others think of you, try to challenge those thoughts by asking yourself if there’s any evidence supporting them. Often, our anxious thoughts are not based on reality but rather on our own insecurities.</p>
+</blockquote>
+</section>
+<section id="data-formatting" class="level2">
+<h2 class="anchored" data-anchor-id="data-formatting">Data Formatting</h2>
+<p>We format the data in conversational message format that the model can understand, and split the train dataset into training and validation sets:</p>
+<div id="7c0f058c" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">full_train_data <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [format_data(sample) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> sample <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> dataset[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"train"</span>]]</span>
+<span id="cb4-2"></span>
+<span id="cb4-3">train_dataset, val_dataset <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> train_test_split(</span>
+<span id="cb4-4">    full_train_data, test_size<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.3</span>, random_state<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">42</span></span>
+<span id="cb4-5">)</span></code></pre></div></div>
+</div>
+<p>The conversational message format that the <code>format_data()</code> function formats the data into is as follows:</p>
+<pre><code>"messages": [
+            # [USER] Prompt
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": sample["input"],
+                    }
+                ],
+            },
+            # [ASSISTANT] Desired model output
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": output_text,
+                    }
+                ],
+            }
+        ]</code></pre>
+</section>
+<section id="test-base-model-on-example" class="level2">
+<h2 class="anchored" data-anchor-id="test-base-model-on-example">Test Base Model on Example</h2>
+<p>Before finetuning, we can test the base model on an example to see what the base model output looks like. We will use the <code>transformers</code> library to load a pre-trained language model and tokenizer, and then generate a response for a sample input from the dataset:</p>
+<div id="2ee6794e" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> transformers <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> AutoProcessor, AutoModelForCausalLM</span>
+<span id="cb6-2"></span>
+<span id="cb6-3">MODEL_ID <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"google/gemma-4-E4B-it"</span></span>
+<span id="cb6-4"></span>
+<span id="cb6-5"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Load model</span></span>
+<span id="cb6-6">processor <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> AutoProcessor.from_pretrained(MODEL_ID)</span>
+<span id="cb6-7">model <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> AutoModelForCausalLM.from_pretrained(</span>
+<span id="cb6-8">    MODEL_ID,</span>
+<span id="cb6-9">    dtype<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"auto"</span>,</span>
+<span id="cb6-10">    device_map<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"auto"</span></span>
+<span id="cb6-11">)</span></code></pre></div></div>
+</div>
+<p>Our base model is <a href="https://huggingface.co/google/gemma-4-E4B-it"><code>google/gemma-4-E4B-it</code></a>, which is a 4 billion effective parameter language model from Google. The “E” in “E4B” stands for “effective”.</p>
+<p>We load a processor with <code>AutoProcessor</code> and the <code>from_pretrained()</code> method. Processors preprocess multimodal inputs into the expected Transformers format. Also, we load a pre-trained language model with <code>AutoModelForCausalLM</code> and the <code>from_pretrained()</code> method. <code>dtype="auto"</code> allows the model to automatically use the most efficient data type (e.g., <code>bfloat16</code> or <code>float16</code>) based on the hardware capabilities, and <code>device_map="auto"</code> automatically maps the model layers to available devices (e.g., GPU) for optimal performance.</p>
+<p>Let’s now generate a response for a sample input inserted into the base model.</p>
+<p>First, we process the input data into the format expected by the model using the processor:</p>
+<div id="4ff90586" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">example_input_messages <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> train_dataset[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>][<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"messages"</span>][:<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>]</span>
+<span id="cb7-2"></span>
+<span id="cb7-3"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Process input</span></span>
+<span id="cb7-4">example_inputs <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> processor.apply_chat_template(</span>
+<span id="cb7-5">    example_input_messages,</span>
+<span id="cb7-6">    add_generation_prompt<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb7-7">    tokenize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb7-8">    return_dict<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb7-9">    return_tensors<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"pt"</span>,</span>
+<span id="cb7-10">).to(model.device)</span></code></pre></div></div>
+</div>
+<p>The <code>apply_chat_template()</code> method of the processor takes the input messages and formats them according to the chat template expected by the model. We set <code>add_generation_prompt=True</code> to add a generation prompt to the input, which helps guide the model in generating a response. We also set <code>tokenize=True</code> to tokenize the input text, and <code>return_dict=True</code> and <code>return_tensors="pt"</code> to return the processed input as a PyTorch tensor.</p>
+<p>The processed input looks like this:</p>
+<pre><code>{'input_ids': tensor([[     2,    105,   2364,    107,  94801,    815,   1010,   3788,    872,
+            657,    981,   2779,    531,    506,   1494,  16332,    532,  11119,
+          58658, 236761,   1030, 236789, 236751,  14260, 161592,  22998, 236764,
+         167902, 236764,    532,  14644,  77320, 236761,    564,   1202,   1601,
+           8159,   5225,   4861,    531,   6060,    981, 236772,  10619,   5013,
+           2180,  94437,   1041,   9069,   1388, 236772,  16898, 236761,    106,
+            107,    105,   4368,    107]], device='cuda:0'), 'attention_mask': tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+         1, 1, 1, 1, 1, 1, 1, 1, 1, 1]], device='cuda:0'), 'mm_token_type_ids': tensor([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], device='cuda:0')}</code></pre>
+<ul>
+<li>The <code>input_ids</code> are the tokenized input text.</li>
+<li>The <code>attention_mask</code> indicates which tokens should be attended to (1 for real tokens, 0 for padding).</li>
+<li>The <code>mm_token_type_ids</code> are used for multimodal inputs (not relevant for our text-only input).</li>
+</ul>
+<p>We can then generate a response from the base model using the <code>generate()</code> method:</p>
+<div id="37dbf96d" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> torch</span>
+<span id="cb9-2"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> json</span>
+<span id="cb9-3"></span>
+<span id="cb9-4"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> torch.no_grad():</span>
+<span id="cb9-5">    output_ids <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> model.generate(</span>
+<span id="cb9-6">        <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">**</span>example_inputs,</span>
+<span id="cb9-7">        max_new_tokens<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>,</span>
+<span id="cb9-8">        do_sample<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>,</span>
+<span id="cb9-9">    )</span>
+<span id="cb9-10">    input_len <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> example_inputs[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'input_ids'</span>].shape[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Ensure input_len is correctly retrieved</span></span>
+<span id="cb9-11">    generated_ids <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> output_ids[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>][input_len:]</span>
+<span id="cb9-12"></span>
+<span id="cb9-13">base_model_output <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> processor.decode(generated_ids, skip_special_tokens<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb9-14">desired_output <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> train_dataset[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>][<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"messages"</span>][<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>][<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"content"</span>][<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>][<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"text"</span>]</span>
+<span id="cb9-15"></span>
+<span id="cb9-16"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">[INFO] Base model output:</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>base_model_output<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span>
+<span id="cb9-17"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">[INFO] Desired output:</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>desired_output<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span></code></pre></div></div>
+</div>
+<pre><code>[INFO] Base model output:
+It sounds like you are under an immense amount of pressure right now, and it's completely understandable that this is affecting your sleep, mood, and focus. Work stress, especially when coupled with high demands and tight deadlines, is a serious issue that needs proactive management.
+
+The key here is finding a balance: **managing the external demands** while **strengthening your internal resilience.**
+
+Here is a comprehensive, multi-layered approach broken down into immediate, short-term, and long-term strategies.
+
+---
+
+## 🧠 Phase 1: Immediate Relief (When You Feel Overwhelmed *Right Now*)
+
+These techniques are for when you are in the middle of a stressful moment (e.g., before a big meeting, after a frustrating email).
+
+1. **The 4-7-8 Breathing Technique:** This is a powerful, quick nervous system reset.
+    * Exhale completely through your mouth, making a whoosh sound.
+    * Close your mouth and **inhale quietly through your nose for a count of 4.**
+    * **Hold your breath for a count of 7.**
+    * **Exhale completely through your mouth with a whoosh sound for a count of 8.**
+    * Repeat this cycle 3-4 times.
+2. **The 5-4-3-2-1 Grounding Technique:** This pulls your mind out of anxious future-planning and anchors it in the present moment.
+    * **5:** Name five things you can **see**.
+    * **4:** Name four things you can **feel** (the chair beneath you, your shirt fabric).
+    * **3:** Name three things you can **hear**.
+    * **2:** Name two things you can **smell**.
+    * **1:** Name one thing you can **taste**.
+3. **Micro-Breaks:** Do not power through exhaustion. Set a timer for every 45-60 minutes. When it goes off, stand up, walk to a window, stretch, or get a glass of water. Even 2 minutes of movement helps reset cognitive fatigue.
+
+---
+
+
+[INFO] Desired output:
+It can be incredibly challenging when work-related stress starts to impact our mental well-being. The demands and deadlines can feel overwhelming, leading to sleepless nights, irritability, and difficulty concentrating. It's important to prioritize your mental health and find effective ways to manage this stress. Here are some suggestions that may help:
+
+1. Take breaks: Allow yourself regular breaks throughout the day to recharge and reset. Step away from your workspace, take a short walk, or engage in a quick relaxation exercise. These moments of rest can help reduce stress levels and improve focus.
+
+2. Prioritize self-care: Make sure you're taking care of yourself outside of work as well. Engage in activities that bring you joy and help you relax. This could include hobbies, exercise, spending time with loved ones, or practicing mindfulness techniques such as deep breathing or meditation.
+
+3. Set boundaries: Establish clear boundaries between work and personal life. Avoid bringing work home whenever possible and try to disconnect from work-related tasks during your non-working hours. Creating a healthy work-life balance can contribute to reducing stress and improving overall well-being.
+
+4. Seek support: Reach out to trusted friends, family members, or colleagues who can provide emotional support. Talking about your experiences and feelings with someone who understands can be cathartic and help alleviate stress. Additionally, consider joining support groups or seeking professional counseling if needed.
+
+5. Time management: Develop effective time management strategies to help you stay organized and meet deadlines without feeling overwhelmed. Break down larger tasks into smaller, more manageable steps, and prioritize them based on importance and urgency. This can help create a sense of control and reduce stress levels.
+
+6. Practice stress-reducing techniques: Explore different stress-management techniques that work for you. This could include deep breathing exercises, progressive muscle relaxation, journaling, listening to calming music, or engaging in creative outlets like painting or writing. Experiment with various methods until you find what resonates with you.
+
+Remember, it's essential to be patient and kind to yourself during this process. Finding effective ways to handle work-related stress takes time and experimentation. If the stress continues to impact your mental well-being significantly, consider seeking professional help from a mental health expert who can provide personalized guidance tailored to your specific needs.</code></pre>
+<p>Compared to the desired output (shown below <code>[INFO] Desired output:</code>), the base model output (shown below <code>[INFO] Base model output:</code>) is quite verbose and comprehensive.</p>
+<p>Let’s finetune the base model on the <a href="https://huggingface.co/datasets/ShenLab/MentalChat16K">ShenLab/MentalChat16K dataset</a> to see if we can get it to generate responses that are more similar to the desired output.</p>
+</section>
+<section id="setup-sft-trainer-for-supervised-fine-tuning" class="level2">
+<h2 class="anchored" data-anchor-id="setup-sft-trainer-for-supervised-fine-tuning">Setup SFT Trainer for Supervised Fine-Tuning</h2>
+<p>We then set up the <code>SFTTrainer</code> from the TRL library to perform supervised fine-tuning on our dataset. We define the training configuration using <code>SFTConfig</code>, which includes parameters such as the number of epochs, batch size, learning rate, and more:</p>
+<div id="241f4fd7" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">from</span> trl <span class="im" style="color: #00769E;
+background-color: null;
+font-style: inherit;">import</span> SFTConfig, SFTTrainer</span>
+<span id="cb11-2"></span>
+<span id="cb11-3">OUTPUT_DIR <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"finetune"</span></span>
+<span id="cb11-4"></span>
+<span id="cb11-5">training_args <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> SFTConfig(</span>
+<span id="cb11-6">    output_dir<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>OUTPUT_DIR,</span>
+<span id="cb11-7"></span>
+<span id="cb11-8">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Training duration</span></span>
+<span id="cb11-9">    num_train_epochs<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">3</span>, <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Because of its vast pretraining, we don't need too many epochs to our model to perform how we'd like</span></span>
+<span id="cb11-10"></span>
+<span id="cb11-11">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Batch size &amp; accumulation</span></span>
+<span id="cb11-12">    per_device_train_batch_size<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Adjusted from 2 to 1 to reduce memory usage</span></span>
+<span id="cb11-13">    per_device_eval_batch_size<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>,</span>
+<span id="cb11-14">    gradient_accumulation_steps<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">16</span>, <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Adjusted from 8 to 16 to maintain an effective batch size of 16 (1 * 16)</span></span>
+<span id="cb11-15"></span>
+<span id="cb11-16">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Memory optimization</span></span>
+<span id="cb11-17">    gradient_checkpointing<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb11-18">    gradient_checkpointing_kwargs<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>{<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"use_reentrant"</span>: <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>},</span>
+<span id="cb11-19"></span>
+<span id="cb11-20">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Optimizer</span></span>
+<span id="cb11-21">    optim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"adamw_torch_fused"</span>,</span>
+<span id="cb11-22">    learning_rate<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2e-5</span>, <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Lower LR for larger model</span></span>
+<span id="cb11-23">    max_grad_norm<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1.0</span>,</span>
+<span id="cb11-24">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">#warmup_ratio=0.03, # Note: warmup_ratio is deprecated and will be removed, use `warmup_steps` instead</span></span>
+<span id="cb11-25">    warmup_steps<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">5</span>, <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># total_steps = (num_samples // (batch_size * gradient_accumulation_steps)) * num_epochs, we'll use 3% of steps for warmup, 0.03 * 183 (num total steps) = 5</span></span>
+<span id="cb11-26">    lr_scheduler_type<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cosine"</span>,</span>
+<span id="cb11-27"></span>
+<span id="cb11-28">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Precision</span></span>
+<span id="cb11-29">    bf16<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb11-30"></span>
+<span id="cb11-31">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Logging &amp; saving</span></span>
+<span id="cb11-32">    logging_strategy<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"epoch"</span>,</span>
+<span id="cb11-33">    eval_strategy<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"epoch"</span>,</span>
+<span id="cb11-34">    save_strategy<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"epoch"</span>,</span>
+<span id="cb11-35">    save_total_limit<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>,</span>
+<span id="cb11-36">    load_best_model_at_end<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb11-37"></span>
+<span id="cb11-38">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Hub</span></span>
+<span id="cb11-39">    push_to_hub<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>, <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># We could push our model straight to the hub after training if we like</span></span>
+<span id="cb11-40">    report_to<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"none"</span>, <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Optional: track experiments with trackio or Weights &amp; Biases</span></span>
+<span id="cb11-41"></span>
+<span id="cb11-42">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Dataset handling (important for custom collate)</span></span>
+<span id="cb11-43">    dataset_text_field<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">""</span>,</span>
+<span id="cb11-44">    dataset_kwargs<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>{<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"skip_prepare_dataset"</span>: <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>},</span>
+<span id="cb11-45">    remove_unused_columns<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>,</span>
+<span id="cb11-46">)</span></code></pre></div></div>
+</div>
+<p>Think of <code>training_args</code> as the knobs we turn for our training run. It specifies how long we want to train (number of epochs), how big our batches should be, how to optimize the model (optimizer and learning rate), how to handle memory (gradient checkpointing), how often to log and save the model, and more.</p>
+</section>
+<section id="train-the-model-using-the-sfttrainer" class="level2">
+<h2 class="anchored" data-anchor-id="train-the-model-using-the-sfttrainer">Train the model using the <code>SFTTrainer</code></h2>
+<p>We then proceed with fine-tuning the model using the <code>SFTTrainer</code>. We pass in the model, training arguments, training and validation datasets, processor for data preprocessing, and a custom data collate function for batching:</p>
+<div id="391dcae7" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">trainer <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> SFTTrainer(</span>
+<span id="cb12-2">    model<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>model,</span>
+<span id="cb12-3">    args<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>training_args,</span>
+<span id="cb12-4">    train_dataset<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>train_dataset,</span>
+<span id="cb12-5">    eval_dataset<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>val_dataset,</span>
+<span id="cb12-6">    processing_class<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>processor,</span>
+<span id="cb12-7">    data_collator<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>collate_fn</span>
+<span id="cb12-8">)</span>
+<span id="cb12-9"></span>
+<span id="cb12-10"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">[INFO] Starting training..."</span>)</span>
+<span id="cb12-11"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"="</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">60</span>)</span>
+<span id="cb12-12">train_result <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> trainer.train()</span>
+<span id="cb12-13"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"="</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">60</span>)</span>
+<span id="cb12-14"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"[INFO] Training complete!"</span>)</span>
+<span id="cb12-15"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Total steps: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>train_result<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>global_step<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span>
+<span id="cb12-16"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Training loss: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>train_result<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>training_loss<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:.4f}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span>
+<span id="cb12-17"></span>
+<span id="cb12-18"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Save the final model</span></span>
+<span id="cb12-19">trainer.save_model()</span>
+<span id="cb12-20"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"[INFO] Model saved to: </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>OUTPUT_DIR<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span></code></pre></div></div>
+</div>
+<p>After 6 hrs (!!!) of training on an A100 GPU High RAM instance on Google Colab, the training completed successfully. Here are some visualizations of the training process:</p>
+<p>After 2 epochs (training in progress): <img src="https://passthetorch.dev/posts/finetuning-with-trl/training-in-progress.png" class="img-fluid"></p>
+<p>After 3 epochs (training complete): <img src="https://passthetorch.dev/posts/finetuning-with-trl/training-complete.png" class="img-fluid"></p>
+<p>We notice that the training loss keeps decreasing as the number of epochs increases, which is a good sign that the model is learning from the data. The evaluation loss also decreases, indicating that the model is improving its performance on the validation set.</p>
+</section>
+<section id="conclusion" class="level2">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>To finish off, we can test the finetuned model on the same example input to see how the output has changed after fine-tuning:</p>
+<div id="6df077c0" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Process input for the fine-tuned model</span></span>
+<span id="cb13-2">finetuned_example_inputs <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> loaded_processor.apply_chat_template(</span>
+<span id="cb13-3">    example_input_messages,</span>
+<span id="cb13-4">    add_generation_prompt<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb13-5">    tokenize<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb13-6">    return_dict<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb13-7">    return_tensors<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"pt"</span>,</span>
+<span id="cb13-8">).to(loaded_model.device)</span>
+<span id="cb13-9"></span>
+<span id="cb13-10"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Generate output with the fine-tuned model</span></span>
+<span id="cb13-11"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">with</span> torch.no_grad():</span>
+<span id="cb13-12">    finetuned_output_ids <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> loaded_model.generate(</span>
+<span id="cb13-13">        <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">**</span>finetuned_example_inputs,</span>
+<span id="cb13-14">        max_new_tokens<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>,</span>
+<span id="cb13-15">        do_sample<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>,</span>
+<span id="cb13-16">    )</span>
+<span id="cb13-17">    finetuned_input_len <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> finetuned_example_inputs[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'input_ids'</span>].shape[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>]</span>
+<span id="cb13-18">    finetuned_generated_ids <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> finetuned_output_ids[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>][finetuned_input_len:]</span>
+<span id="cb13-19"></span>
+<span id="cb13-20">finetuned_model_output <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> loaded_processor.decode(finetuned_generated_ids, skip_special_tokens<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb13-21"></span>
+<span id="cb13-22"><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(<span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">[INFO] Fine-tuned model output:</span><span class="ch" style="color: #20794D;
+background-color: null;
+font-style: inherit;">\n</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>finetuned_model_output<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span>)</span></code></pre></div></div>
+</div>
+<pre><code>[INFO] Fine-tuned model output:
+It can be challenging to manage work-related stress, especially when there are high demands and tight deadlines. The symptoms you mentioned, such as sleepless nights, irritability, and difficulty concentrating, are common signs of stress. It's important to prioritize your mental well-being and find effective ways to handle this stress. Here are some suggestions that may help:
+
+1. Time management: Prioritize your tasks and create a schedule or to-do list to help you stay organized. Break down larger tasks into smaller, more manageable ones. This can make it easier to tackle your workload and reduce feelings of overwhelm.
+
+2. Set boundaries: Establish clear boundaries between work and personal life. Avoid bringing work home with you whenever possible. Designate specific times for work-related activities and make sure to have dedicated time for relaxation and self-care.
+
+3. Practice self-care: Engage in activities that promote relaxation and reduce stress. This could include exercise, meditation, deep breathing exercises, or engaging in hobbies that bring you joy. Taking care of your physical health through regular sleep, healthy eating, and exercise can also contribute to better overall well-being.
+
+4. Seek support: Reach out to friends, family, or trusted colleagues who can provide emotional support. Sometimes talking about your concerns and feelings can help alleviate stress. Additionally, consider joining a support group or seeking professional counseling if needed.
+
+5. Communication: If possible, communicate openly with your supervisor or manager about your workload and any challenges you're facing. They may be able to offer guidance, resources, or adjustments to help manage the stress.
+
+6. Breaks and relaxation techniques: Incorporate short breaks throughout your workday to give yourself time to recharge. Use these breaks to engage in activities that help you relax, such as stretching, taking a walk, or practicing mindfulness techniques.
+
+Remember, finding effective ways to handle work-related stress is a process that may require some trial and error. It's important to be patient with yourself and celebrate small victories along the way. If your symptoms persist or worsen, consider reaching out to a mental health professional for further guidance and support.</code></pre>
+<p>The fine-tuned model output is more concise and closely resembles the desired output compared to the base model output. This demonstrates that the fine-tuning process has successfully adapted the model to generate responses that are more relevant to the mental health context in the dataset.</p>
+
+
+</section>
+
+ ]]></description>
+  <category>Hugging Face</category>
+  <guid>https://passthetorch.dev/posts/finetuning-with-trl/</guid>
+  <pubDate>Mon, 13 Apr 2026 04:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/finetuning-with-trl/thumbnail.png" medium="image" type="image/png" height="78" width="144"/>
+</item>
+<item>
+  <title>Deep Dive into EchoCLIP</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/deep-dive-into-echoclip/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-echoclip/thumbnail.png" class="img-fluid figure-img"></p>
+<figcaption>EchoCLIP workflow</figcaption>
+</figure>
+</div>
+<p>This post is a code-forward deep dive into EchoCLIP, a vision-language model for echocardiogram interpretation. The code repository for EchoCLIP is available on <a href="https://github.com/echonet/echo_CLIP">GitHub</a> and the accompanying Nature paper is available <a href="https://www.nature.com/articles/s41591-024-02959-y">here</a>.</p>
+<p>EchoCLIP learns the relationship between echo images and text interpretations by expert cardiologists. It is trained on 1,032,975 cardiac ultrasound videos and corresponding text and can assess cardiac function and identify implanted intracardiac devices.</p>
+</section>
+<section id="initialization-of-echoclip" class="level2">
+<h2 class="anchored" data-anchor-id="initialization-of-echoclip">Initialization of EchoCLIP</h2>
+<div id="3f0e51a3" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1">echo_clip, _, preprocess_val <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> create_model_and_transforms(</span>
+<span id="cb1-2">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"hf-hub:mkaichristensen/echo-clip"</span>, precision<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"fp32"</span>, device<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cpu"</span></span>
+<span id="cb1-3">)</span></code></pre></div></div>
+</div>
+<p><code>create_model_and_transforms()</code> is a function from the <a href="https://github.com/mlfoundations/open_clip"><code>open_clip</code> library</a> that loads a pretrained CLIP model from Hugging Face Hub, <code>hf-hub:mkaichristensen/echo-clip</code>, sets it to 32-bit precision, and runs it on a CPU. The function returns the model configuration, <code>echo_clip</code>, and the preprocessing transformations for validation, <code>preprocess_val</code>, which will be used later to preprocess the video frames before feeding them into the model.</p>
+</section>
+<section id="video-embedding" class="level2">
+<h2 class="anchored" data-anchor-id="video-embedding">Video Embedding</h2>
+<div id="49cf544e" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">test_video <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> read_avi(</span>
+<span id="cb2-2">    <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"example_video.avi"</span>,</span>
+<span id="cb2-3">    (<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">224</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">224</span>),</span>
+<span id="cb2-4">)</span>
+<span id="cb2-5">test_video <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.stack(</span>
+<span id="cb2-6">    [preprocess_val(T.ToPILImage()(frame)) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> frame <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> test_video], dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span></span>
+<span id="cb2-7">)</span>
+<span id="cb2-8">test_video <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> test_video[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>:<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">min</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">40</span>, <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(test_video)):<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>]</span></code></pre></div></div>
+</div>
+<p>The code above reads an example echocardiogram video, preprocesses each frame using the validation transformations defined in <code>preprocess_val</code>, and selects every other frame up to a maximum of 40 frames. The resulting <code>test_video</code> tensor has shape <code>(20, 3, 224, 224)</code>, where 20 is the number of frames, 3 is the number of color channels (RGB), and 224x224 is the spatial resolution of each frame.</p>
+<div id="c05d4fbd" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">test_video_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> F.normalize(echo_clip.encode_image(test_video), dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)</span></code></pre></div></div>
+</div>
+<p>First, the preprocessed video frames are passed through the CLIP image encoder, <code>echo_clip.encode_image()</code>, to obtain a video embedding. The video embedding has a shape of <code>(20, 512)</code>, where 20 is the number of frames and 512 is the dimensionality of the embedding space. Each frame is represented as a 512-dimensional vector. The resulting embedding is then normalized using <code>F.normalize()</code> along the last dimension (feature dimension) to ensure that each embedding vector has unit length.</p>
+<p>Cosine similarity is <code>(A · B) / (||A|| * ||B||)</code> and when <code>A</code> and <code>B</code> are normalized to unit length, this simplifies to <code>A · B</code>, which is just the dot product of the two vectors. The dot product operation alone is much cheaper than calculating the full cosine similarity with unnormalized vectors. <code>A</code> would be the test video embedding and <code>B</code> would be the prompt embedding.</p>
+</section>
+<section id="text-embedding" class="level2">
+<h2 class="anchored" data-anchor-id="text-embedding">Text Embedding</h2>
+<div id="8e75dc3d" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">pacemaker_prompts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> tokenize(pacemaker_prompts).cpu()</span></code></pre></div></div>
+</div>
+<p>We use the CLIP BPE tokenizer to tokenize the pacemaker prompts.</p>
+<pre><code>['ECHO DENSITY IN RIGHT VENTRICLE SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ',
+ 'ECHO DENSITY IN RIGHT ATRIUM SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ']</code></pre>
+<p>and then move the tokenized prompts to the CPU for later use in calculating similarity with the video embedding.</p>
+<div id="f77ed10d" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">pacemaker_prompt_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> F.normalize(</span>
+<span id="cb6-2">    echo_clip.encode_text(pacemaker_prompts), dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb6-3">)</span></code></pre></div></div>
+</div>
+<p>We then encode the tokenized pacemaker prompts using the CLIP text encoder and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
+<div id="51fa343c" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">pacemaker_predictions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_binary_metric(</span>
+<span id="cb7-2">    test_video_embedding, pacemaker_prompt_embeddings</span>
+<span id="cb7-3">)</span></code></pre></div></div>
+</div>
+<p>We compute the binary metric for pacemaker presence by calculating the cosine similarity between the video embedding and the pacemaker prompt embeddings. The <code>compute_binary_metric</code> function is defined as follows:</p>
+<div id="a478df61" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> compute_binary_metric(</span>
+<span id="cb8-2">    video_embeddings: torch.Tensor,</span>
+<span id="cb8-3">    prompt_embeddings: torch.Tensor,</span>
+<span id="cb8-4">):</span>
+<span id="cb8-5">    per_frame_similarities <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> video_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">@</span> prompt_embeddings.T</span>
+<span id="cb8-6">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Average along the candidate dimension and frame dimension</span></span>
+<span id="cb8-7">    predictions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> per_frame_similarities.mean(dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>).mean(dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)</span>
+<span id="cb8-8"></span>
+<span id="cb8-9">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> predictions</span></code></pre></div></div>
+</div>
+<p>The function calculates the cosine similarity between the video embeddings and the prompt embeddings by performing a matrix multiplication (dot product) between the video embeddings and the transposed prompt embeddings. This results in a tensor of shape <code>(batch_size, num_frames, num_prompts)</code>. The function then averages the similarities across both the candidate dimension (e.g., if there are 2 pacemaker prompts, their similarities are averaged into one score per frame) and the frame dimension (collapses all frame-level scores into one score per video) to produce a single prediction score for each video in the batch.</p>
+</section>
+<section id="predicting-continuous-values" class="level2">
+<h2 class="anchored" data-anchor-id="predicting-continuous-values">Predicting Continuous Values</h2>
+<div id="1e8fcefd" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1">ejection_fraction_prompts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> zero_shot_prompts[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"ejection_fraction"</span>]</span></code></pre></div></div>
+</div>
+<pre><code>['THE LEFT VENTRICULAR EJECTION FRACTION IS ESTIMATED TO BE &lt;#&gt;% ',
+ 'LV EJECTION FRACTION IS &lt;#&gt;%. ']</code></pre>
+<p>Ejection fraction can range from 0% to 100%, so we make 100 versions of each prompt, replacing <code>&lt;#&gt;</code> with each integer from 0 to 100.</p>
+<div id="86141ef1" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1">ejection_fraction_prompts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> tokenize(ejection_fraction_prompts).cpu()</span>
+<span id="cb11-2">ejection_fraction_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> F.normalize(</span>
+<span id="cb11-3">    echo_clip.encode_text(ejection_fraction_prompts), dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb11-4">)</span></code></pre></div></div>
+</div>
+<p>Once again, we tokenize the ejection fraction prompts and encode them using the CLIP text encoder, normalizing the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
+<div id="648c87d9" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">ejection_fraction_predictions <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> compute_regression_metric(</span>
+<span id="cb12-2">    test_video_embedding, ejection_fraction_embeddings, prompt_values</span>
+<span id="cb12-3">)</span></code></pre></div></div>
+</div>
+<p>The <code>compute_regression_metric</code> function is defined as follows:</p>
+<div id="89a576c3" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> compute_regression_metric(</span>
+<span id="cb13-2">    video_embeddings: torch.Tensor,</span>
+<span id="cb13-3">    prompt_embeddings: torch.Tensor,</span>
+<span id="cb13-4">    prompt_values: torch.Tensor,</span>
+<span id="cb13-5">):</span>
+<span id="cb13-6">    per_frame_similarities <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> (</span>
+<span id="cb13-7">        video_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">@</span> prompt_embeddings.T</span>
+<span id="cb13-8">    )  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># (N x Frames x Candidates)</span></span>
+<span id="cb13-9"></span>
+<span id="cb13-10">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Sort the candidates by their similarity to the video</span></span>
+<span id="cb13-11">    ranked_candidate_phrase_indices <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.argsort(</span>
+<span id="cb13-12">        per_frame_similarities, dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, descending<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span></span>
+<span id="cb13-13">    )</span>
+<span id="cb13-14"></span>
+<span id="cb13-15">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Convert matrix of indices to their corresponding continuous values.</span></span>
+<span id="cb13-16">    prompt_values <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.tensor(</span>
+<span id="cb13-17">        prompt_values, device<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>video_embeddings.device</span>
+<span id="cb13-18">    )  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># (N x Frames x Candidates)</span></span>
+<span id="cb13-19">    all_frames_ranked_values <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> prompt_values[ranked_candidate_phrase_indices]</span>
+<span id="cb13-20"></span>
+<span id="cb13-21">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Taking the mean along dim=1 collapses the frames dimension</span></span>
+<span id="cb13-22">    avg_frame_ranked_values <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> all_frames_ranked_values.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>().mean(</span>
+<span id="cb13-23">        dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span>
+<span id="cb13-24">    )  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># (N x Candidates)</span></span>
+<span id="cb13-25"></span>
+<span id="cb13-26">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># The median of only the top 20% of predicted values is taken</span></span>
+<span id="cb13-27">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># as the final predicted value</span></span>
+<span id="cb13-28">    twenty_percent <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">int</span>(avg_frame_ranked_values.shape[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.2</span>)</span>
+<span id="cb13-29">    final_prediction <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> avg_frame_ranked_values[:, :twenty_percent].median(dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]</span>
+<span id="cb13-30"></span>
+<span id="cb13-31">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> final_prediction</span></code></pre></div></div>
+</div>
+<p>The function calculate the cosine similarity between the video embeddings and the prompt embeddings, resulting in a tensor of shape <code>(20, 2)</code>, equivalent to <code>(num_frames, num_prompts)</code>. The candidates (prompts) are then ranked by their similarity to the video for each frame. The corresponding continuous values for each prompt are retrieved and averaged across frames. Finally, the median of the top 20% of predicted values is taken as the final predicted value for each video in the batch.</p>
+</section>
+<section id="conclusion" class="level2">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>In this post, we walked through the EchoCLIP codebase — from model initialization with pre-trained weights, to video and text embedding, to calculating similarity for both binary classification and regression tasks. EchoCLIP is a powerful vision-language model that can learn complex relationships between echocardiogram videos and their corresponding text interpretations, enabling it to perform a variety of tasks such as assessing cardiac function and identifying implanted devices.</p>
+
+
+</section>
+
+ ]]></description>
+  <category>Medical AI</category>
+  <guid>https://passthetorch.dev/posts/deep-dive-into-echoclip/</guid>
+  <pubDate>Fri, 06 Mar 2026 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-echoclip/thumbnail.png" medium="image" type="image/png" height="83" width="144"/>
+</item>
+<item>
+  <title>Deep Dive into EchoPrime</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/deep-dive-into-echoprime/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-echoprime/thumbnail.png" class="img-fluid"></p>
+<p>This post is a code-forward deep dive into EchoPrime, a multi-video, view-informed Vision-Language Model designed for comprehensive echocardiography interpretation. The code repository for EchoPrime is available on <a href="https://github.com/echonet/EchoPrime">GitHub</a> and the accompanying Nature paper is available at <a href="https://www.nature.com/articles/s41586-025-09850-x" class="uri">https://www.nature.com/articles/s41586-025-09850-x</a>.</p>
+</section>
+<section id="initialization-of-echoprime" class="level2">
+<h2 class="anchored" data-anchor-id="initialization-of-echoprime">Initialization of EchoPrime</h2>
+<p>Let’s first examine the <code>__init__</code> method in the EchoPrime class, which loads everything the EchoPrime model needs:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># load language specific files</span></span>
+<span id="cb1-2">utils.initialize_language(lang)</span></code></pre></div></div>
+<p>The code loads language-specific phrases from a JSON file, flattens the resulting nested lists into single flat lists (<code>phrases_per_section_list</code> and <code>phrases_per_section_list_org</code>) and then converts these phrases into regex patterns for later text matching (<code>regex_per_section</code>).</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">device <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.device(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cuda"</span> <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> torch.cuda.is_available() <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cpu"</span>)</span></code></pre></div></div>
+<p>This sets up device-agnostic code for PyTorch, using a GPU if one is available and falling back to CPU otherwise.</p>
+<section id="model-architectures" class="level3">
+<h3 class="anchored" data-anchor-id="model-architectures">Model Architectures</h3>
+<section id="mvit-multiscale-vision-transformer-encoder" class="level4">
+<h4 class="anchored" data-anchor-id="mvit-multiscale-vision-transformer-encoder">MViT (Multiscale Vision Transformer) Encoder</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">checkpoint <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/weights/echo_prime_encoder.pt"</span>, map_location<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>device)</span></code></pre></div></div>
+<p><code>checkpoint</code> contains the trained weights for a small MViT V2 model state dictionary. The weights are loaded onto the appropriate device (CPU or GPU) based on the earlier <code>device</code> setup.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">echo_encoder <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.video.mvit_v2_s() </span>
+<span id="cb4-2">echo_encoder.head[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(echo_encoder.head[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].in_features, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>)</span>
+<span id="cb4-3">echo_encoder.load_state_dict(checkpoint)</span>
+<span id="cb4-4">echo_encoder.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">eval</span>() <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Set the model in evaluation mode</span></span>
+<span id="cb4-5">echo_encoder.to(device)</span>
+<span id="cb4-6"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> param <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> echo_encoder.parameters():</span>
+<span id="cb4-7">    param.requires_grad <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span></span></code></pre></div></div>
+<p>Constructs a small MViTV2 architecture and loads the pre-trained weights from the checkpoint. The model is set to evaluation mode, moved to the appropriate device (CPU or GPU), and all parameters are frozen to prevent further training.</p>
+</section>
+<section id="convnext-view-classifier" class="level4">
+<h4 class="anchored" data-anchor-id="convnext-view-classifier">ConvNeXt View Classifier</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">vc_state_dict <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/weights/view_classifier.pt"</span>)</span></code></pre></div></div>
+<p><code>vc_state_dict</code> contains the trained weights for a ConvNeXt base model that serves as the view classifier. The weights are loaded onto the appropriate device (CPU or GPU) based on the earlier device setup.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">view_classifier <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.convnext_base()</span>
+<span id="cb6-2">view_classifier.classifier[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(</span>
+<span id="cb6-3">    view_classifier.classifier[<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>].in_features, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">11</span></span>
+<span id="cb6-4">)</span>
+<span id="cb6-5">view_classifier.load_state_dict(vc_state_dict)</span>
+<span id="cb6-6">view_classifier.to(device)</span>
+<span id="cb6-7">view_classifier.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">eval</span>()</span>
+<span id="cb6-8"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> param <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> view_classifier.parameters():</span>
+<span id="cb6-9">    param.requires_grad <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span></span></code></pre></div></div>
+<p>This code constructs a ConvNeXt base architecture for view classification (11 views), loads pre-trained weights, sets the model to evaluation mode, moves it to the appropriate device, and removes gradients from all parameters to prevent further training.</p>
+</section>
+<section id="multiple-instance-learning-mil" class="level4">
+<h4 class="anchored" data-anchor-id="multiple-instance-learning-mil">Multiple Instance Learning (MIL)</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">MIL_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_csv(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"assets/MIL_weights.csv"</span>)</span>
+<span id="cb7-2">non_empty_sections <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> MIL_weights[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Section'</span>]</span>
+<span id="cb7-3">section_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> MIL_weights.iloc[:,<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>:].to_numpy()</span></code></pre></div></div>
+<p>This code chunk loads MIL (Multiple Instance Learning) weights that encode how relevant each of the 11 echo video views are to each of the 15 cardiac sections. The <code>non_empty_sections</code> variable contains the names of the 15 sections, and <code>section_weights</code> is a 15x11 matrix where each row corresponds to a section and each column corresponds to a view.</p>
+</section>
+<section id="candidate-studies" class="level4">
+<h4 class="anchored" data-anchor-id="candidate-studies">Candidate Studies</h4>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1">candidate_studies <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">list</span>(pd.read_csv(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_studies.csv"</span>)[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'Study'</span>])</span>
+<span id="cb8-2"></span>
+<span id="cb8-3">candidate_embeddings_p1 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_embeddings_p1.pt"</span>)</span>
+<span id="cb8-4">candidate_embeddings_p2 <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_embeddings_p2.pt"</span>)</span>
+<span id="cb8-5">candidate_embeddings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.cat((candidate_embeddings_p1, candidate_embeddings_p2), dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>)</span>
+<span id="cb8-6"></span>
+<span id="cb8-7">candidate_reports <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_pickle(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_reports.pkl"</span>)</span>
+<span id="cb8-8">candidate_reports <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [utils.phrase_decode(vec_phr) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> vec_phr <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> tqdm(candidate_reports)]</span>
+<span id="cb8-9"></span>
+<span id="cb8-10">candidate_labels <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_pickle(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"model_data/candidates_data/candidate_labels.pkl"</span>)</span>
+<span id="cb8-11">section_to_phenotypes <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_pickle(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"assets/section_to_phenotypes.pkl"</span>)</span></code></pre></div></div>
+<p>Here’s a summary of each file:</p>
+<ol type="1">
+<li><p><code>candidate_studies.csv</code>: A single-column CSV with a Study column containing integer study IDs (0, 1, 2, …). These are identifiers for each echocardiogram study in the candidate pool.</p></li>
+<li><p><code>candidate_embeddings_p1.pt</code> &amp; <code>candidate_embeddings_p2.pt</code>: PyTorch float32 tensors, each of shape (615,338 × 512). Combined they form a (1,230,676 × 512) matrix <code>candidate_embeddings</code> — one 512-dimensional embedding vector per candidate study. Split into two files likely due to file-size constraints.</p></li>
+<li><p><code>candidate_reports.pkl</code>: A list of 1,230,676 entries (one per candidate study). Each entry is a list of tuples (section_id, phenotype_id, value), representing the structured echocardiogram findings for that study. Values are either numeric measurements (e.g., 76.41, 1.04, 8.59) or NaN (indicating presence of a finding without a numeric value). These get decoded into natural-language phrases by <code>utils.phrase_decode()</code>.</p></li>
+<li><p><code>candidate_labels.pkl</code>: A dict with 21 keys, each a cardiac phenotype (e.g., impella, ejection_fraction, pacemaker, aortic_stenosis, pericardial_effusion, etc.). Each key maps to a dict of {study_index: label_value}:</p></li>
+</ol>
+<ul>
+<li>Binary phenotypes (e.g., impella, pacemaker): values are 0 or 1.</li>
+<li>Continuous phenotypes (e.g., ejection_fraction): values are floats (e.g., 38.0, 72.0). Not all studies have values (only 607K of 1.23M for EF).</li>
+</ul>
+<ol start="5" type="1">
+<li><code>section_to_phenotypes.pkl</code>: A dict mapping 11 echo report sections to the phenotypes they contain.</li>
+</ol>
+<p>For example:</p>
+<ul>
+<li>Left Ventricle → [impella, ejection_fraction]</li>
+<li>Right Ventricle → [pacemaker, rv_systolic_function_depressed, right_ventricle_dilation]</li>
+<li>Left Atrium → [left_atrium_dilation]</li>
+<li>Mitral Valve, Aortic Valve, Tricuspid Valve, Pericardium, Aorta, IVC, Pulmonary Artery, etc.</li>
+</ul>
+</section>
+</section>
+<section id="summary-of-initialization" class="level3">
+<h3 class="anchored" data-anchor-id="summary-of-initialization">Summary of Initialization</h3>
+<p>We’ve gone through all the code that runs when an EchoPrime model is initialized. This includes loading language-specific phrases, initializing the MViT encoder and ConvNeXt view classifier with pre-trained weights, setting up data structures for candidate studies and their associated embeddings, reports, and labels. The MIL weights for each section are also loaded to be used in the report generation process.</p>
+</section>
+</section>
+<section id="demo-of-echoprime" class="level2">
+<h2 class="anchored" data-anchor-id="demo-of-echoprime">Demo of EchoPrime</h2>
+<p>Now, let’s go through the code for the <a href="https://github.com/echonet/EchoPrime/blob/main/EchoPrimeDemo.ipynb">EchoPrimeDemo.ipynb</a> notebook, which demonstrates how to use the EchoPrime class to process echocardiogram videos and generate structured reports.</p>
+<section id="preprocessing-and-encoding" class="level3">
+<h3 class="anchored" data-anchor-id="preprocessing-and-encoding">Preprocessing and Encoding</h3>
+<p><code>process_dicoms()</code>: Reads MP4 video data from the specified folder and returns a tensor formatted for input into the EchoPrime model. All per-video tensors are stacked into a single tensor of shape <code>(N, 3, 16, 224, 224)</code>, where <code>N</code> is the number of successfully processed videos, <code>3</code> is the number of color channels (RGB), <code>16</code> is the number of subsampled frames taken from each video, and <code>224x224</code> is the spatial resolution of each frame.</p>
+<p><code>encode_study()</code>: Takes the processed video tensor and passes it through <code>embed_videos()</code>, which uses the MViT (v2) encoder to generate a 512-dimensional embedding vector for the entire study. The processed video tensor is also passed through <code>get_views()</code>, which uses the ConvNeXt view classifier to predict the view type of each video, which is used to weight the video embeddings before averaging them into a single study-level embedding.</p>
+</section>
+<section id="function-predict_metrics" class="level3">
+<h3 class="anchored" data-anchor-id="function-predict_metrics">Function <code>predict_metrics()</code></h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># per_section_study_embedding has shape (15,512)</span></span>
+<span id="cb9-2">per_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.zeros(<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.non_empty_sections), <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>)</span>
+<span id="cb9-3">study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> study_embedding.cpu()</span></code></pre></div></div>
+<p>Creates a zero-filled tensor of shape (15, 512), one row per cardiac section and 512 columns for the embedding dimensions. Then, it moves the <code>study_embedding</code> to CPU for further processing.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> s_dx, sec <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.non_empty_sections):</span>
+<span id="cb10-2">  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># get section weights</span></span>
+<span id="cb10-3">  this_section_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [</span>
+<span id="cb10-4">    <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.section_weights[s_dx][torch.where(view_encoding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]]</span>
+<span id="cb10-5">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> view_encoding <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> study_embedding[:, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>:]</span>
+<span id="cb10-6">  ]</span>
+<span id="cb10-7">  this_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> study_embedding[:, :<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> torch.tensor(</span>
+<span id="cb10-8">              this_section_weights, dtype<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>torch.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span></span>
+<span id="cb10-9">  ).unsqueeze(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)</span>
+<span id="cb10-10"></span>
+<span id="cb10-11">  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># weighted average</span></span>
+<span id="cb10-12">  this_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sum</span>(</span>
+<span id="cb10-13">    this_section_study_embedding, dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span></span>
+<span id="cb10-14">  )</span>
+<span id="cb10-15">  per_section_study_embedding[s_dx] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> this_section_study_embedding</span></code></pre></div></div>
+<p>Extracts the one-hot view encodings from the last 11 dimensions of <code>study_embedding</code> and look up the weights for the current section based on the view type. Then, it multiplies the first 512 dimensions of <code>study_embedding</code> (the video embedding) by the corresponding section weights to get a weighted embedding for that section. Finally, it sums across all videos to get a single embedding vector for that section and stores it in <code>per_section_study_embedding</code>.</p>
+<p>For each of 15 sections,</p>
+<ol type="1">
+<li>Look up view relevance weights → (N,) scalars</li>
+<li>Scale each video’s embedding by weight → (N, 512)</li>
+<li>Sum across videos → (512,)</li>
+<li>Store as section row → per_section_study_embedding[s_dx]</li>
+<li>Repeat for all 15 sections</li>
+</ol>
+<p>This results in a (15, 512) tensor <code>per_section_study_embedding</code> where each row is a weighted average embedding for that section, reflecting the relevance of each video view to that section’s findings.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1">per_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.functional.normalize(</span>
+<span id="cb11-2">  per_section_study_embedding</span>
+<span id="cb11-3">)</span></code></pre></div></div>
+<p>This normalizes each section embedding to have unit length.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">similarities <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> per_section_study_embedding <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">@</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_embeddings.T</span></code></pre></div></div>
+<p>This computes the cosine similarity between each section embedding and all candidate report embeddings. The result is a <code>(15, 1,230,676)</code> tensor where each entry represents the similarity score between a section embedding and a candidate report embedding.</p>
+<p>Example:</p>
+<ul>
+<li>row 0 (Left Ventricle embedding) · candidate_0 = 0.92 ← very similar</li>
+<li>row 0 (Left Ventricle embedding) · candidate_1 = 0.31 ← not very similar</li>
+<li>row 0 (Left Ventricle embedding) · candidate_2 = 0.87 ← similar</li>
+</ul>
+<p>A candidate is a real echocardiogram study from the training database, and its embedding represents the findings in that study. A high similarity score indicates that the current study’s section embedding closely matches the findings of that candidate study.</p>
+<p>So far, <code>similarities</code> is a (15, 1,230,676) matrix of similarity scores between each section embedding and all candidate report embeddings. A score for every (section, candidate) pair.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1">top_candidate_ids <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.topk(similarities, k<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>k, dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>).indices</span></code></pre></div></div>
+<p>This retrieves the indices of the top k most similar candidate reports for each section. The result is a (15, k) tensor where each row contains the indices of the k candidate reports that are most similar to that section’s embedding.</p>
+<p>So top_candidate_ids[0] gives the <code>k=50</code> best-matching candidates for the first section, top_candidate_ids[1] for the next section, etc.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> s_dx, section <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.section_to_phenotypes.keys()):</span>
+<span id="cb14-2">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> pheno <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.section_to_phenotypes[section]:</span>
+<span id="cb14-3">        preds[pheno] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.nanmean(</span>
+<span id="cb14-4">            [</span>
+<span id="cb14-5">              <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_labels[pheno][<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_studies[c_ids]]</span>
+<span id="cb14-6">              <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> c_ids <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> top_candidate_ids[s_dx]</span>
+<span id="cb14-7">              <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_studies[c_ids] <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_labels[pheno]</span>
+<span id="cb14-8">            ]</span>
+<span id="cb14-9">        )</span></code></pre></div></div>
+<p>For each phenotype, predict its value by averaging that measurement across the 50 most similar historical echo studies. The final output is a dictionary <code>preds</code> where each key is a phenotype and the value is the predicted measurement or binary label for that phenotype.</p>
+<p><code>preds</code> example output:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1">{<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'ejection_fraction'</span>: np.float64(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">56.28</span>),</span>
+<span id="cb15-2"> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'pacemaker'</span>: np.float64(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.02</span>),</span>
+<span id="cb15-3"> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'dilated_ivc'</span>: np.float64(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.02</span>),</span>
+<span id="cb15-4"> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'pulmonary_artery_pressure_continuous'</span>: np.float64(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">22.08823529411765</span>)</span>
+<span id="cb15-5"> }</span></code></pre></div></div>
+</section>
+<section id="function-generate_report" class="level3">
+<h3 class="anchored" data-anchor-id="function-generate_report">Function <code>generate_report()</code>:</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> s_dx, sec <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.non_empty_sections):</span>
+<span id="cb16-2">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># need to multiply it based on what section does the view belong to.</span></span>
+<span id="cb16-3">    cur_weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [</span>
+<span id="cb16-4">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.section_weights[s_dx][torch.where(ten <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>]]</span>
+<span id="cb16-5">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> ten <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> study_embedding[:, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>:]</span>
+<span id="cb16-6">    ]</span>
+<span id="cb16-7">    ...</span>
+<span id="cb16-8">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">while</span> extracted_section <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Section not found."</span>:</span>
+<span id="cb16-9">      max_id <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.argmax(similarities)</span>
+<span id="cb16-10">      predicted_section <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.candidate_reports[max_id]</span>
+<span id="cb16-11">      extracted_section <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> utils.extract_section(predicted_section, sec)</span>
+<span id="cb16-12">      <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> extracted_section <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Section not found."</span>:</span>
+<span id="cb16-13">        generated_report <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+=</span> extracted_section</span>
+<span id="cb16-14">      similarities[max_id] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"-inf"</span>)</span></code></pre></div></div>
+<p>The code leading up to <code>similarities</code> is equal to the code in <code>predict_metrics()</code>. <code>similarities</code> is computed as the cosine similarity between each section embedding and all candidate report embeddings and is (15, 1,230,676) in shape.</p>
+<p>The <code>while</code> loop:</p>
+<ol type="1">
+<li>Finds the top candidate report with the highest similarity score to the current section embedding.</li>
+<li>Extracts the text for the current section from that candidate report using <code>utils.extract_section()</code>.</li>
+<li>If a valid section is found, it appends that text to the <code>generated_report</code>. If not, it sets that similarity score to negative infinity to exclude it from future consideration and continues searching for the next best candidate until a valid section is found.</li>
+</ol>
+<p>The final output is <code>generated_report</code>, a string that concatenates the extracted sections for all 15 sections, forming a complete echocardiogram report based on the most similar historical cases.</p>
+<p><code>generated_report</code> example output:</p>
+<blockquote class="blockquote">
+<p>Left Ventricle: Normal left ventricular size by linear cavity dimension. Normal left ventricular size by volume Mild left ventricular hypertrophy. Normal left ventricular systolic function. LV Ejection Fraction is 60.0 %. Mild diastolic dysfunction. There is reversal of the E to A ratio and/or prolonged deceleration time consistent with impaired left ventricular relaxation. Doppler parameters and/or lateral mitral annular (E`) velocities are consistent with normal left ventricular filling pressures. [SEP]Resting Segmental Wall Motion Analysis: Total wall motion score is 1.0. There are no regional wall motion abnormalities</p>
+</blockquote>
+</section>
+</section>
+<section id="conclusion" class="level2">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>In this post, we walked through the EchoPrime codebase — from model initialization with pre-trained weights, to how the demo notebook leverages similarity to historical echo studies to predict cardiac phenotypes and generate structured reports.</p>
+
+
+</section>
+
+ ]]></description>
+  <category>Medical AI</category>
+  <guid>https://passthetorch.dev/posts/deep-dive-into-echoprime/</guid>
+  <pubDate>Fri, 27 Feb 2026 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-echoprime/thumbnail.png" medium="image" type="image/png" height="76" width="144"/>
+</item>
+<item>
+  <title>Multiscale Vision Transformers (MViTv2)</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/multiscale-vision-transformers-v2/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>This post provides an overview of the <a href="https://arxiv.org/pdf/2112.01526">paper</a> MViTv2: Improved Multiscale Vision Transformers for Classification and Detection with a focus on the upgrades to the pooling attention in the previous <a href="https://arxiv.org/pdf/2104.11227">MViT architecture</a>. Also, this post dives into the official PyTorch implementation of <a href="https://github.com/facebookresearch/mvit">MViTv2</a>.</p>
+<p>Building on MViT, MViTv2 introduces two improvements to pooling attention: shift-invariant positional embeddings and a residual pooling connection. These enhancements lead to better performance in image and video recognition tasks.</p>
+<p>The improved pooling attention is shown in the figure below:</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/multiscale-vision-transformers-v2/pooling-attention.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+</section>
+<section id="decomposed-relative-position-embeddings" class="level2">
+<h2 class="anchored" data-anchor-id="decomposed-relative-position-embeddings">Decomposed Relative Position Embeddings</h2>
+<p>A shortcoming of MViT is that it uses absolute positional embeddings, which are not “shift-invariant”. The interaction between two patches will change depending on their absolute positions in the image (even if their relative positions remain the same).</p>
+<p>“Shift-invariance in vision” refers to a fundamental property where the recognition or detection of a visual feature should remain consistent regardless of where it appears in an image. In simple terms: if you can recognize a cat in the top-left corner of an image, you should also recognize that same cat if it appears in the bottom-right corner. The object’s identity doesn’t change just because its absolute position in the image has changed.</p>
+<p>To address this shortcoming, the paper introduces <strong>decomposed relative position embeddings</strong> that encode the relationship between patches (“this patch is 2 positions to the right and 1 position down from that patch”) rather than their absolute locations. This makes the model shift-invariant - it can recognize the same spatial patterns regardless of where they appear in the image.</p>
+<p>The authors encode the relative position between two input elements, <img src="https://latex.codecogs.com/png.latex?i"> and <img src="https://latex.codecogs.com/png.latex?j"> into positional embedding <img src="https://latex.codecogs.com/png.latex?R_%7Bp(i),%20p(j)%7D%20%5Cin%20%5Cmathbb%7BR%7D%5Ed"> where <img src="https://latex.codecogs.com/png.latex?p(i)"> and <img src="https://latex.codecogs.com/png.latex?p(j)"> are the spatial position of element <img src="https://latex.codecogs.com/png.latex?i"> and <img src="https://latex.codecogs.com/png.latex?j">. This positional embedding is then embedded into the self-attention module:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0A%5Coperatorname%7BAttn%7D(Q,%20K,%20V)%20=%20%5Coperatorname%7BSoftmax%7D%5Cleft(%5Cleft(Q%20K%5E%7B%5Ctop%7D+E%5E%7B(%5Cmathrm%7Brel%7D)%7D%5Cright)%20/%20%5Csqrt%7Bd%7D%5Cright)%20V%20%5C%5C%0A%5Ctext%7Bwhere%7D%20%5Cquad%0AE_%7Bi%20j%7D%5E%7B(%5Cmathrm%7Brel%7D)%7D=Q_i%20%5Ccdot%20R_%7Bp(i),%20p(j)%7D%0A%5Cend%7Balign%7D%0A"></p>
+<p>The positional embedding <img src="https://latex.codecogs.com/png.latex?R_%7Bp(i),%20p(j)%7D"> is decomposed into three positional embeddings along the height, width, and temporal axes:</p>
+<p><img src="https://latex.codecogs.com/png.latex?R_%7Bp(i),%20p(j)%7D=R_%7Bh(i),%20h(j)%7D%5E%7B%5Cmathrm%7Bh%7D%7D+R_%7Bw(i),%20w(j)%7D%5E%7B%5Cmathrm%7Bw%7D%7D+R_%7Bt(i),%20t(j)%7D%5E%7B%5Cmathrm%7Bt%7D%7D"></p>
+</section>
+<section id="residual-pooling-connection" class="level2">
+<h2 class="anchored" data-anchor-id="residual-pooling-connection">Residual Pooling Connection</h2>
+<p><strong>Asymmetric downsampling strategy</strong>: As detailed in the Multiscale Vision Transformers <a href="https://arxiv.org/pdf/2104.11227">paper</a>, the <img src="https://latex.codecogs.com/png.latex?Q"> tensor is only downsampled when the output sequence resolution actually changes across stages, while <img src="https://latex.codecogs.com/png.latex?K"> and <img src="https://latex.codecogs.com/png.latex?V"> can be downsampled more frequently within stages. This design makes sense because the attention output sequence <img src="https://latex.codecogs.com/png.latex?Z"> will have the same length as the pooled query <img src="https://latex.codecogs.com/png.latex?Q"> (as shown in equation 5), so you want <img src="https://latex.codecogs.com/png.latex?Q"> to control the output resolution while allowing <img src="https://latex.codecogs.com/png.latex?K"> and <img src="https://latex.codecogs.com/png.latex?V"> to be more aggressively compressed to save computation and memory.</p>
+<p>This leads to the authors of this paper to add a residual pooling connection with the pooled <img src="https://latex.codecogs.com/png.latex?Q"> tensor “to increase information flow and facilitate the training of pooling attention blocks in MViT”.</p>
+<p><img src="https://latex.codecogs.com/png.latex?Z:=%5Coperatorname%7BAttn%7D(Q,%20K,%20V)+Q"></p>
+<p>Note that the output <img src="https://latex.codecogs.com/png.latex?Z"> has the same length as the pooled query tensor <img src="https://latex.codecogs.com/png.latex?Q">.</p>
+</section>
+<section id="code-walkthrough" class="level2">
+<h2 class="anchored" data-anchor-id="code-walkthrough">Code Walkthrough</h2>
+<p>The rest of this post will focus on the official PyTorch implementation of <a href="https://github.com/facebookresearch/mvit">MViTv2</a>.</p>
+<section id="from-mvitmodelsattention.py" class="level4">
+<h4 class="anchored" data-anchor-id="from-mvitmodelsattention.py">From <a href="https://github.com/facebookresearch/mvit/blob/main/mvit/models/attention.py"><strong><code>mvit/models/attention.py</code></strong></a>:</h4>
+</section>
+<section id="attention_pool-pooling-operation-for-attention-tensors-q-k-v" class="level4">
+<h4 class="anchored" data-anchor-id="attention_pool-pooling-operation-for-attention-tensors-q-k-v">1. <code>attention_pool()</code>: Pooling operation for attention tensors (<code>Q</code>, <code>K</code>, <code>V</code>)</h4>
+<p>Takes a tensor and a pooling function (for ex, <code>nn.AvgPool2d()</code>), separates the class and patch tokens, and applies the pooling operation to the patch tokens after reshaping them to <code>[batch×heads, channels, height, width]</code>, which is the expected input format for PyTorch pooling layers. After pooling is complete, the tensor is reshaped back to <code>[batch, heads, sequence_length, channels]</code></p>
+</section>
+<section id="cal_rel_pos_spatial-decomposed-relative-positional-encoding" class="level4">
+<h4 class="anchored" data-anchor-id="cal_rel_pos_spatial-decomposed-relative-positional-encoding">2. <code>cal_rel_pos_spatial()</code>: Decomposed relative positional encoding</h4>
+<p>Calculates relative positional embeddings, which only depend on the relative location distance between tokens into the pooled self-attention computation.</p>
+</section>
+<section id="multiscaleattention-class-for-pooling-attention" class="level4">
+<h4 class="anchored" data-anchor-id="multiscaleattention-class-for-pooling-attention">3. <code>MultiScaleAttention</code>: Class for pooling attention</h4>
+<p>The <code>__init__</code> method initializes the <code>MultiScaleAttention</code> module’s parameters:</p>
+<ul>
+<li><code>self.pool_first</code>: Whether to pool first before projection</li>
+<li><code>self.num_heads</code>: Number of attention heads</li>
+<li><code>self.dim_out</code>: Output dimension after attention</li>
+<li><code>head_dim</code>: Dimension per attention head</li>
+<li><code>self.scale</code>: Scaling factor for attention scores</li>
+<li><code>self.has_cls_embed</code>: Whether there is a class token</li>
+</ul>
+<p>If pooling first (before linear projection), there are three separate linear projection layers, which gives more flexibility since <img src="https://latex.codecogs.com/png.latex?Q">, <img src="https://latex.codecogs.com/png.latex?K">, <img src="https://latex.codecogs.com/png.latex?V"> may undergo different pooling operations (different kernel sizes, strides) before being projected.</p>
+<p>If linear projection occurs before pooling, the input can be projected once, then split into <img src="https://latex.codecogs.com/png.latex?Q">, <img src="https://latex.codecogs.com/png.latex?K">, <img src="https://latex.codecogs.com/png.latex?V">, then pool each separately.</p>
+<p>The method also adds an output projection layer applied after multi-head attention, and defines pooling operations based on the specified mode (<code>avg</code>, <code>max</code>, <code>conv</code>, <code>conv_unshared</code>). If the kernel and stride size is (1, 1), pooling is skipped entirely. Finally, it creates learnable parameters (<code>self.rel_pos_h</code> and <code>self.rel_pos_w</code>) that encode relative spatial distances between tokens in a 2D image grid, initializing the Relative Positional Embeddings.</p>
+<p>In the <code>forward</code> method,</p>
+<p>If pooling first then linear projection, then split the feature dimension into attention heads, and permute to <code>(B, fold_dim, N, C)</code> to organize by attention heads.</p>
+<p>If linear projection first, then pooling, then apply linear projection first, then reshape from <code>(B, N, qkv_dim)</code> to <code>(B, N, 3, num_heads, head_dim)</code> and permutes to <code>(3, B, num_heads, N, head_dim)</code> to separate <code>q/k/v</code>.</p>
+<p>Then, apply the <code>attention_pool()</code> function to <code>q/k/v</code>.</p>
+</section>
+<section id="multiscaleblock-class-for-mvitv2" class="level4">
+<h4 class="anchored" data-anchor-id="multiscaleblock-class-for-mvitv2">4. <code>MultiScaleBlock</code>: Class for MViTv2</h4>
+<p>The <code>__init__</code> method initializes different parameters:</p>
+<ul>
+<li>Input and output feature dimensions (<code>dim</code>, <code>dim_out</code>)</li>
+<li>Number of attention heads (<code>num_heads</code>)</li>
+<li>Spatial Size (<code>input_size</code>)</li>
+<li>Expansion ratio for the MLP hidden layer (<code>mlp_ratio</code>)</li>
+<li>Pooling strides for Q and K/V (<code>stride_q</code>, <code>stride_kv</code>)</li>
+<li>Pooling kernel sizes (<code>kernel_q</code>, <code>kernel_kv</code>)</li>
+<li>Stochastic depth probability (<code>drop_path</code>)</li>
+<li>Whether dimension change happens in attention or MLP (<code>dim_mul_in_att</code>)</li>
+</ul>
+<p>It also initializes layer norms, attention module drop path, mlp, projection layer, and skip connection pooling.</p>
+<p>The <code>forward()</code> method first normalizes the input with LayerNorm, then passes it through <code>MultiScaleAttention</code> to compute pooling attention. A residual connection adds the pooled query tensor back to the attention output, implementing the residual pooling connection described earlier. If there is a dimension change (when <code>dim != dim_out</code>), a projection layer is applied to the skip connection to match dimensions.</p>
+<p>After the attention block, the method applies a second LayerNorm followed by an MLP for non-linear feature transformation. Drop path (stochastic depth) is applied to both the attention and MLP outputs for regularization during training. The final output combines these components through residual connections: <code>x = x_skip + attn_output</code> followed by <code>x = x + mlp_output</code>.</p>
+<hr>
+</section>
+<section id="from-mvitmodelsmvit_model.py" class="level4">
+<h4 class="anchored" data-anchor-id="from-mvitmodelsmvit_model.py">From <a href="https://github.com/facebookresearch/mvit/blob/main/mvit/models/mvit_model.py"><strong><code>mvit/models/mvit_model.py</code></strong></a></h4>
+</section>
+<section id="patchembed-class" class="level4">
+<h4 class="anchored" data-anchor-id="patchembed-class">1. <code>PatchEmbed</code> class:</h4>
+<p>Patch embedding layer that converts raw input images into sequence of token embeddings for transformer by using a 2D convolution (<code>nn.Conv2d</code>).</p>
+<p>The <code>__init__</code> method initializes the following parameters:</p>
+<ul>
+<li><code>kernel=(7, 7)</code>: Each patch covers a 7×7 pixel region</li>
+<li><code>stride=(4, 4)</code>: Patches are extracted every 4 pixels (overlapping patches)</li>
+<li><code>padding=(3, 3)</code>: Preserves spatial dimensions</li>
+<li><code>dim_in=3</code>: RGB input channels</li>
+<li><code>dim_out=768</code>: Output embedding dimension’</li>
+</ul>
+<p>The <code>forward</code> method applies the 2D convolution to the input image <code>x</code>, flattens the spatial dimensions, and transposes the result to shape <code>(B, N, C)</code> where <code>B</code> is batch size, <code>N</code> is number of patches, and <code>C</code> is embedding dimension.</p>
+</section>
+<section id="transformerbasichead-class" class="level4">
+<h4 class="anchored" data-anchor-id="transformerbasichead-class">2. <code>TransformerBasicHead</code> class:</h4>
+<p>The <code>__init__</code> method initializes the the following parameters:</p>
+<ul>
+<li>Dropout: if <code>dropout_rate</code> &gt; 0, apply dropout for regularization</li>
+<li>Linear Projection: Map from <code>dim_in</code> to <code>num_classes</code></li>
+<li>Activation Function: Either softmax or sigmoid and is only applied during inference (<code>not self.training</code>).</li>
+</ul>
+<p>The forward method sequentially processes the input tensor <code>x</code> through three steps: 1. Applies dropout (if applicable) 2. Applies linear projection 3. Applies activation function (during inference)</p>
+</section>
+<section id="mvit-class" class="level4">
+<h4 class="anchored" data-anchor-id="mvit-class">3. <code>MViT</code> class:</h4>
+<p>The <code>__init__</code> method initializes the the following parameters:</p>
+<ul>
+<li>input size</li>
+<li>number of classes</li>
+<li>embedding dimension</li>
+<li>number of heads</li>
+<li>depth (number of transformer blocks)</li>
+<li>flags for CLS token and positional embeddings.</li>
+</ul>
+<p>Initializes the patch embedding layer that converts raw input images into sequence of token embeddings.</p>
+<p>Also creates <code>depth</code> number of transformer blocks in for loop. At certain layers, <code>stride_q</code> reduces spatial resolution (e.g., 56×56 → 28×28) while <code>dim_mul</code> increases channel dimensions. This creates a hierarchical pyramid like CNNs.</p>
+<p>The <code>forward</code> method of MViT transforms a raw input image into class predictions through a sequence of operations:</p>
+<ol type="1">
+<li>The patch embedding layer converts the input image (e.g., 224×224×3) into a sequence of flattened patch tokens by applying a convolutional projection.</li>
+<li>A learnable CLS (classification) token is then prepended to this sequence; this special token doesn’t correspond to any image region but instead learns to aggregate global information from all patches through attention.</li>
+<li>Position embeddings are added element-wise to inject spatial awareness, since self-attention is otherwise permutation-invariant and would treat patches as an unordered set.</li>
+<li>The sequence then passes through multiple transformer blocks, where each block applies multi-head self-attention followed by an MLP. Some blocks also pool the spatial dimensions, progressively reducing resolution while increasing channel capacity—similar to how CNNs downsample through the network.</li>
+<li>After all blocks, a LayerNorm stabilizes the representations.</li>
+<li>Finally, the model extracts a single feature vector for classification: either the CLS token (which has attended to all patches) or a global average pool across all patch tokens.</li>
+<li>This vector passes through the classification head (a linear layer) to produce logits over the target classes.</li>
+</ol>
+
+
+</section>
+</section>
+
+ ]]></description>
+  <category>Computer Vision</category>
+  <guid>https://passthetorch.dev/posts/multiscale-vision-transformers-v2/</guid>
+  <pubDate>Thu, 29 Jan 2026 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers-v2/thumbnail.png" medium="image" type="image/png" height="130" width="144"/>
+</item>
+<item>
+  <title>Multiscale Vision Transformers (MViT)</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/multiscale-vision-transformers/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>This post summarizes the <a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers (MViT) paper</a> with a focus on the model architecture and does not cover experimental model performance.</p>
+<p>Multiscale Vision Transformers (MViT) is a model for video and image recognition and is heavily inspired by the <a href="https://arxiv.org/pdf/2010.11929">Vision Transformer (ViT)</a> architecture. The main idea of MViT is to combine the multiscale feature hierarchies with the transformer model. The model architecture is built on <em>stages</em>, which consists of multiple transformer blocks. The idea is to progressively increase the channel capacity while reducing the spatial-temporal resolution.</p>
+</section>
+<section id="multi-head-pooling-attention-mhpa" class="level2">
+<h2 class="anchored" data-anchor-id="multi-head-pooling-attention-mhpa">Multi Head Pooling Attention (MHPA):</h2>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/multiscale-vision-transformers/pooling-attention.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+<p>Consider an input tensor <img src="https://latex.codecogs.com/png.latex?X"> that is <img src="https://latex.codecogs.com/png.latex?D"> dimensional and has a sequence length of <img src="https://latex.codecogs.com/png.latex?L">, <img src="https://latex.codecogs.com/png.latex?X%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D">. Sequence length <img src="https://latex.codecogs.com/png.latex?L"> is obtained by <img src="https://latex.codecogs.com/png.latex?L=T%20%5Ctimes%20H%20%5Ctimes%20W">, where <img src="https://latex.codecogs.com/png.latex?T"> is the temporal dimension, <img src="https://latex.codecogs.com/png.latex?H"> is the height dimension, and <img src="https://latex.codecogs.com/png.latex?W"> is the width dimension.</p>
+<p>The first step of Multi Head Pooling Attention (MHPA) is to project the input tensor <img src="https://latex.codecogs.com/png.latex?X"> into intermediate tensors:</p>
+<ul>
+<li>Query tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BQ%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"></li>
+<li>Key tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BK%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"></li>
+<li>Value tensor <img src="https://latex.codecogs.com/png.latex?%5Chat%7BV%7D%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BL%20%5Ctimes%20D%7D"></li>
+</ul>
+<p>via matrix multiplication of the input tensor <img src="https://latex.codecogs.com/png.latex?X"> with weights: <img src="https://latex.codecogs.com/png.latex?W_Q,%20W_K,%20W_V%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BD%20%5Ctimes%20D%7D">. Then, these intermediate tensors are pooled in sequence length, with a pooling operator <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(%5Ccdot%20;%20%7B%5CTheta%7D)">.</p>
+<section id="pooling-operator" class="level3">
+<h3 class="anchored" data-anchor-id="pooling-operator">Pooling Operator</h3>
+<p>The pooling operator, <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(%5Ccdot%20;%20%7B%5CTheta%7D)">, performs a pooling kernel computation: a pooling kernel <img src="https://latex.codecogs.com/png.latex?k"> of dimensions <img src="https://latex.codecogs.com/png.latex?k_T%20%5Ctimes%20k_H%20%5Ctimes%20k_W"> with strides <img src="https://latex.codecogs.com/png.latex?s_T%20%5Ctimes%20s_H%20%5Ctimes%20s_W"> and paddings <img src="https://latex.codecogs.com/png.latex?p_T%20%5Ctimes%20p_H%20%5Ctimes%20p_W">.</p>
+<p>The below equation is applied to each dimension of the intermediate tensor (<img src="https://latex.codecogs.com/png.latex?T">, <img src="https://latex.codecogs.com/png.latex?H">, <img src="https://latex.codecogs.com/png.latex?W">):</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0A%5Ctilde%7B%5Cmathbf%7BL%7D%7D=%5Cleft%5Clfloor%5Cfrac%7B%5Cmathbf%7BL%7D+2%20%5Cmathbf%7Bp%7D-%5Cmathbf%7Bk%7D%7D%7B%5Cmathbf%7Bs%7D%7D%5Cright%5Crfloor+1%20%5C%5C%0A%5C%5C%0A%5Ctilde%7BT%7D%20=%20%5Cfrac%7BT+2p_T-k_T%7D%7Bs_T%7D%20+%201%20%20%5C%5C%0A%5Ctilde%7BH%7D%20=%20%5Cfrac%7BH+2p_H-k_H%7D%7Bs_H%7D%20+%201%20%20%5C%5C%0A%5Ctilde%7BW%7D%20=%20%5Cfrac%7BW+2p_W-k_W%7D%7Bs_W%7D%20+%201%20%20%5C%5C%0A%5Cend%7Balign%7D%0A"></p>
+<p>Once we obtain the sequence length (<img src="https://latex.codecogs.com/png.latex?L">) by multiplying all three dimensions,</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Cbegin%7Balign%7D%0A%5Ctilde%7BL%7D%20&amp;=%5Ctilde%7BT%7D%20%5Ctimes%20%5Ctilde%7BH%7D%20%5Ctimes%20%5Ctilde%7BW%7D%20%20%5C%5C%0A&amp;=%20%5Cleft(%5Cfrac%7BT+2%20p_T-k_T%7D%7Bs_T%7D+1%5Cright)%20%5Ctimes%5Cleft(%5Cfrac%7BH+2%20p_H-k_H%7D%7Bs_H%7D+1%5Cright)%20%5Ctimes%5Cleft(%5Cfrac%7BW+2%20p_W-k_W%7D%7Bs_W%7D+1%5Cright)%20%20%5C%5C%0A&amp;%5Capprox%20%5Cfrac%7BT%20H%20W%20+%20%5Cdots%7D%7Bs_T%20s_H%20s_W%7D%0A%5Cend%7Balign%7D%0A"></p>
+<p>we can confirm the following observation about the pooling operator:</p>
+<blockquote class="blockquote">
+<p><img src="https://latex.codecogs.com/png.latex?%5Ctilde%7BL%7D">, the sequence length of the output tensor <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(Y%20;%20%5CTheta)">, experiences an overall reduction by a factor of <img src="https://latex.codecogs.com/png.latex?s_T%20s_H%20s_W">.</p>
+</blockquote>
+</section>
+<section id="pooling-attention" class="level3">
+<h3 class="anchored" data-anchor-id="pooling-attention">Pooling Attention</h3>
+<p>After the pooling operator <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D(Y%20;%20%5CTheta)"> is applied to the query, key, and value tensors, the attention operation is performed on <img src="https://latex.codecogs.com/png.latex?Q">, <img src="https://latex.codecogs.com/png.latex?K">, and <img src="https://latex.codecogs.com/png.latex?V"> as follows:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Coperatorname%7BAttention%7D(Q,%20K,%20V)%20=%20%5Coperatorname%7BSoftmax%7D%5Cleft(Q%20K%5ET%20/%20%5Csqrt%7BD%7D%5Cright)%20V%0A"></p>
+<p>where <img src="https://latex.codecogs.com/png.latex?Q%20=%20%5Cmathcal%7BP%7D(%5Chat%7BQ%7D%20;%20%5CTheta)">, <img src="https://latex.codecogs.com/png.latex?K%20=%20%5Cmathcal%7BP%7D(%5Chat%7BK%7D%20;%20%5CTheta)">, and <img src="https://latex.codecogs.com/png.latex?V%20=%20%5Cmathcal%7BP%7D(%5Chat%7BV%7D%20;%20%5CTheta)">.</p>
+<p>The authors note:</p>
+<blockquote class="blockquote">
+<p>Naturally, the operation induces the constraints <img src="https://latex.codecogs.com/png.latex?s_K%20%5Cequiv%20s_V"> on the pooling operators</p>
+</blockquote>
+<p>The reason is that the matrix multiplication by <img src="https://latex.codecogs.com/png.latex?V"> at the end must be valid. The first operation is the matrix multiplication <img src="https://latex.codecogs.com/png.latex?QK%5ET"> where <img src="https://latex.codecogs.com/png.latex?Q%20%5Cin%20%20%5Cmathbb%7BR%7D%5E%7BL_Q%20%5Ctimes%20D%7D"> and <img src="https://latex.codecogs.com/png.latex?K%5ET%20%5Cin%20%20%5Cmathbb%7BR%7D%5E%7BD%20%5Ctimes%20L_K%7D">. resulting in a shape of <img src="https://latex.codecogs.com/png.latex?(L_Q,%20L_K)">. After applying softmax, the result is multiplied by <img src="https://latex.codecogs.com/png.latex?V">, which has shape <img src="https://latex.codecogs.com/png.latex?(L_V,%20D)">. For the multiplication to be valid, <img src="https://latex.codecogs.com/png.latex?L_K"> must be equal to <img src="https://latex.codecogs.com/png.latex?L_V">. Since both <img src="https://latex.codecogs.com/png.latex?K"> and <img src="https://latex.codecogs.com/png.latex?V"> are derived from the same pooling operation - which reduces the sequence length, <img src="https://latex.codecogs.com/png.latex?L">, by stride <img src="https://latex.codecogs.com/png.latex?s"> - it follows that <img src="https://latex.codecogs.com/png.latex?s_K%20%5Cequiv%20s_V">.</p>
+<p>This point is emphasized in a later section of the paper, <em>Key-Value Pooling</em>:</p>
+<blockquote class="blockquote">
+<p>Since the sequence length of key and value tensors need to be identical to allow attention weight calculation, the pooling stride used on K and value V tensors needs to be identical.</p>
+</blockquote>
+</section>
+</section>
+<section id="multiscale-transformer-networks" class="level2">
+<h2 class="anchored" data-anchor-id="multiscale-transformer-networks">Multiscale Transformer Networks</h2>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/multiscale-vision-transformers/multiscale-vision-transformer.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+<p>The key difference between MViT (Multiscale Vision Transformers) and ViT (Vision Transformers) is that MViT “progressively grows the channel resolution (i.e.&nbsp;dimension), while simultaneously reducing the spatiotemporal resolution (i.e.&nbsp;sequence length) throughout the network.” while ViT “maintains a constant channel capacity and spatial resolution throughout all the blocks”.</p>
+<section id="scale-stage" class="level3">
+<h3 class="anchored" data-anchor-id="scale-stage">Scale Stage</h3>
+<p>Scale stage is a set of <img src="https://latex.codecogs.com/png.latex?N"> transformer blocks that operate with the same channel dimension <img src="https://latex.codecogs.com/png.latex?D"> and sequence length <img src="https://latex.codecogs.com/png.latex?L">. At a transition of stages, the “channel dimension is upsampled (increased) while the length of the sequence is downsampled (decreased). This effectively reduces the spatio-temporal resolution of the underlying visual data while allowing the network to assimilate the processed information in more complex features”.</p>
+<p>This creates a multiscale hierarchy similar to CNNs - early stages process high-resolution spatial-temporal data with simple features (fewer channels), while later stages process lower-resolution data but with more complex, abstract features (more channels).</p>
+<p>If you downsample space-time resolution by 4, you increase channels by 2. So a resolution change from <img src="https://latex.codecogs.com/png.latex?2D%20%5Ctimes%20%5Cfrac%7BT%7D%7B%CE%B4_t%7D%20%5Ctimes%20%5Cfrac%7BH%7D%7B8%7D%20%5Ctimes%20%5Cfrac%7BW%7D%7B8%7D"> to <img src="https://latex.codecogs.com/png.latex?4D%20%5Ctimes%20%5Cfrac%7BT%7D%7B%CE%B4_t%7D%20%5Ctimes%20%5Cfrac%7BH%7D%7B16%7D%20%5Ctimes%20%5Cfrac%7BW%7D%7B16%7D"> roughly preserves computational complexity while building a hierarchical feature pyramid. This is essentially applying the CNN principle of “deeper = more channels, lower resolution” to video transformers.</p>
+</section>
+<section id="query-key-value-qkv-pooling" class="level3">
+<h3 class="anchored" data-anchor-id="query-key-value-qkv-pooling">Query Key Value (QKV) Pooling</h3>
+<p>In the <em>Key-Value pooling</em> section, the authors write:</p>
+<blockquote class="blockquote">
+<p>Unlike Query pooling, changing the sequence length of key K and value V tensors does not change the output sequence length and, hence, the space-time resolution.</p>
+</blockquote>
+<p>The reason is explained in the <em>Pooling Attention</em> section: the attention mechanism output length is determined by the query length, <img src="https://latex.codecogs.com/png.latex?L_Q"> because the attention mechanism involves matrix multiplication of <img src="https://latex.codecogs.com/png.latex?QK%5ET%20V">, where the output has shape <img src="https://latex.codecogs.com/png.latex?(L_Q,%20D)"> and <img src="https://latex.codecogs.com/png.latex?L_K"> and <img src="https://latex.codecogs.com/png.latex?L_V"> is only used during matrix multiplication of <img src="https://latex.codecogs.com/png.latex?(QK%5ET)%20V">.</p>
+<p>Also, the model architecture decreases resolution at the beginning of a stage and then keeps the resolution constant within the stage, so the first pooling attention operator operates at <img src="https://latex.codecogs.com/png.latex?s%5EQ%20%3E%201"> while the rest have <img src="https://latex.codecogs.com/png.latex?s%5EQ%20%5Cequiv%201">.</p>
+</section>
+<section id="skip-connections" class="level3">
+<h3 class="anchored" data-anchor-id="skip-connections">Skip Connections</h3>
+<p>The last step of Pooling Attention is the skip connection. In the skip connection, the query pooling operator <img src="https://latex.codecogs.com/png.latex?%5Cmathcal%7BP%7D%5Cleft(%5Ccdot%20;%20%5CTheta_Q%5Cright)"> is added, instead of the raw input <img src="https://latex.codecogs.com/png.latex?X">, to the output of the attention operation because of a dimension mismatch that occured in the initial pooling.</p>
+</section>
+</section>
+<section id="model-architecture-walkthrough" class="level2">
+<h2 class="anchored" data-anchor-id="model-architecture-walkthrough">Model Architecture Walkthrough</h2>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="https://passthetorch.dev/posts/multiscale-vision-transformers/table2.png" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
+</figure>
+</div>
+<p>Based on Table 2 in the paper (above), here is a walkthrough of the MViT architecture:</p>
+<section id="textcube_1-stage" class="level5">
+<h5 class="anchored" data-anchor-id="textcube_1-stage"><img src="https://latex.codecogs.com/png.latex?%5Ctext%7Bcube%7D_1"> stage:</h5>
+<p>The raw input data is provided as dense space-time cubes of shape <img src="https://latex.codecogs.com/png.latex?c_T%20%5Ctimes%20c_H%20%5Ctimes%20c_W"> and <img src="https://latex.codecogs.com/png.latex?D"> channels. Then, downsampling is applied to reduce the spatial-temporal resolution with <img src="https://latex.codecogs.com/png.latex?%5Ctext%20%7B%20stride%20%7D%20s_T%20%5Ctimes%204%20%5Ctimes%204">. This results in an output of shape <img src="https://latex.codecogs.com/png.latex?D%20%5Ctimes%20%5Cfrac%7BT%7D%7Bs_T%7D%20%5Ctimes%20%5Cfrac%7BH%7D%7B4%7D%20%5Ctimes%20%5Cfrac%7BW%7D%7B4%7D">.</p>
+</section>
+<section id="textscale_i-stages" class="level5">
+<h5 class="anchored" data-anchor-id="textscale_i-stages"><img src="https://latex.codecogs.com/png.latex?%5Ctext%7Bscale%7D_i"> stages:</h5>
+<p>Then, the subsequent scale stages down-sample the spatial resolution (sequence length <img src="https://latex.codecogs.com/png.latex?L">) through multiple (<img src="https://latex.codecogs.com/png.latex?N">) transformer blocks with Multi Head Pooling Attention (MHPA) and increase the channel dimension <img src="https://latex.codecogs.com/png.latex?D"> through MLP at stage transitions.</p>
+<p>For more details, see:</p>
+<ul>
+<li><p>Meta AI Blogpost: <a href="https://ai.meta.com/blog/multiscale-vision-transformers-an-architecture-for-modeling-visual-data/">Multiscale Vision Transformers: A hierarchical architecture for representing image and video information</a></p></li>
+<li><p>Conference Talk: <a href="https://youtu.be/IG4il10zx68?si=Am5xLj5qU1QE73CW">Multiscale Vision Transformers (MViT) ICCV 2021</a></p></li>
+</ul>
+
+
+</section>
+</section>
+
+ ]]></description>
+  <category>Computer Vision</category>
+  <guid>https://passthetorch.dev/posts/multiscale-vision-transformers/</guid>
+  <pubDate>Mon, 22 Dec 2025 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/multiscale-vision-transformers/thumbnail.png" medium="image" type="image/png" height="92" width="144"/>
+</item>
+<item>
+  <title>Learning Journey</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/learning-journey/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<p>This post will contain resources I have used and found helpful in my learning journey of PyTorch and Deep Learning. I will update this post as I discover more resources.</p>
+<section id="coding-videos" class="level2">
+<h2 class="anchored" data-anchor-id="coding-videos">Coding Videos</h2>
+<ul>
+<li><p><a href="https://youtu.be/V_xro1bcAuA?si=_dZL-au3oIEunfku">PyTorch for Deep Learning &amp; Machine Learning</a> : Beginner PyTorch course taught by Daniel Bourke. It covers the basics of PyTorch, neural networks, and applications in computer vision. Code-first approach with hands-on examples in Google Colab and course textbook, <a href="https://www.learnpytorch.io">Learn PyTorch for Deep Learning: Zero to Mastery book</a>.</p></li>
+<li><p><a href="https://youtu.be/JRlyw6LO5qo?si=by9-CrM3ClghQVhq">MNIST classifier from numpy scratch</a>: George Hotz builds a MNIST digit classifier from scratch using only numpy. Great for understanding the fundamentals of neural networks and backpropagation.</p></li>
+</ul>
+</section>
+<section id="deep-learning-research" class="level2">
+<h2 class="anchored" data-anchor-id="deep-learning-research">Deep Learning Research</h2>
+<section id="theory" class="level3">
+<h3 class="anchored" data-anchor-id="theory">Theory</h3>
+<ul>
+<li><p><a href="https://arxiv.org/abs/2010.11929">Vision Transformers</a> - A research paper on Vision Transformers (ViT) for image recognition. Walkthrough implementation by Daniel Bourke <a href="https://www.learnpytorch.io/08_pytorch_paper_replicating/#3-replicating-the-vit-paper-an-overview">available</a>.</p></li>
+<li><p><a href="https://arxiv.org/abs/2104.11227">Multiscale Vision Transformers</a> - A research paper on Multiscale Vision Transformers (MViT) for video and image recognition. The model is available on <a href="https://github.com/facebookresearch/SlowFast/tree/main/projects/mvit">GitHub</a>.</p></li>
+<li><p><a href="https://arxiv.org/pdf/2112.01526">MViTv2: Improved Multiscale Vision Transformers for Classification and Detection</a> - An improved version of MViT</p></li>
+</ul>
+</section>
+<section id="cardiology" class="level3">
+<h3 class="anchored" data-anchor-id="cardiology">Cardiology</h3>
+<ul>
+<li><a href="https://arxiv.org/abs/2410.09704">EchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation</a> - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on <a href="https://github.com/echonet/EchoPrime">GitHub</a>.</li>
+</ul>
+</section>
+<section id="opthalmology" class="level3">
+<h3 class="anchored" data-anchor-id="opthalmology">Opthalmology</h3>
+<ul>
+<li><p><a href="https://www.youtube.com/live/tkaZCdKHGv4?si=xMdRxJRBxIJ-YHKW">Deep learning applications in opthamology</a> - Talk by Aaron Y. Lee that covers the beginnings of the application of deep learning in the field of ophthalmology and vision science.</p></li>
+<li><p><a href="https://youtu.be/B7InQF2Gu24?si=gag92adikqJQqtTK">Transforming Healthcare with AI: Lessons from Ophthalmology</a> - Talk by Pearse Keane on how AI is transforming healthcare, with a focus on ophthalmology.</p></li>
+</ul>
+</section>
+<section id="electronic-health-record-ehr" class="level3">
+<h3 class="anchored" data-anchor-id="electronic-health-record-ehr">Electronic Health Record (EHR)</h3>
+<ul>
+<li><a href="https://www.nature.com/articles/s41467-025-63366-6">InfEHR: Clinical phenotype resolution through deep geometric learning on electronic health records</a> - A research paper on using deep geometric learning to analyze electronic health records for clinical phenotype resolution. The code is implemented in PyTorch and available on <a href="https://github.com/Nadkarni-Lab/InfEHR">GitHub</a>.</li>
+</ul>
+
+
+</section>
+</section>
+
+ ]]></description>
+  <category>Learn</category>
+  <guid>https://passthetorch.dev/posts/learning-journey/</guid>
+  <pubDate>Tue, 25 Nov 2025 05:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/learning-journey/thumbnail.jpg" medium="image" type="image/jpeg"/>
+</item>
+</channel>
+</rss>

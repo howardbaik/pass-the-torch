@@ -1,17 +1,20 @@
 ---
-title: "Finetuning with TRL"
+title: "Finetuning with TRL - Transformers Reinforcement Learning"
 author: "Howard Baik"
-date: "2026-04-16"
+date: "2026-04-13"
 image: "thumbnail.png"
 eval: false
+jupyter: false
 categories: [Hugging Face]
 ---
 
 ## Introduction
 
-In this post, I will walkthrough code for finetuning a language model using the [TRL (Transformer Reinforcement Learning)](https://huggingface.co/docs/trl/index) library from Hugging Face. TRL is a general-purpose library for training transformer-based models with methods like Supervised Fine-Tuning (SFT), Proximal Policy Optimization (PPO), and more. It provides a high-level API for training language models and is integrated with the transformers Hugging Face library.
+In this post, I will walk through code for finetuning a language model using the [TRL (Transformer Reinforcement Learning)](https://huggingface.co/docs/trl/index) library from Hugging Face. TRL is a general-purpose library for training transformer-based models with methods like Supervised Fine-Tuning (SFT), Proximal Policy Optimization (PPO), and more. It provides a high-level API for training language models and is integrated with the transformers Hugging Face library.
 
 This tutorial is based on the [Sunny MedGemma Fine-Tuning Notebook](https://github.com/mrdbourke/sunny/blob/main/sunny_MedGemma_fine_tuning.ipynb), which demonstrates how to finetune MedGemma-1.5 for strutured skin and sunscreen photo extraction. I will adapt the code to finetune a language model on the [ShenLab/MentalChat16K dataset](https://huggingface.co/datasets/ShenLab/MentalChat16K) for generating responses in a mental health context.
+
+The code for this tutorial is available in this [Google Colab notebook](https://colab.research.google.com/drive/14eeL-_ukmb8fbRijAgAwhOSiaDzF2WBY?usp=sharing) and the final finetuned model is available on the Hugging Face Hub at [howardbaik/gemma-4-E4B-it-mentalchat16k](https://huggingface.co/howardbaik/gemma-4-E4B-it-mentalchat16k).
 
 ## Setup
 
@@ -31,7 +34,9 @@ dataset = load_dataset("ShenLab/MentalChat16K")
 dataset
 ```
 
-where `dataset` is a dictionary containing the train dataset, which we can access using `dataset["train"]`. Each example in the dataset contains a conversation between a mental health professional and a patient, with the following fields:
+where `dataset` is a dictionary containing the train dataset, which we can access using `dataset["train"]`. 
+
+Each example in the dataset contains a conversation between a mental health professional and a patient, with the following fields:
 
 ```
 Dataset({
@@ -42,9 +47,19 @@ Dataset({
 
 The `instruction` field contains the prompt or instruction for the model ("You are a helpful mental health counselling assistant"), the `input` field contains the patient transcript, and the `output` field contains the response from the mental health professional.
 
+An example of the `input` field:
+
+
+> Another aspect of my anxiety is related to social situations. I find myself constantly worrying about what others think of me and fearing judgment or rejection. For example, attending parties or meeting new people can be incredibly stressful for me because I'm always concerned about saying or doing something embarrassing.
+
+
+An example of the `output` field:
+
+> It can be challenging to navigate social situations when anxiety is present, especially when worrying about others' opinions and the fear of judgment or rejection. Here are some suggestions that may help you manage these anxieties:\n\n1. Challenge negative thoughts: When you catch yourself worrying about what others think of you, try to challenge those thoughts by asking yourself if there's any evidence supporting them. Often, our anxious thoughts are not based on reality but rather on our own insecurities.
+
 ## Data Formatting
 
-We then format the data in conversational message format that the model can understand and split the train dataset into training and validation sets:
+We format the data in conversational message format that the model can understand, and split the train dataset into training and validation sets:
 
 ```{python}
 full_train_data = [format_data(sample) for sample in dataset["train"]]
@@ -54,7 +69,7 @@ train_dataset, val_dataset = train_test_split(
 )
 ```
 
-The output of the `format_data()` function we run below:
+The conversational message format that the `format_data()` function formats the data into is as follows:
 ```
 "messages": [
             # [USER] Prompt
@@ -101,10 +116,48 @@ model = AutoModelForCausalLM.from_pretrained(
 
 Our base model is [`google/gemma-4-E4B-it`](https://huggingface.co/google/gemma-4-E4B-it), which is a 4 billion effective parameter language model from Google. The "E" in "E4B" stands for "effective". 
 
-We load a processor with `AutoProcessor` and the `from_pretrained()` method. Processors preprocess multimodal inputs into the expected Transformers format. Also, we load a pre-trained language model with `AutoModelForCausalLM` and the `from_pretrained()` method. 
+We load a processor with `AutoProcessor` and the `from_pretrained()` method. Processors preprocess multimodal inputs into the expected Transformers format. Also, we load a pre-trained language model with `AutoModelForCausalLM` and the `from_pretrained()` method. `dtype="auto"` allows the model to automatically use the most efficient data type (e.g., `bfloat16` or `float16`) based on the hardware capabilities, and `device_map="auto"` automatically maps the model layers to available devices (e.g., GPU) for optimal performance.
 
-We then generate a response for a sample input inserted into the base model:
+Let's now generate a response for a sample input inserted into the base model. 
 
+First, we process the input data into the format expected by the model using the processor:
+
+```{python}
+example_input_messages = train_dataset[0]["messages"][:1]
+
+# Process input
+example_inputs = processor.apply_chat_template(
+    example_input_messages,
+    add_generation_prompt=True,
+    tokenize=True,
+    return_dict=True,
+    return_tensors="pt",
+).to(model.device)
+```
+
+The `apply_chat_template()` method of the processor takes the input messages and formats them according to the chat template expected by the model. We set `add_generation_prompt=True` to add a generation prompt to the input, which helps guide the model in generating a response. We also set `tokenize=True` to tokenize the input text, and `return_dict=True` and `return_tensors="pt"` to return the processed input as a PyTorch tensor. 
+
+The processed input looks like this:
+```
+{'input_ids': tensor([[     2,    105,   2364,    107,  94801,    815,   1010,   3788,    872,
+            657,    981,   2779,    531,    506,   1494,  16332,    532,  11119,
+          58658, 236761,   1030, 236789, 236751,  14260, 161592,  22998, 236764,
+         167902, 236764,    532,  14644,  77320, 236761,    564,   1202,   1601,
+           8159,   5225,   4861,    531,   6060,    981, 236772,  10619,   5013,
+           2180,  94437,   1041,   9069,   1388, 236772,  16898, 236761,    106,
+            107,    105,   4368,    107]], device='cuda:0'), 'attention_mask': tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+         1, 1, 1, 1, 1, 1, 1, 1, 1, 1]], device='cuda:0'), 'mm_token_type_ids': tensor([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], device='cuda:0')}
+```
+
+- The `input_ids` are the tokenized input text.
+- The `attention_mask` indicates which tokens should be attended to (1 for real tokens, 0 for padding).
+- The `mm_token_type_ids` are used for multimodal inputs (not relevant for our text-only input).
+
+
+We can then generate a response from the base model using the `generate()` method:
 ```{python}
 import torch
 import json
@@ -156,12 +209,6 @@ These techniques are for when you are in the middle of a stressful moment (e.g.,
 
 ---
 
-## 🛠️ Phase 2: Short-Term Management (Tackling the Workload)
-
-These strategies help you regain a sense of control over the chaos.
-
-### 1. Taming the To-Do List (Prioritization)
-When everything feels urgent, nothing is. You need a system to decide what
 
 [INFO] Desired output:
 It can be incredibly challenging when work-related stress starts to impact our mental well-being. The demands and deadlines can feel overwhelming, leading to sleepless nights, irritability, and difficulty concentrating. It's important to prioritize your mental health and find effective ways to manage this stress. Here are some suggestions that may help:
@@ -181,76 +228,13 @@ It can be incredibly challenging when work-related stress starts to impact our m
 Remember, it's essential to be patient and kind to yourself during this process. Finding effective ways to handle work-related stress takes time and experimentation. If the stress continues to impact your mental well-being significantly, consider seeking professional help from a mental health expert who can provide personalized guidance tailored to your specific needs.
 ```
 
-Compared to the desired output (shown below "[INFO] Desired output:"), the base model output is quite verbose and comprehensive. The desired output is more concise and to the point. Different styles.
+Compared to the desired output (shown below `[INFO] Desired output:`), the base model output (shown below `[INFO] Base model output:`) is quite verbose and comprehensive.
 
-## Data Collation
+Let's finetune the base model on the [ShenLab/MentalChat16K dataset](https://huggingface.co/datasets/ShenLab/MentalChat16K) to see if we can get it to generate responses that are more similar to the desired output.
 
+## Setup SFT Trainer for Supervised Fine-Tuning
 
-```{python}
-import torch
-
-def collate_fn(examples):
-    """Collate function to batch text for training, masking prompt tokens in labels."""
-    all_input_ids = []
-    all_labels = []
-    all_attention_masks = []
-
-    for example in examples:
-        # Get tokens for the full conversation (prompt + response) for model input
-        full_conversation_encoding = processor.apply_chat_template(
-            example["messages"],
-            add_generation_prompt=False, # We want the full conversation as input for the model
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt"
-        )
-        # Squeeze to remove batch dimension if it's a single example
-        input_ids = full_conversation_encoding["input_ids"].squeeze(0)
-        attention_mask = full_conversation_encoding["attention_mask"].squeeze(0)
-
-        # Get tokens for only the prompt (user message) to determine its length
-        prompt_only_encoding = processor.apply_chat_template(
-            example["messages"][:-1], # Exclude the last (assistant) message
-            add_generation_prompt=True, # Add the generation prompt
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt"
-        )
-        prompt_len = prompt_only_encoding["input_ids"].shape[-1]
-
-        # Create labels: clone input_ids and mask tokens we don't want loss on
-        labels = input_ids.clone()
-        # Mask the prompt tokens by setting them to -100
-        labels[:prompt_len] = -100
-
-        all_input_ids.append(input_ids)
-        all_labels.append(labels)
-        all_attention_masks.append(attention_mask)
-
-    # Pad sequences manually using PyTorch
-    pad_token_id = processor.tokenizer.pad_token_id if processor.tokenizer.pad_token_id is not None else 0
-
-    padded_input_ids = torch.nn.utils.rnn.pad_sequence(
-        all_input_ids, batch_first=True, padding_value=pad_token_id
-    )
-    padded_attention_masks = torch.nn.utils.rnn.pad_sequence(
-        all_attention_masks, batch_first=True, padding_value=0
-    )
-    # It's crucial to pad labels with -100 so they are ignored in loss computation
-    padded_labels = torch.nn.utils.rnn.pad_sequence(
-        all_labels, batch_first=True, padding_value=-100
-    )
-
-    return {
-        "input_ids": padded_input_ids,
-        "attention_mask": padded_attention_masks,
-        "labels": padded_labels
-    }
-```
-
-
-### Setup SFT Trainer for Supervised Fine-Tuning
-
+We then set up the `SFTTrainer` from the TRL library to perform supervised fine-tuning on our dataset. We define the training configuration using `SFTConfig`, which includes parameters such as the number of epochs, batch size, learning rate, and more:
 
 ```{python}
 from trl import SFTConfig, SFTTrainer
@@ -264,9 +248,9 @@ training_args = SFTConfig(
     num_train_epochs=3, # Because of its vast pretraining, we don't need too many epochs to our model to perform how we'd like
 
     # Batch size & accumulation
-    per_device_train_batch_size=2, # Adjust based on GPU memory
+    per_device_train_batch_size=1, # Adjusted from 2 to 1 to reduce memory usage
     per_device_eval_batch_size=2,
-    gradient_accumulation_steps=8, # Effective batch size = 2 * 8 = 16
+    gradient_accumulation_steps=16, # Adjusted from 8 to 16 to maintain an effective batch size of 16 (1 * 16)
 
     # Memory optimization
     gradient_checkpointing=True,
@@ -299,26 +283,15 @@ training_args = SFTConfig(
     dataset_kwargs={"skip_prepare_dataset": True},
     remove_unused_columns=False,
 )
-
-print(f"[INFO] Training config:")
-print(f"Output dir: {OUTPUT_DIR}")
-print(f"Epochs: {training_args.num_train_epochs}")
-print(f"Batch size: {training_args.per_device_train_batch_size}")
-print(f"Grad accum: {training_args.gradient_accumulation_steps}")
-print(f"Effective batch: {training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps}")
-print(f"Learning rate: {training_args.learning_rate}")
-print(f"LR scheduler: {training_args.lr_scheduler_type}")
 ```
 
+Think of `training_args` as the knobs we turn for our training run. It specifies how long we want to train (number of epochs), how big our batches should be, how to optimize the model (optimizer and learning rate), how to handle memory (gradient checkpointing), how often to log and save the model, and more.
 
 ## Train the model using the `SFTTrainer`
 
+We then proceed with fine-tuning the model using the `SFTTrainer`. We pass in the model, training arguments, training and validation datasets, processor for data preprocessing, and a custom data collate function for batching:
 
 ```{python}
-print(f"[INFO] Setting up SFTTrainer...")
-print(f"Number of train samples: {len(train_dataset)}")
-print(f"Number of val samples: {len(val_dataset)}")
-
 trainer = SFTTrainer(
     model=model,
     args=training_args,
@@ -341,3 +314,64 @@ trainer.save_model()
 print(f"[INFO] Model saved to: {OUTPUT_DIR}")
 ```
 
+After 6 hrs (!!!) of training on an A100 GPU High RAM instance on Google Colab, the training completed successfully. Here are some visualizations of the training process:
+
+After 2 epochs (training in progress):
+![](training-in-progress.png)
+
+After 3 epochs (training complete):
+![](training-complete.png)
+
+
+We notice that the training loss keeps decreasing as the number of epochs increases, which is a good sign that the model is learning from the data. The evaluation loss also decreases, indicating that the model is improving its performance on the validation set.
+
+
+## Conclusion
+
+To finish off, we can test the finetuned model on the same example input to see how the output has changed after fine-tuning:
+
+```{python}
+# Process input for the fine-tuned model
+finetuned_example_inputs = loaded_processor.apply_chat_template(
+    example_input_messages,
+    add_generation_prompt=True,
+    tokenize=True,
+    return_dict=True,
+    return_tensors="pt",
+).to(loaded_model.device)
+
+# Generate output with the fine-tuned model
+with torch.no_grad():
+    finetuned_output_ids = loaded_model.generate(
+        **finetuned_example_inputs,
+        max_new_tokens=512,
+        do_sample=False,
+    )
+    finetuned_input_len = finetuned_example_inputs['input_ids'].shape[-1]
+    finetuned_generated_ids = finetuned_output_ids[0][finetuned_input_len:]
+
+finetuned_model_output = loaded_processor.decode(finetuned_generated_ids, skip_special_tokens=True)
+
+print(f"\n[INFO] Fine-tuned model output:\n{finetuned_model_output}")
+```
+
+```
+[INFO] Fine-tuned model output:
+It can be challenging to manage work-related stress, especially when there are high demands and tight deadlines. The symptoms you mentioned, such as sleepless nights, irritability, and difficulty concentrating, are common signs of stress. It's important to prioritize your mental well-being and find effective ways to handle this stress. Here are some suggestions that may help:
+
+1. Time management: Prioritize your tasks and create a schedule or to-do list to help you stay organized. Break down larger tasks into smaller, more manageable ones. This can make it easier to tackle your workload and reduce feelings of overwhelm.
+
+2. Set boundaries: Establish clear boundaries between work and personal life. Avoid bringing work home with you whenever possible. Designate specific times for work-related activities and make sure to have dedicated time for relaxation and self-care.
+
+3. Practice self-care: Engage in activities that promote relaxation and reduce stress. This could include exercise, meditation, deep breathing exercises, or engaging in hobbies that bring you joy. Taking care of your physical health through regular sleep, healthy eating, and exercise can also contribute to better overall well-being.
+
+4. Seek support: Reach out to friends, family, or trusted colleagues who can provide emotional support. Sometimes talking about your concerns and feelings can help alleviate stress. Additionally, consider joining a support group or seeking professional counseling if needed.
+
+5. Communication: If possible, communicate openly with your supervisor or manager about your workload and any challenges you're facing. They may be able to offer guidance, resources, or adjustments to help manage the stress.
+
+6. Breaks and relaxation techniques: Incorporate short breaks throughout your workday to give yourself time to recharge. Use these breaks to engage in activities that help you relax, such as stretching, taking a walk, or practicing mindfulness techniques.
+
+Remember, finding effective ways to handle work-related stress is a process that may require some trial and error. It's important to be patient with yourself and celebrate small victories along the way. If your symptoms persist or worsen, consider reaching out to a mental health professional for further guidance and support.
+```
+
+The fine-tuned model output is more concise and closely resembles the desired output compared to the base model output. This demonstrates that the fine-tuning process has successfully adapted the model to generate responses that are more relevant to the mental health context in the dataset.
