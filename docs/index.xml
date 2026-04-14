@@ -30,7 +30,7 @@
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>First, we install the necessary libraries. We will need <code>transformers</code>, <code>torch</code>, <code>accelerate</code>, and <code>trl</code> for this tutorial:</p>
-<div id="cfd04a48" class="cell" data-execution_count="1">
+<div id="8c1ccf06" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">!</span>pip install <span class="op" style="color: #5E5E5E;
@@ -39,7 +39,7 @@ font-style: inherit;">-</span>U transformers torch accelerate trl</span></code><
 </div>
 <p>The dataset is the <a href="https://huggingface.co/datasets/ShenLab/MentalChat16K">MentalChat16K dataset</a>, which contains approximately 16,000 conversations between a mental health professional and a patient. We will use this dataset to finetune a language model for generating responses in a mental health context.</p>
 <p>We can load the dataset using the <code>datasets</code> library from Hugging Face:</p>
-<div id="09f8f97b" class="cell" data-execution_count="2">
+<div id="e54ba0b7" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="im" style="color: #00769E;
 background-color: null;
 font-style: inherit;">from</span> datasets <span class="im" style="color: #00769E;
@@ -72,7 +72,7 @@ font-style: inherit;">"ShenLab/MentalChat16K"</span>)</span>
 <section id="data-formatting" class="level2">
 <h2 class="anchored" data-anchor-id="data-formatting">Data Formatting</h2>
 <p>We format the data in conversational message format that the model can understand, and split the train dataset into training and validation sets:</p>
-<div id="7c0f058c" class="cell" data-execution_count="3">
+<div id="d6d2993b" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">full_train_data <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> [format_data(sample) <span class="cf" style="color: #003B4F;
@@ -126,7 +126,7 @@ font-style: inherit;">42</span></span>
 <section id="test-base-model-on-example" class="level2">
 <h2 class="anchored" data-anchor-id="test-base-model-on-example">Test Base Model on Example</h2>
 <p>Before finetuning, we can test the base model on an example to see what the base model output looks like. We will use the <code>transformers</code> library to load a pre-trained language model and tokenizer, and then generate a response for a sample input from the dataset:</p>
-<div id="2ee6794e" class="cell" data-execution_count="4">
+<div id="639eb84b" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="im" style="color: #00769E;
 background-color: null;
 font-style: inherit;">from</span> transformers <span class="im" style="color: #00769E;
@@ -165,7 +165,7 @@ font-style: inherit;">"auto"</span></span>
 <p>We load a processor with <code>AutoProcessor</code> and the <code>from_pretrained()</code> method. Processors preprocess multimodal inputs into the expected Transformers format. Also, we load a pre-trained language model with <code>AutoModelForCausalLM</code> and the <code>from_pretrained()</code> method. <code>dtype="auto"</code> allows the model to automatically use the most efficient data type (e.g., <code>bfloat16</code> or <code>float16</code>) based on the hardware capabilities, and <code>device_map="auto"</code> automatically maps the model layers to available devices (e.g., GPU) for optimal performance.</p>
 <p>Let’s now generate a response for a sample input inserted into the base model.</p>
 <p>First, we process the input data into the format expected by the model using the processor:</p>
-<div id="4ff90586" class="cell" data-execution_count="5">
+<div id="6c48c641" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">example_input_messages <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> train_dataset[<span class="dv" style="color: #AD0000;
@@ -224,7 +224,7 @@ font-style: inherit;">"pt"</span>,</span>
 <li>The <code>mm_token_type_ids</code> are used for multimodal inputs (not relevant for our text-only input).</li>
 </ul>
 <p>We can then generate a response from the base model using the <code>generate()</code> method:</p>
-<div id="37dbf96d" class="cell" data-execution_count="6">
+<div id="c536a818" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="im" style="color: #00769E;
 background-color: null;
 font-style: inherit;">import</span> torch</span>
@@ -382,7 +382,7 @@ Remember, it's essential to be patient and kind to yourself during this process.
 <section id="setup-sft-trainer-for-supervised-fine-tuning" class="level2">
 <h2 class="anchored" data-anchor-id="setup-sft-trainer-for-supervised-fine-tuning">Setup SFT Trainer for Supervised Fine-Tuning</h2>
 <p>We then set up the <code>SFTTrainer</code> from the TRL library to perform supervised fine-tuning on our dataset. We define the training configuration using <code>SFTConfig</code>, which includes parameters such as the number of epochs, batch size, learning rate, and more:</p>
-<div id="241f4fd7" class="cell" data-execution_count="7">
+<div id="90090b7f" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><span class="im" style="color: #00769E;
 background-color: null;
 font-style: inherit;">from</span> trl <span class="im" style="color: #00769E;
@@ -571,7 +571,7 @@ font-style: inherit;">False</span>,</span>
 <section id="train-the-model-using-the-sfttrainer" class="level2">
 <h2 class="anchored" data-anchor-id="train-the-model-using-the-sfttrainer">Train the model using the <code>SFTTrainer</code></h2>
 <p>We then proceed with fine-tuning the model using the <code>SFTTrainer</code>. We pass in the model, training arguments, training and validation datasets, processor for data preprocessing, and a custom data collate function for batching:</p>
-<div id="391dcae7" class="cell" data-execution_count="8">
+<div id="9863a959" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">trainer <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> SFTTrainer(</span>
@@ -681,7 +681,7 @@ font-style: inherit;">"</span>)</span></code></pre></div></div>
 <section id="conclusion" class="level2">
 <h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
 <p>To finish off, we can test the finetuned model on the same example input to see how the output has changed after fine-tuning:</p>
-<div id="6df077c0" class="cell" data-execution_count="9">
+<div id="0c4b59d1" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Process input for the fine-tuned model</span></span>
@@ -793,6 +793,7 @@ It can be challenging to manage work-related stress, especially when there are h
 
 Remember, finding effective ways to handle work-related stress is a process that may require some trial and error. It's important to be patient with yourself and celebrate small victories along the way. If your symptoms persist or worsen, consider reaching out to a mental health professional for further guidance and support.</code></pre>
 <p>The fine-tuned model output is more concise and closely resembles the desired output compared to the base model output. This demonstrates that the fine-tuning process has successfully adapted the model to generate responses that are more relevant to the mental health context in the dataset.</p>
+<p>You can find the fine-tuned model on Hugging Face at <a href="https://huggingface.co/howardbaik/gemma-4-E4B-it-mentalchat16k">howardbaik/gemma-4-E4B-it-mentalchat16k</a>.</p>
 
 
 </section>
