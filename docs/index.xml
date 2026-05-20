@@ -10,7 +10,7 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Mon, 04 May 2026 04:00:00 GMT</lastBuildDate>
+<lastBuildDate>Wed, 20 May 2026 04:00:00 GMT</lastBuildDate>
 <item>
   <title>Deep Dive into Merlin</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -576,7 +576,7 @@ Image embeddings shape (Can be used for downstream tasks): torch.Size([1, 2048])
  ]]></description>
   <category>Medical AI</category>
   <guid>https://passthetorch.dev/posts/deep-dive-into-merlin/</guid>
-  <pubDate>Mon, 04 May 2026 04:00:00 GMT</pubDate>
+  <pubDate>Wed, 20 May 2026 04:00:00 GMT</pubDate>
   <media:content url="https://passthetorch.dev/posts/deep-dive-into-merlin/thumbnail.png" medium="image" type="image/png" height="61" width="144"/>
 </item>
 <item>
