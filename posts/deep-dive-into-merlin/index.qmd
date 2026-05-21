@@ -13,14 +13,13 @@ categories: [Medical AI]
 
 ![Merlin workflow](thumbnail.png)
 
-This post is a code-first deep dive into a foundation model called Merlin that leverages the structured and unstructured EHR within hospitals to train an abdominal CT visual model. The code repository for Merlin is on [GitHub](https://github.com/StanfordMIMI/Merlin) and the accompanying Nature paper is [here](https://www.nature.com/articles/s41586-026-10181-8).
+This post is a code-first deep dive into a foundation model called Merlin that leverages the structured and unstructured EHR within hospitals to train an abdominal CT visual model. The authors officially describe Merlin as a "_3D VLM for computed tomography that leverages both structured electronic health records (EHR) and unstructured radiology reports for pretraining._" The code repository for Merlin is on [GitHub](https://github.com/StanfordMIMI/Merlin) and the accompanying Nature paper is [here](https://www.nature.com/articles/s41586-026-10181-8).
 
-Merlin is evaluated on non-adapted and adapted tasks. The non-adapted tasks include zero-shot classification (31 classification tasks), phenotype classification (692 classification tasks), and zero-shot cross-modal retrieval (image to findings and image to impressions). The adapted tasks include 5-year disease prediction (6 classification tasks), radiology report generation, and 3D segmentation (20 organs). The authors report that training Merlin required approximately 160 hours on a single NVIDIA A6000 GPU, making it accessible for researchers with limited computational resources.
-
+Merlin is evaluated on non-adapted and adapted tasks. The non-adapted tasks include zero-shot classification, phenotype classification, and zero-shot cross-modal retrieval. The adapted tasks include 5-year disease prediction, radiology report generation, and 3D segmentation.
 
 ### MerlinArchitecture
 
-We dive into the [code](https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/build.py) for the `MerlinArchitecture` class, which is the core architecture of the Merlin model. The `MerlinArchitecture` class uses two sub-classes, TextEncoder and ImageEncoder:
+We dive into the [source code](https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/build.py) for the `MerlinArchitecture` class, which is the core architecture of the Merlin model. The `MerlinArchitecture` class uses two sub-classes, TextEncoder and ImageEncoder:
 
 #### Text Encoder
 ```{python}
@@ -86,28 +85,57 @@ class ImageEncoder(nn.Module):
 
 ```
 
-The three flags `ImageEmbedding`, `PhenotypeCls`, `FiveYearPred` select one of Merlin's evaluation/inference modes from the paper. The default — all `False` — gives you the full multi-task pretraining output. 
+The three flags `ImageEmbedding`, `PhenotypeCls`, `FiveYearPred` select one of Merlin's evaluation/inference modes from the paper. `ImageEmbedding` mode produces a contrastive image embedding for retrieval tasks. `PhenotypeCls` mode produces multi-label phenotype predictions for EHR tasks over 1,692 hierarchical PheWAS phenotypes. `FiveYearPred` mode produces multi-label disease predictions for 5-year disease prediction tasks over 6 diseases. The default — all `False` — gives you the full multi-task pretraining output. 
 
-- `ImageEmbedding` mode produces a contrastive image embedding for retrieval tasks. 
-- `PhenotypeCls` mode produces multi-label phenotype predictions for EHR tasks over 1,692 hierarchical PheWAS phenotypes.
-- `FiveYearPred` mode produces multi-label disease predictions for 5-year disease prediction tasks over 6 diseases.
-- None of the flags produces both the contrastive image embedding and the EHR phenotype predictions, which is the full output of Merlin's multi-task pretraining.
-
-Forward method:
-
-- ImageEmbedding mode: passes the input image through the i3_resnet and returns the contrastive features for retrieval tasks.
-- PhenotypeCls mode: passes the input image through the i3_resnet and returns the 1692-dim multi phenotype predictions for EHR tasks.
-- FiveYearPred mode: passes the input image through the i3_resnet and returns the 6-dim multi disease predictions for 5-year disease prediction tasks.
-- Default mode (all flags False): passes the input image through the i3_resnet and returns both the contrastive features and the EHR phenotype predictions, which is the full output of Merlin's multi-task pretraining.
+The `ImageEmbedding` mode passes the input image through the `i3_resnet` and returns the contrastive features for retrieval tasks. The `PhenotypeCls` mode passes the input image through the `i3_resnet` and returns the 1692-dim multi phenotype predictions for EHR tasks. `FiveYearPred` mode passes the input image through the i3_resnet and returns the 6-dim multi disease predictions for 5-year disease prediction tasks. Finally, the default mode (all flags `False`) passes the input image through the i3_resnet and returns both the contrastive features and the EHR phenotype predictions, which is the full output of Merlin's multi-task pretraining.
 
 
 #### MerlinArchitecture
 
-The `MerlinArchitecture` class combines the `TextEncoder` and `ImageEncoder` to create the full Merlin model. 
+```{python}
+class MerlinArchitecture(nn.Module):
+    def __init__(
+        self,
+        init_logit_scale: float = 1.0,
+        ImageEmbedding: bool = False,
+        PhenotypeCls: bool = False,
+        FiveYearPred: bool = False,
+    ):
+        super().__init__()
+        self.ImageEmbedding = ImageEmbedding
+        self.PhenotypeCls = PhenotypeCls
+        self.FiveYearPred = FiveYearPred
+        self.encode_image = ImageEncoder(
+            ImageEmbedding=self.ImageEmbedding,
+            PhenotypeCls=self.PhenotypeCls,
+            FiveYearPred=self.FiveYearPred,
+        )
+        self.encode_text = TextEncoder()
+        self.logit_scale = nn.Parameter(torch.ones([]) * init_logit_scale)
 
-The init method initializes the three mutually-exclusive mode flags (`ImageEmbedding`, `PhenotypeCls`, `FiveYearPred`) and creates instances of the `TextEncoder` and `ImageEncoder` with the appropriate flags. Also, it creates a temperature parameter for contrastive learning.
+    def forward(self, image, text=None):
+        if self.ImageEmbedding and text is None:
+            image_features = self.encode_image(image)
+            return image_features
+        elif self.PhenotypeCls and text is None:
+            phenotype_features = self.encode_image(image)
+            return phenotype_features
+        elif self.FiveYearPred and text is None:
+            five_year_features = self.encode_image(image)
+            return five_year_features
+        ...
+        ...
+        ...
+        return (
+            image_features,
+            ehr_features,
+            text_features,
+        )
+```
 
-The forward method is essentially a mode dispatcher with input validation. It checks which mode is active based on the flags and processes the input accordingly:
+The `MerlinArchitecture` class combines the `TextEncoder` and `ImageEncoder` to create the full Merlin model. The `__init__` method initializes the three mutually-exclusive mode flags(`ImageEmbedding`, `PhenotypeCls`, `FiveYearPred`) and creates instances of the `TextEncoder` and `ImageEncoder` with the appropriate flags. Also, it creates a temperature parameter for contrastive learning.
+
+The `forward` method is essentially a mode dispatcher with input validation. It checks which mode is active based on the flags and processes the input accordingly:
 
 - If `ImageEmbedding` mode is active, it processes the input image through the `ImageEncoder` and returns the contrastive features.
 - If `PhenotypeCls` mode is active, it processes the input image through the `ImageEncoder` and returns the phenotype predictions.
@@ -117,13 +145,15 @@ The forward method is essentially a mode dispatcher with input validation. It ch
 
 ## Demo
 
-In demo.py,
+To run `demo.py`, we borrow a `gpu_1x_a100_sxm4` instance (1 A100 GPU with 40GB of VRAM) from Lambda Cloud, which currently costs $1.99/hour. The model loads and runs on this instance without any out-of-memory errors, demonstrating that Merlin can be trained and run on a single GPU.
 
-We borrow a `gpu_1x_a100_sxm4` instance (1 A100 GPU with 40GB of VRAM) from Lambda Cloud for the demo. The model can be loaded and run on this instance without any out-of-memory errors, demonstrating that Merlin can be trained and run on a single GPU. This instance currently costs $1.99/hour on Lambda Cloud.
+###### Sample image of an CT scan:
 
-Sample Image of an CT scan with the corresponding radiology report:
+![](image1.png)
 
-![Image1](image1.png)
+<br>
+
+###### Sample radiology report:
 
 ```
 Lower thorax:         A small low-attenuating fluid structure is noted in the right cardiophrenic
@@ -148,17 +178,14 @@ Musculoskeletal:      Degenerative change of the spine.
 ```
 
 ### Default: Contrastive Embeddings + Phenotype Predictions 
+
 ```{python}
 model = Merlin()
 model.eval()
 model.cuda()
 ```
 
-First, we load the Merlin model and set it to evaluation mode. We also move the model to the GPU for faster inference.
-
-The `Merlin` class is a wrapper around the `MerlinArchitecture` that we defined earlier. It provides a convenient interface for loading the appropriate model configuration based on the task and for performing inference with the model. By calling `model.eval()`, we set the model to evaluation mode, which disables certain layers like dropout and batch normalization that are only used during training. Finally, by calling `model.cuda()`, we move the model's parameters to the GPU, allowing us to perform inference much faster than on a CPU.
-
-The model configurations are listed in `MODEL_CONFIGS`, where the default configuration uses the `MerlinArchitecture` with the checkpoint for the default task, the `report_generation` configuration uses the `Clip3DForTextGeneration` architecture with its corresponding checkpoint, and the `five_year_disease_prediction` configuration uses the `MerlinArchitecture` with a different checkpoint specific to that task. The appropriate model is loaded based on the flags set for the task.
+The [`Merlin` class](https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/load.py#L32) is a wrapper around the `MerlinArchitecture` that we defined earlier. It provides a convenient interface for loading the appropriate model configuration based on the task and for performing inference with the model. The model configurations are listed in [`MODEL_CONFIGS`](https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/load.py#L12-L29), where the default configuration uses the `MerlinArchitecture` with the checkpoint for the default task, the `report_generation` configuration uses the `Clip3DForTextGeneration` architecture with its corresponding checkpoint, and the `five_year_disease_prediction` configuration uses the `MerlinArchitecture` with a different checkpoint specific to that task. The appropriate model is loaded based on the flags set for the task.
 
 
 ```{python}
@@ -172,7 +199,6 @@ for batch in dataloader:
 
 In this loop, we iterate over batches of data from a dataloader. For each batch, we pass the images and text through the model to get the outputs. We then print the shapes of the contrastive image embeddings, phenotype predictions, and contrastive text embeddings to verify that the model is producing outputs in the expected format. The `batch["image"]` is moved to the same device as the model (GPU) before being passed through the model. The outputs are expected to be a tuple containing the contrastive image embeddings, the phenotype predictions, and the contrastive text embeddings, which we print the shapes of for verification. This allows us to confirm that the model is correctly processing the input data and producing outputs of the expected dimensions.
 
-Output:
 ```
 ================== Output Shapes ==================
 Contrastive image embeddings shape: torch.Size([1, 512])
@@ -193,7 +219,7 @@ for batch in dataloader:
     print(f"Image embeddings shape (Can be used for downstream tasks): {outputs[0].shape}")
 ```
 
-In this loop, we initialize the `Merlin` model with the `ImageEmbedding` flag set to `True`, which configures the model to produce contrastive image embeddings. We then set the model to evaluation mode and move it to the GPU. As we iterate over batches of data from the dataloader, we pass only the images through the model (since we are only interested in the image embeddings in this configuration) and print the shape of the resulting image embeddings. This allows us to verify that the model is producing image embeddings in the expected format, which can be used for downstream tasks such as retrieval or classification.
+In this loop, we initialize the `Merlin` model with the `ImageEmbedding` flag set to `True`, which configures the model to produce contrastive image embeddings. We then set the model to evaluation mode and move it to the GPU. As we iterate over batches of data from the dataloader, we pass only the images through the model (since we are only interested in the image embeddings in this configuration) and print the shape of the resulting image embeddings.
 
 ```
 ================== Output Shapes ==================
@@ -204,7 +230,7 @@ Image embeddings shape (Can be used for downstream tasks): torch.Size([1, 2048])
 
 ### Phenotype Predictions
 
-This section demonstrates how to use the `Merlin` model to obtain phenotype predictions from the input images. It finds the top 3 predicted phenotypes from the model's output and prints them in a readable format:
+In this mode, the `Merlin` model obtains phenotype predictions from the input images. It finds the top 3 predicted phenotypes from the model's output and prints them in a readable format:
 
 ```
 Top 3 predicted phenotypes:
@@ -223,7 +249,7 @@ Top 3 predicted phenotypes:
 
 ### Five-Year Disease Predictions
 
-This section obtains five-year disease predictions. It passes the CT image through the Merlin model configured for five-year disease prediction and prints the predicted probabilities for each of the six diseases in a readable format. The output shows the predicted probability of developing each disease within five years based on the input CT image. 
+In this mode, the model obtains five-year disease predictions. It passes the CT image through the Merlin model configured for five-year disease prediction and prints the predicted probabilities for each of the six diseases in a readable format. The output shows the predicted probability of developing each disease within five years based on the input CT image. 
 
 ```
 Five year disease prediction probabilities:
@@ -247,9 +273,7 @@ Five year disease prediction probabilities:
 
 ### Radiology report Generation
 
-(In report_generation_demo.py)
-
-This section demonstrates usage of the Merlin model for radiology report generation. It initializes the `Merlin` model with the `report_generation` configuration, which uses the `Clip3DForTextGeneration` architecture (a vision-to-text model that generates radiology reports from 3D medical images). We pass the images through the model to generate radiology reports. The generated reports are printed in a readable format, allowing us to see how well the model can produce coherent and relevant radiology reports based on the input CT images.
+In [`report_generation_demo.py`](https://github.com/StanfordMIMI/Merlin/blob/main/documentation/report_generation_demo.py), the `Merlin` model is initialized with the `report_generation` configuration, which swaps in the `Clip3DForTextGeneration` architecture — a vision-to-text model that generates radiology reports from 3D medical images. Passing CT images through this model produces full radiology reports, letting us see how coherent and clinically relevant Merlin's generated text is.
 
 
 ```
@@ -274,7 +298,9 @@ Musculoskeletal:         Normal.
 ```
 
 
+## Conclusion
 
+Merlin is a foundation model for abdominal CT that leverages both structured and unstructured EHR data to produce versatile outputs for a variety of tasks. By understanding the architecture and how to use the model for different inference modes, we can see how Merlin can be applied to real-world clinical problems, from phenotype prediction to radiology report generation. The ability to run Merlin on a single GPU also makes it accessible for researchers and practitioners looking to explore its capabilities further.
 
 
 
