@@ -10,7 +10,7 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Fri, 22 May 2026 04:00:00 GMT</lastBuildDate>
+<lastBuildDate>Thu, 21 May 2026 04:00:00 GMT</lastBuildDate>
 <item>
   <title>Deep Dive into Merlin</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -36,7 +36,7 @@
 <p>We dive into the <a href="https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/build.py">source code</a> for the <code>MerlinArchitecture</code> class, which is the core architecture of the Merlin model. The <code>MerlinArchitecture</code> class uses two sub-classes, TextEncoder and ImageEncoder:</p>
 <section id="text-encoder" class="level4">
 <h4 class="anchored" data-anchor-id="text-encoder">Text Encoder</h4>
-<div id="dc409051" class="cell" data-execution_count="1">
+<div id="80f857c8" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -157,7 +157,7 @@ font-style: inherit;">return</span> text_embeddings</span></code></pre></div></d
 </section>
 <section id="imageencoder" class="level4">
 <h4 class="anchored" data-anchor-id="imageencoder">ImageEncoder</h4>
-<div id="331f8126" class="cell" data-execution_count="2">
+<div id="abc3a143" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -286,7 +286,7 @@ font-style: inherit;">return</span> contrastive_features, ehr_features</span></c
 </section>
 <section id="merlinarchitecture-1" class="level4">
 <h4 class="anchored" data-anchor-id="merlinarchitecture-1">MerlinArchitecture</h4>
-<div id="a3a1ff8c" class="cell" data-execution_count="3">
+<div id="40a687a9" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -517,7 +517,7 @@ Musculoskeletal:      Degenerative change of the spine.</code></pre>
 </section>
 <section id="default-contrastive-embeddings-phenotype-predictions" class="level3">
 <h3 class="anchored" data-anchor-id="default-contrastive-embeddings-phenotype-predictions">Default: Contrastive Embeddings + Phenotype Predictions</h3>
-<div id="92c4af98" class="cell" data-execution_count="4">
+<div id="825e3bdf" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">model <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> Merlin()</span>
@@ -527,7 +527,7 @@ font-style: inherit;">eval</span>()</span>
 <span id="cb5-3">model.cuda()</span></code></pre></div></div>
 </div>
 <p>The <a href="https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/load.py#L32"><code>Merlin</code> class</a> is a wrapper around the <code>MerlinArchitecture</code> that we defined earlier. It provides a convenient interface for loading the appropriate model configuration based on the task and for performing inference with the model. The model configurations are listed in <code>MODEL_CONFIGS</code><sup>1</sup>, where the default configuration uses the <code>MerlinArchitecture</code> with the checkpoint for the default task, the <code>report_generation</code> configuration uses the <code>Clip3DForTextGeneration</code> architecture with its corresponding checkpoint, and the <code>five_year_disease_prediction</code> configuration uses the <code>MerlinArchitecture</code> with a different checkpoint specific to that task. The appropriate model is loaded based on the flags set for the task.</p>
-<div id="c8c0a2c5" class="cell" data-execution_count="5">
+<div id="6fd99e8d" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -605,7 +605,7 @@ Contrastive text embeddings shape:  torch.Size([1, 512])</code></pre>
 </section>
 <section id="image-embeddings" class="level3">
 <h3 class="anchored" data-anchor-id="image-embeddings">Image Embeddings</h3>
-<div id="43908e33" class="cell" data-execution_count="6">
+<div id="cc1bdfd7" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1">model <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> Merlin(ImageEmbedding<span class="op" style="color: #5E5E5E;
@@ -788,7 +788,7 @@ font-style: inherit;">"resnet_clinical_longformer_five_year_disease_prediction.p
 </section></div> ]]></description>
   <category>Medical AI</category>
   <guid>https://passthetorch.dev/posts/deep-dive-into-merlin/</guid>
-  <pubDate>Fri, 22 May 2026 04:00:00 GMT</pubDate>
+  <pubDate>Thu, 21 May 2026 04:00:00 GMT</pubDate>
   <media:content url="https://passthetorch.dev/posts/deep-dive-into-merlin/thumbnail.png" medium="image" type="image/png" height="61" width="144"/>
 </item>
 <item>
