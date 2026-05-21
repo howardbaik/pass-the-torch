@@ -1,9 +1,17 @@
 ---
 title: "Deep Dive into Merlin"
-format: html
+format:
+  html:
+    include-in-header:
+      text: |
+        <style>
+          section.footnotes,
+          section[role="doc-endnotes"],
+          #footnotes { display: none; }
+        </style>
 engine: none
 author: "Howard Baik"
-date: "2026-05-20"
+date: "2026-05-22"
 image: "thumbnail.png"
 eval: false
 categories: [Medical AI]
@@ -61,15 +69,8 @@ class ImageEncoder(nn.Module):
         self.ImageEmbedding = ImageEmbedding
         self.PhenotypeCls = PhenotypeCls
         self.FiveYearPred = FiveYearPred
-        resnet = torchvision.models.resnet152(pretrained=True)
-        self.i3_resnet = i3res.I3ResNet(
-            copy.deepcopy(resnet),
-            class_nb=1692 if not self.FiveYearPred else 6,
-            conv_class=True,
-            ImageEmbedding=self.ImageEmbedding,
-            PhenotypeCls=self.PhenotypeCls,
-            FiveYearPred=self.FiveYearPred,
-        )
+        ...
+        ...
 
     def forward(self, image):
         if self.ImageEmbedding:
@@ -85,7 +86,12 @@ class ImageEncoder(nn.Module):
 
 ```
 
-The three flags `ImageEmbedding`, `PhenotypeCls`, `FiveYearPred` select one of Merlin's evaluation/inference modes from the paper. `ImageEmbedding` mode produces a contrastive image embedding for retrieval tasks. `PhenotypeCls` mode produces multi-label phenotype predictions for EHR tasks over 1,692 hierarchical PheWAS phenotypes. `FiveYearPred` mode produces multi-label disease predictions for 5-year disease prediction tasks over 6 diseases. The default — all `False` — gives you the full multi-task pretraining output. 
+The three flags `ImageEmbedding`, `PhenotypeCls`, `FiveYearPred` select one of Merlin's evaluation/inference modes from the paper:
+
+- `ImageEmbedding` mode produces a contrastive image embedding for retrieval tasks. 
+- `PhenotypeCls` mode produces multi-label phenotype predictions for EHR tasks over 1,692 hierarchical PheWAS phenotypes. 
+- `FiveYearPred` mode produces multi-label disease predictions for 5-year disease prediction tasks over 6 diseases. 
+- The default mode — all `False` — gives you the full multi-task pretraining output. 
 
 The `ImageEmbedding` mode passes the input image through the `i3_resnet` and returns the contrastive features for retrieval tasks. The `PhenotypeCls` mode passes the input image through the `i3_resnet` and returns the 1692-dim multi phenotype predictions for EHR tasks. `FiveYearPred` mode passes the input image through the i3_resnet and returns the 6-dim multi disease predictions for 5-year disease prediction tasks. Finally, the default mode (all flags `False`) passes the input image through the i3_resnet and returns both the contrastive features and the EHR phenotype predictions, which is the full output of Merlin's multi-task pretraining.
 
@@ -145,7 +151,7 @@ The `forward` method is essentially a mode dispatcher with input validation. It 
 
 ## Demo
 
-To run `demo.py`, we borrow a `gpu_1x_a100_sxm4` instance (1 A100 GPU with 40GB of VRAM) from Lambda Cloud, which currently costs $1.99/hour. The model loads and runs on this instance without any out-of-memory errors, demonstrating that Merlin can be trained and run on a single GPU.
+To run [`demo.py`](https://github.com/StanfordMIMI/Merlin/blob/main/documentation/demo.py), we borrow a `gpu_1x_a100_sxm4` instance (1 A100 GPU with 40GB of VRAM) from Lambda Cloud, which currently costs $1.99/hour. The model loads and runs on this instance without any out-of-memory errors, demonstrating that Merlin can be trained and run on a single GPU.
 
 ###### Sample image of an CT scan:
 
@@ -185,7 +191,7 @@ model.eval()
 model.cuda()
 ```
 
-The [`Merlin` class](https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/load.py#L32) is a wrapper around the `MerlinArchitecture` that we defined earlier. It provides a convenient interface for loading the appropriate model configuration based on the task and for performing inference with the model. The model configurations are listed in [`MODEL_CONFIGS`](https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/load.py#L12-L29), where the default configuration uses the `MerlinArchitecture` with the checkpoint for the default task, the `report_generation` configuration uses the `Clip3DForTextGeneration` architecture with its corresponding checkpoint, and the `five_year_disease_prediction` configuration uses the `MerlinArchitecture` with a different checkpoint specific to that task. The appropriate model is loaded based on the flags set for the task.
+The [`Merlin` class](https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/load.py#L32) is a wrapper around the `MerlinArchitecture` that we defined earlier. It provides a convenient interface for loading the appropriate model configuration based on the task and for performing inference with the model. The model configurations are listed in `MODEL_CONFIGS`[^model-configs], where the default configuration uses the `MerlinArchitecture` with the checkpoint for the default task, the `report_generation` configuration uses the `Clip3DForTextGeneration` architecture with its corresponding checkpoint, and the `five_year_disease_prediction` configuration uses the `MerlinArchitecture` with a different checkpoint specific to that task. The appropriate model is loaded based on the flags set for the task.
 
 
 ```{python}
@@ -197,7 +203,7 @@ for batch in dataloader:
     print(f"Contrastive text embeddings shape:  {outputs[2].shape}")
 ```
 
-In this loop, we iterate over batches of data from a dataloader. For each batch, we pass the images and text through the model to get the outputs. We then print the shapes of the contrastive image embeddings, phenotype predictions, and contrastive text embeddings to verify that the model is producing outputs in the expected format. The `batch["image"]` is moved to the same device as the model (GPU) before being passed through the model. The outputs are expected to be a tuple containing the contrastive image embeddings, the phenotype predictions, and the contrastive text embeddings, which we print the shapes of for verification. This allows us to confirm that the model is correctly processing the input data and producing outputs of the expected dimensions.
+In this loop, we iterate over batches of data from a dataloader. For each batch, we pass the images and text through the model to get the outputs. We then print the shapes of the contrastive image embeddings, phenotype predictions, and contrastive text embeddings to verify that the model is producing outputs in the expected format. The `batch["image"]` is moved to the same device as the model (GPU) before being passed through the model. The outputs are expected to be a tuple containing the contrastive image embeddings, the phenotype predictions, and the contrastive text embeddings, which we print the shapes of for verification. 
 
 ```
 ================== Output Shapes ==================
@@ -301,6 +307,28 @@ Musculoskeletal:         Normal.
 ## Conclusion
 
 Merlin is a foundation model for abdominal CT that leverages both structured and unstructured EHR data to produce versatile outputs for a variety of tasks. By understanding the architecture and how to use the model for different inference modes, we can see how Merlin can be applied to real-world clinical problems, from phenotype prediction to radiology report generation. The ability to run Merlin on a single GPU also makes it accessible for researchers and practitioners looking to explore its capabilities further.
+
+[^model-configs]:
+    ```python
+    MODEL_CONFIGS: Dict[str, Dict[str, Any]] = {
+        "default": {
+            "builder": MerlinArchitecture,
+            "checkpoint": "i3_resnet_clinical_longformer_best_clip_04-02-2024_23-21-36_epoch_99.pt",
+        },
+        "report_generation": {
+            "builder": Clip3DForTextGeneration,
+            "checkpoint": "resnet_gpt2_best_stanford_report_generation_average_mtl.pt",
+        },
+        "report_generation_stage1_stage2": {
+            "builder": Clip3DForTextGeneration,
+            "checkpoint": "resnet_gpt2_best_stanford_report_generation_average.pt",
+        },
+        "five_year_disease_prediction": {
+            "builder": MerlinArchitecture,
+            "checkpoint": "resnet_clinical_longformer_five_year_disease_prediction.pt",
+        },
+    }
+    ```
 
 
 
