@@ -6,6 +6,7 @@ author: "Howard Baik"
 date: "2026-06-11"
 image: "thumbnail.jpeg"
 eval: false
+draft: true
 categories: [Medical AI]
 ---
 
