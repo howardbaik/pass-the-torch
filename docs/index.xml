@@ -10,7 +10,46 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Thu, 21 May 2026 04:00:00 GMT</lastBuildDate>
+<lastBuildDate>Thu, 11 Jun 2026 04:00:00 GMT</lastBuildDate>
+<item>
+  <title>Deep Dive into SleepNet</title>
+  <dc:creator>Howard Baik</dc:creator>
+  <link>https://passthetorch.dev/posts/deep-dive-into-sleepnet/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<section id="notes" class="level2">
+<h2 class="anchored" data-anchor-id="notes">Notes</h2>
+<ol type="1">
+<li>We use multi-task self-supervised learning to obtain a feature extractor by learning from 700,000 person-days of tri-axial accelerometry data in the UK Biobank.</li>
+<li>The pre-trained feature extractor was then fine-tuned with a deep recurrent network to train a sleep-stage classifier using polysomnography as the ground truth.</li>
+<li>We deploy the sleep prediction model on the UK Biobank and investigate the association between device-measured sleep and mortality outcomes.</li>
+</ol>
+<p>A deep recurrent neural network (<code>SleepNet</code>) was trained to classify the sleep stages for every 30-s window of tri-axial accelerometry data. The SleepNet has three components: a ResNet-17 V232 with 1D convolution for feature extraction, a bi-directional Long-Short-Term-Memory (LSTM) network for temporal dependencies learning33 and two fully-connected layers for sleep stage prediction.</p>
+</section>
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>Start looking at the <code>src/asleep/models.py</code> file</p>
+<p><code>weight_init()</code>: A custom parameter initialization function that initializes the weights of the model’s layers</p>
+<p><code>SleepWindowSSL</code>: A class that defines a self-supervised learning model for sleep stage classification</p>
+<p><strong>init</strong>(): - Create an <code>HMMSmoother</code> (Hidden Markov Model smoother) from the stepcount library. Smooths the neural network’s raw sleep stage predictions.</p>
+<p><code>fit()</code>: - Prepare training and validation sets with <code>DataLoader</code> from <code>torch</code>. - Load and return the Self Supervised Learning (SSL) model from pytorch hub (OxWearables/ssl-wearables). - Train the model (<code>sslmodel.train()</code>)</p>
+<p>Model training is laid out in sslmodel.py <code>train()</code> function - Create Adam optimizer and a learning rate scheduler (0.0001 initial learning rate) - Iterate over epochs, zeroing grad, forward pass, computing the loss, backward pass, and optimizer step. - After each epoch, evaluate the model on the validation set and print the loss and accuracy. - Then, we train the HMM (Hidden Markov Model) smoother on the validation set and print the HMM accuracy.</p>
+<p>This training involves the <code>predict()</code> function in sslmodel.py</p>
+<p>This is the second training stage. After the neural net is trained, an HMM (Hidden Markov Model) smoother is fitted on top of it (models.py:104, 171). The HMM’s job is to clean up the per-window predictions using temporal structure — e.g.&nbsp;a lone “wake” window surrounded by “sleep” windows is probably mislabeled and should be smoothed out.</p>
+
+
+</section>
+
+ ]]></description>
+  <category>Medical AI</category>
+  <guid>https://passthetorch.dev/posts/deep-dive-into-sleepnet/</guid>
+  <pubDate>Thu, 11 Jun 2026 04:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-sleepnet/thumbnail.jpeg" medium="image" type="image/jpeg"/>
+</item>
 <item>
   <title>Deep Dive into Merlin</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -1582,7 +1621,7 @@ Remember, finding effective ways to handle work-related stress is a process that
   <category>Hugging Face</category>
   <guid>https://passthetorch.dev/posts/finetuning-with-trl/</guid>
   <pubDate>Mon, 13 Apr 2026 04:00:00 GMT</pubDate>
-  <media:content url="https://passthetorch.dev/posts/finetuning-with-trl/thumbnail.png" medium="image" type="image/png" height="78" width="144"/>
+  <media:content url="https://passthetorch.dev/posts/finetuning-with-trl/thumbnail.png" medium="image" type="image/png" height="64" width="144"/>
 </item>
 <item>
   <title>Deep Dive into EchoCLIP</title>

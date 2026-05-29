@@ -1,0 +1,52 @@
+---
+title: "Deep Dive into SleepNet"
+format: html
+engine: none
+author: "Howard Baik"
+date: "2026-06-11"
+image: "thumbnail.jpeg"
+eval: false
+categories: [Medical AI]
+---
+
+## Notes
+
+1. We use multi-task self-supervised learning to obtain a feature extractor by learning from 700,000 person-days of tri-axial accelerometry data in the UK Biobank.
+2. The pre-trained feature extractor was then fine-tuned with a deep recurrent network to train a sleep-stage classifier using polysomnography as the ground truth. 
+3. We deploy the sleep prediction model on the UK Biobank and investigate the association between device-measured sleep and mortality outcomes.
+
+
+
+A deep recurrent neural network (`SleepNet`) was trained to classify the sleep stages for every 30-s window of tri-axial accelerometry data. The SleepNet has three components: a ResNet-17 V232 with 1D convolution for feature extraction, a bi-directional Long-Short-Term-Memory (LSTM) network for temporal dependencies learning33 and two fully-connected layers for sleep stage prediction. 
+
+
+## Introduction
+
+Start looking at the `src/asleep/models.py` file
+
+`weight_init()`: A custom parameter initialization function that initializes the weights of the model's layers
+
+`SleepWindowSSL`: A class that defines a self-supervised learning model for sleep stage classification
+
+__init__(): 
+- Create an `HMMSmoother` (Hidden Markov Model smoother) from the stepcount library. Smooths the neural network's raw sleep stage predictions.
+
+`fit()`:
+- Prepare training and validation sets with `DataLoader` from `torch`.
+- Load and return the Self Supervised Learning (SSL) model from pytorch hub (OxWearables/ssl-wearables).
+- Train the model (`sslmodel.train()`)
+
+Model training is laid out in sslmodel.py `train()` function
+- Create Adam optimizer and a learning rate scheduler (0.0001 initial learning rate)
+- Iterate over epochs, zeroing grad, forward pass, computing the loss, backward pass, and optimizer step.
+- After each epoch, evaluate the model on the validation set and print the loss and accuracy.
+- Then, we train the HMM (Hidden Markov Model) smoother on the validation set and print the HMM accuracy.
+
+This training involves the `predict()` function in sslmodel.py
+
+This is the second training stage. After the neural net is trained, an HMM (Hidden Markov Model) smoother is fitted on top of it (models.py:104, 171). The HMM's job is to clean up the per-window predictions using temporal structure — e.g. a lone "wake" window surrounded by "sleep" windows is probably mislabeled and should be smoothed out.
+
+
+
+
+
