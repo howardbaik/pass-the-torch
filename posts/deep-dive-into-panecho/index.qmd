@@ -1,0 +1,78 @@
+---
+title: "Deep Dive into PanEcho"
+format: html
+engine: none
+author: "Howard Baik"
+date: "2026-06-21"
+image: "thumbnail.png"
+eval: false
+categories: [Medical AI]
+---
+
+## Introduction
+
+![PanEcho workflow](thumbnail.png)
+
+
+src/models.py
+
+`PositionalEncoding` implements the sinusoidal positional encoding. It is a way to represent position in a sequence as a vector of sine and cosine values at different frequencies. It was introduced in the original Transformer paper ("Attention Is All You Need", 2017).
+
+`ImageEncoder` if-else ladder of different CNN backbones (ResNet, DenseNet, EfficientNet) to extract features from the input image. Builds an image model, loads pre-trained weights, and removes the final classification layer and replaces it with the Identity function to output the feature vector.
+
+
+### `FrameTransformer` class
+
+```{python}
+class FrameTransformer(torch.nn.Module):
+    """2+1D architecture with 2D image encoder and 1D temporal Transformer for echocardiogrpahy video modeling."""
+    def __init__(self, arch, n_heads, n_layers, transformer_dropout, pooling, clip_len=16):
+        super(FrameTransformer, self).__init__()
+        self.pooling = pooling
+        self.encoder = ImageEncoder(arch)
+
+        transformer_encoder = torch.nn.TransformerEncoderLayer(d_model=self.encoder.n_features, nhead=n_heads, dim_feedforward=self.encoder.n_features, dropout=transformer_dropout, activation='relu', batch_first=True)
+        self.transformer = torch.nn.TransformerEncoder(transformer_encoder, num_layers=n_layers)
+ 
+        self.classifier = torch.nn.Identity()
+    
+        self.time_encoder = PositionalEncoding(d_model=self.encoder.n_features, dropout=0, max_len=clip_len)
+```
+
+
+```{python}
+transformer_encoder = torch.nn.TransformerEncoderLayer(d_model=self.encoder.n_features, nhead=n_heads, dim_feedforward=self.encoder.n_features, dropout=transformer_dropout, activation='relu', batch_first=True)
+```
+
+This builds one Transformer encoder layer (`transformer_encoder`) with the following parameters:
+- `d_model`: The dimension of the input and output feature vectors, which is set to the number of features output by the image encoder (`self.encoder.n_features`).
+- `nhead`: The number of attention heads in the multi-head attention mechanism. `d_model` is split across heads. 
+- `dim_feedforward`: The dimension of the feedforward network within the Transformer encoder layer, which is also set to `self.encoder.n_features`.
+- `dropout`: The dropout rate applied to the output of the feedforward network and the attention mechanism, specified by the `transformer_dropout` parameter.
+- `activation`: The activation function used in the feedforward network.
+- `batch_first` : Indicates that the input and output tensors are expected to have the batch size as the first dimension.
+
+
+```{python}
+# Initialize the Transformer encoder
+self.transformer = nn.TransformerEncoder(encoder_layer=self.transformer_encoder, num_layers=num_layers)
+```
+
+Then, `self.transformer` is created by stacking `num_layers` of these `transformer_encoder` layers to form a full Transformer encoder. This allows the model to learn complex temporal relationships in the echocardiography video data.
+
+```{python}
+self.classifier = torch.nn.Identity()
+```
+
+Then, the model's output is passed through a classifier to produce the final prediction. In this case, the classifier is set to `torch.nn.Identity()`, which means it will simply return the output of the Transformer without applying any additional transformations. This is likely done because the model is designed to output feature vectors that can be used for downstream tasks (e.g., classification, regression) rather than directly producing class probabilities or regression values.
+
+
+```{python}
+self.time_encoder = PositionalEncoding(d_model=self.encoder.n_features, dropout=0, max_len=clip_len)
+```
+
+Finally, `self.time_encoder` is initialized as an instance of the `PositionalEncoding` class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The `max_len` parameter is set to `clip_len`, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.
+
+
+### `MultiTaskModel` class
+
