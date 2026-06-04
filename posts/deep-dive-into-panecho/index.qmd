@@ -11,14 +11,20 @@ categories: [Medical AI]
 
 ## Introduction
 
+PanEcho an end-to-end, view-agnostic deep learning model capable of simultaneously performing the full range of key echocardiographic reporting tasks.
+
 ![PanEcho workflow](thumbnail.png)
+
+
+
+We designed a multitask, video-based deep learning model with a 2D image encoder, temporal transformer, and output heads dedicated to individual tasks (Figure 1B). In its design, the AI system mimics a human reader, integrating all available echocardiographic views and assessing all 39 echocardiographic reporting tasks described above. Each video frame is first processed by the 2D image encoder, a convolutional neural network that produces a learned embedding of each frame. These framewise embeddings are then interpreted as an ordered sequence and modeled using self attention30 to learn time-varying associations over the frames. Finally, a video-level embedding is formed and used as input to the task-specific output heads. Rather than develop separate view- and task-specific models, this design efficiently shares computation across views with a unified view-agnostic encoder and parallelizes task-specific modeling with lightweight output heads specialized for each task. The model was trained end to end to minimize the mean of all task-specific losses.
 
 
 src/models.py
 
 `PositionalEncoding` implements the sinusoidal positional encoding. It is a way to represent position in a sequence as a vector of sine and cosine values at different frequencies. It was introduced in the original Transformer paper ("Attention Is All You Need", 2017).
 
-`ImageEncoder` if-else ladder of different CNN backbones (ResNet, DenseNet, EfficientNet) to extract features from the input image. Builds an image model, loads pre-trained weights, and removes the final classification layer and replaces it with the Identity function to output the feature vector.
+`ImageEncoder` consists of an if-else ladder of different CNN backbones (ResNet, DenseNet, EfficientNet) to extract features from the input image. Builds an image model, loads pre-trained weights, and removes the final classification layer and replaces it with the Identity function to output the feature vector.
 
 
 ### `FrameTransformer` class
@@ -64,8 +70,7 @@ Then, `self.transformer` is created by stacking `num_layers` of these `transform
 self.classifier = torch.nn.Identity()
 ```
 
-Then, the model's output is passed through a classifier to produce the final prediction. In this case, the classifier is set to `torch.nn.Identity()`, which means it will simply return the output of the Transformer without applying any additional transformations. This is likely done because the model is designed to output feature vectors that can be used for downstream tasks (e.g., classification, regression) rather than directly producing class probabilities or regression values.
-
+Then, the model's output is passed through a classifier to produce the final prediction. In this case, the classifier is set to `torch.nn.Identity()`, which means it will simply return the output of the Transformer without applying any additional transformations. 
 
 ```{python}
 self.time_encoder = PositionalEncoding(d_model=self.encoder.n_features, dropout=0, max_len=clip_len)
@@ -119,27 +124,27 @@ Binary classification or regression: A head that maps `encoder_dim`-wide feature
 
 ```{python}
 def forward(self, x):
-        x = self.encoder(x)
+    x = self.encoder(x)
 
-        out_dict = {}
-        for task in self.tasks:
-            out = self.get_submodule(task.task_name+'_head')(x)
+    out_dict = {}
+    for task in self.tasks:
+        out = self.get_submodule(task.task_name+'_head')(x)
 
-            if self.activations:
-                if task.task_type == 'binary_classification':
-                    # Ensure that output corresponds to "positive" class for all binary classification tasks
-                    if task.task_name in ['MVStenosis', 'AVStructure', 'RASize', 'RVSystolicFunction', 'LVWallThickness-increased-modsev', 'LVWallThickness-increased-any', 'pericardial-effusion']:
-                        out_dict[task.task_name] = 1-torch.sigmoid(out)
-                    else:
-                        out_dict[task.task_name] = torch.sigmoid(out)
-                elif task.task_type == 'multi-class_classification':
-                    out_dict[task.task_name] = torch.softmax(out, dim=1)
+        if self.activations:
+            if task.task_type == 'binary_classification':
+                # Ensure that output corresponds to "positive" class for all binary classification tasks
+                if task.task_name in ['MVStenosis', 'AVStructure', 'RASize', 'RVSystolicFunction', 'LVWallThickness-increased-modsev', 'LVWallThickness-increased-any', 'pericardial-effusion']:
+                    out_dict[task.task_name] = 1-torch.sigmoid(out)
                 else:
-                    out_dict[task.task_name] = out
+                    out_dict[task.task_name] = torch.sigmoid(out)
+            elif task.task_type == 'multi-class_classification':
+                out_dict[task.task_name] = torch.softmax(out, dim=1)
             else:
                 out_dict[task.task_name] = out
+        else:
+            out_dict[task.task_name] = out
 
-        return out_dict
+    return out_dict
 ```
 
 In the forward method, we run the input through the shared video encoder to get a feature vector `(batch_size, encoder_dim)` and then pass that feature vector through each task's prediction head to get the output for that task. The outputs for all tasks are collected in a dictionary and returned.
@@ -175,36 +180,32 @@ Load a Python pickle file containing the definitions of all the clinical tasks t
 
 
 ```{python}
-    encoder = FrameTransformer(arch, n_heads, n_layers, transformer_dropout, pooling, clip_len)
-    encoder_dim = encoder.encoder.n_features
-    model = MultiTaskModel(encoder, encoder_dim, task_list, 0.25, activations)
+encoder = FrameTransformer(arch, n_heads, n_layers, transformer_dropout, pooling, clip_len)
+encoder_dim = encoder.encoder.n_features
+model = MultiTaskModel(encoder, encoder_dim, task_list, 0.25, activations)
 ```
 
 Initialize the encoder using the `FrameTransformer` class with the specified architecture parameters. Then, create an instance of the `MultiTaskModel` class, passing in the encoder, its output feature dimension (`encoder_dim`), the list of tasks, a dropout rate of 0.25 for the fully connected layers in the prediction heads, and whether to apply activation functions to the outputs.
 
 ```{python}
 # Load pretrained weights
-    if pretrained:
-        weights_url = 'https://github.com/CarDS-Yale/PanEcho/releases/download/v1.0/panecho.pt'
-        weights = torch.hub.load_state_dict_from_url(
-            weights_url, map_location='cpu', progress=False
-        )['weights']
-        # Remove fixed positional encoding to allow variable clip_len
-        del weights['encoder.time_encoder.pe']
-        msg = model.load_state_dict(weights, strict=False)
+if pretrained:
+    weights_url = 'https://github.com/CarDS-Yale/PanEcho/releases/download/v1.0/panecho.pt'
+    weights = torch.hub.load_state_dict_from_url(
+        weights_url, map_location='cpu', progress=False
+    )['weights']
+    # Remove fixed positional encoding to allow variable clip_len
+    del weights['encoder.time_encoder.pe']
+    msg = model.load_state_dict(weights, strict=False)
 ```
 
 Load pretrained weights from `torch.hub.load_state_dict_from_url(weights_url, map_location='cpu', progress=False)` which downloads the weights from the specified URL. The weights are stored in a dictionary, and we extract the 'weights' key to get the actual state dictionary for the model. Then, we remove the fixed positional encoding weights (`encoder.time_encoder.pe`) from the state dictionary to allow for variable clip lengths during inference. Finally, we load the remaining weights into the model using `model.load_state_dict(weights, strict=False)`, which allows for missing keys (like the removed positional encoding) without raising an error.
 
 
-
-
-
-
-
-
-
-
 ## Demo
 
 TODO: Walk through one sample data entry, show how it flows through the model, and explain the dimensions at each step.
+
+```{python}
+
+```
