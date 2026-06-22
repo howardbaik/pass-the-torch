@@ -6,22 +6,36 @@ author: "Howard Baik"
 date: "2026-06-21"
 image: "thumbnail.png"
 eval: false
-draft: true
 categories: [Medical AI]
 ---
 
 ## Introduction
 
-PanEcho an end-to-end, view-agnostic deep learning model capable of simultaneously performing the full range of key echocardiographic reporting tasks.
+![](heart.png)
+
+PanEcho is a multivew, multitask, video-based deep learning model capable of performing the full range of key echocardiographic reporting tasks.
 
 ![PanEcho workflow](thumbnail.png)
 
-
+(From the Model Development section)
 
 We designed a multitask, video-based deep learning model with a 2D image encoder, temporal transformer, and output heads dedicated to individual tasks (Figure 1B). In its design, the AI system mimics a human reader, integrating all available echocardiographic views and assessing all 39 echocardiographic reporting tasks described above. Each video frame is first processed by the 2D image encoder, a convolutional neural network that produces a learned embedding of each frame. These framewise embeddings are then interpreted as an ordered sequence and modeled using self attention30 to learn time-varying associations over the frames. Finally, a video-level embedding is formed and used as input to the task-specific output heads. Rather than develop separate view- and task-specific models, this design efficiently shares computation across views with a unified view-agnostic encoder and parallelizes task-specific modeling with lightweight output heads specialized for each task. The model was trained end to end to minimize the mean of all task-specific losses.
 
+(From the PanEcho Implementation Details in eMethods)
 
-src/models.py
+Steps
+1. Each video frame is first processed by the 2D image encoder, an ImageNet5-pretrained ConvNeXt-T3 convolutional neural network (CNN) which produces a learned feature vector, or representation, of each frame. 
+
+2. These frame-wise representations are then interpreted as an ordered sequence – like words in a sentence in natural language processing and modeled using self-attention to learn time-varying associations over the frames. 
+
+3. Frame order is embedded via sinusoidal positional encoding, which is then elementwise added to the frame-wise feature vectors and fed to a Transformer encoder consisting of four layers, each with eight self-attention heads. 
+
+4. Mean pooling is then used to aggregate frame-wise feature vectors into a single video-level representation, which is used as input to the task-specific output heads. Each output head consists of a Dropout layer with probability 0.25 and a fully-connected layer. 
+
+
+
+
+`src/models.py`
 
 `PositionalEncoding` implements the sinusoidal positional encoding. It is a way to represent position in a sequence as a vector of sine and cosine values at different frequencies. It was introduced in the original Transformer paper ("Attention Is All You Need", 2017).
 
@@ -32,26 +46,48 @@ src/models.py
 
 ```{python}
 class FrameTransformer(torch.nn.Module):
-    """2+1D architecture with 2D image encoder and 1D temporal Transformer for echocardiogrpahy video modeling."""
-    def __init__(self, arch, n_heads, n_layers, transformer_dropout, pooling, clip_len=16):
+    """2+1D architecture with 2D image encoder and 1D temporal
+    Transformer for echocardiography video modeling."""
+    def __init__(self, arch, n_heads, n_layers, transformer_dropout,
+                 pooling, clip_len=16):
         super(FrameTransformer, self).__init__()
         self.pooling = pooling
         self.encoder = ImageEncoder(arch)
 
-        transformer_encoder = torch.nn.TransformerEncoderLayer(d_model=self.encoder.n_features, nhead=n_heads, dim_feedforward=self.encoder.n_features, dropout=transformer_dropout, activation='relu', batch_first=True)
-        self.transformer = torch.nn.TransformerEncoder(transformer_encoder, num_layers=n_layers)
- 
+        transformer_encoder = torch.nn.TransformerEncoderLayer(
+            d_model=self.encoder.n_features,
+            nhead=n_heads,
+            dim_feedforward=self.encoder.n_features,
+            dropout=transformer_dropout,
+            activation='relu',
+            batch_first=True,
+        )
+        self.transformer = torch.nn.TransformerEncoder(
+            transformer_encoder, num_layers=n_layers
+        )
+
         self.classifier = torch.nn.Identity()
-    
-        self.time_encoder = PositionalEncoding(d_model=self.encoder.n_features, dropout=0, max_len=clip_len)
+
+        self.time_encoder = PositionalEncoding(
+            d_model=self.encoder.n_features, dropout=0, max_len=clip_len
+        )
 ```
 
 
 ```{python}
-transformer_encoder = torch.nn.TransformerEncoderLayer(d_model=self.encoder.n_features, nhead=n_heads, dim_feedforward=self.encoder.n_features, dropout=transformer_dropout, activation='relu', batch_first=True)
+transformer_encoder = torch.nn.TransformerEncoderLayer(
+    d_model=self.encoder.n_features,
+    nhead=n_heads,
+    dim_feedforward=self.encoder.n_features,
+    dropout=transformer_dropout,
+    activation='relu',
+    batch_first=True,
+)
 ```
 
 This builds one Transformer encoder layer (`transformer_encoder`) with the following parameters:
+
+
 - `d_model`: The dimension of the input and output feature vectors, which is set to the number of features output by the image encoder (`self.encoder.n_features`).
 - `nhead`: The number of attention heads in the multi-head attention mechanism. `d_model` is split across heads. 
 - `dim_feedforward`: The dimension of the feedforward network within the Transformer encoder layer, which is also set to `self.encoder.n_features`.
@@ -62,7 +98,10 @@ This builds one Transformer encoder layer (`transformer_encoder`) with the follo
 
 ```{python}
 # Initialize the Transformer encoder
-self.transformer = nn.TransformerEncoder(encoder_layer=self.transformer_encoder, num_layers=num_layers)
+self.transformer = nn.TransformerEncoder(
+    encoder_layer=self.transformer_encoder,
+    num_layers=num_layers,
+)
 ```
 
 Then, `self.transformer` is created by stacking `num_layers` of these `transformer_encoder` layers to form a full Transformer encoder. This allows the model to learn complex temporal relationships in the echocardiography video data.
@@ -74,7 +113,11 @@ self.classifier = torch.nn.Identity()
 Then, the model's output is passed through a classifier to produce the final prediction. In this case, the classifier is set to `torch.nn.Identity()`, which means it will simply return the output of the Transformer without applying any additional transformations. 
 
 ```{python}
-self.time_encoder = PositionalEncoding(d_model=self.encoder.n_features, dropout=0, max_len=clip_len)
+self.time_encoder = PositionalEncoding(
+    d_model=self.encoder.n_features,
+    dropout=0,
+    max_len=clip_len,
+)
 ```
 
 Finally, `self.time_encoder` is initialized as an instance of the `PositionalEncoding` class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The `max_len` parameter is set to `clip_len`, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.
@@ -99,8 +142,10 @@ Top-level PanEcho model. Take the shared video encoder and attach one prediction
 
 ```{python}
 class MultiTaskModel(torch.nn.Module):
-    """Multi-task model with shared video encoder and separate prediction heads for each clinical task."""
-    def __init__(self, encoder, encoder_dim, tasks, fc_dropout=0, activations=True):
+    """Multi-task model with shared video encoder and separate
+    prediction heads for each clinical task."""
+    def __init__(self, encoder, encoder_dim, tasks, fc_dropout=0,
+                 activations=True):
         super().__init__()
         self.encoder = encoder
         self.tasks = tasks
@@ -108,12 +153,26 @@ class MultiTaskModel(torch.nn.Module):
 
         for task in self.tasks:
             if task.task_type == 'multi-class_classification':
-                self.add_module(task.task_name+'_head', torch.nn.Sequential(torch.nn.Dropout(p=fc_dropout), torch.nn.Linear(encoder_dim, task.class_names.size)))
+                self.add_module(
+                    task.task_name + '_head',
+                    torch.nn.Sequential(
+                        torch.nn.Dropout(p=fc_dropout),
+                        torch.nn.Linear(encoder_dim, task.class_names.size),
+                    ),
+                )
             else:  # binary classification or regression, both have 1 output
-                self.add_module(task.task_name+'_head', torch.nn.Sequential(torch.nn.Dropout(p=fc_dropout), torch.nn.Linear(encoder_dim, 1)))
-            
-                # Initialize bias term to training set mean value (to account for different scales/units)
-                self.get_submodule(task.task_name+'_head')[-1].bias.data[0] = task.mean
+                self.add_module(
+                    task.task_name + '_head',
+                    torch.nn.Sequential(
+                        torch.nn.Dropout(p=fc_dropout),
+                        torch.nn.Linear(encoder_dim, 1),
+                    ),
+                )
+
+                # Initialize bias term to training set mean value
+                # (to account for different scales/units)
+                head = self.get_submodule(task.task_name + '_head')
+                head[-1].bias.data[0] = task.mean
 ```
 
 Multi-class classification: A head that maps `encoder_dim`-wide feature vector to one output per class (`task.class_names.size` outputs)
@@ -133,8 +192,14 @@ def forward(self, x):
 
         if self.activations:
             if task.task_type == 'binary_classification':
-                # Ensure that output corresponds to "positive" class for all binary classification tasks
-                if task.task_name in ['MVStenosis', 'AVStructure', 'RASize', 'RVSystolicFunction', 'LVWallThickness-increased-modsev', 'LVWallThickness-increased-any', 'pericardial-effusion']:
+                # Ensure that output corresponds to "positive" class
+                # for all binary classification tasks
+                flipped_tasks = [
+                    'MVStenosis', 'AVStructure', 'RASize',
+                    'RVSystolicFunction', 'LVWallThickness-increased-modsev',
+                    'LVWallThickness-increased-any', 'pericardial-effusion',
+                ]
+                if task.task_name in flipped_tasks:
                     out_dict[task.task_name] = 1-torch.sigmoid(out)
                 else:
                     out_dict[task.task_name] = torch.sigmoid(out)
@@ -171,7 +236,12 @@ task_dict = pd.read_pickle(
 )
 all_tasks = list(task_dict.keys())
 task_list = [
-    Task(t, task_dict[t]['task_type'], task_dict[t]['class_names'], task_dict[t]['mean'])
+    Task(
+        t,
+        task_dict[t]['task_type'],
+        task_dict[t]['class_names'],
+        task_dict[t]['mean'],
+    )
     for t in all_tasks
 ]
 ```
@@ -181,9 +251,13 @@ Load a Python pickle file containing the definitions of all the clinical tasks t
 
 
 ```{python}
-encoder = FrameTransformer(arch, n_heads, n_layers, transformer_dropout, pooling, clip_len)
+encoder = FrameTransformer(
+    arch, n_heads, n_layers, transformer_dropout, pooling, clip_len
+)
 encoder_dim = encoder.encoder.n_features
-model = MultiTaskModel(encoder, encoder_dim, task_list, 0.25, activations)
+model = MultiTaskModel(
+    encoder, encoder_dim, task_list, 0.25, activations
+)
 ```
 
 Initialize the encoder using the `FrameTransformer` class with the specified architecture parameters. Then, create an instance of the `MultiTaskModel` class, passing in the encoder, its output feature dimension (`encoder_dim`), the list of tasks, a dropout rate of 0.25 for the fully connected layers in the prediction heads, and whether to apply activation functions to the outputs.
