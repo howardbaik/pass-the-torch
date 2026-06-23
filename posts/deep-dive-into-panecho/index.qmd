@@ -3,7 +3,7 @@ title: "Deep Dive into PanEcho"
 format: html
 engine: none
 author: "Howard Baik"
-date: "2026-06-21"
+date: "2026-06-29"
 image: "thumbnail.png"
 eval: false
 categories: [Medical AI]
@@ -13,7 +13,7 @@ categories: [Medical AI]
 
 ![](heart.png)
 
-PanEcho is a multivew, multitask, video-based deep learning model capable of performing the full range of key echocardiographic reporting tasks.
+This post is a code-focused deep dive into a echocardiographic deep learning model called PanEcho. PanEcho is a multivew, multitask, video-based deep learning model capable of performing the full range of key echocardiographic reporting tasks.
 
 ![PanEcho workflow](thumbnail.png)
 
@@ -32,14 +32,6 @@ Steps
 
 4. Mean pooling is then used to aggregate frame-wise feature vectors into a single video-level representation, which is used as input to the task-specific output heads. Each output head consists of a Dropout layer with probability 0.25 and a fully-connected layer. 
 
-
-
-
-`src/models.py`
-
-`PositionalEncoding` implements the sinusoidal positional encoding. It is a way to represent position in a sequence as a vector of sine and cosine values at different frequencies. It was introduced in the original Transformer paper ("Attention Is All You Need", 2017).
-
-`ImageEncoder` consists of an if-else ladder of different CNN backbones (ResNet, DenseNet, EfficientNet) to extract features from the input image. Builds an image model, loads pre-trained weights, and removes the final classification layer and replaces it with the Identity function to output the feature vector.
 
 
 ### `FrameTransformer` class
@@ -86,7 +78,6 @@ transformer_encoder = torch.nn.TransformerEncoderLayer(
 ```
 
 This builds one Transformer encoder layer (`transformer_encoder`) with the following parameters:
-
 
 - `d_model`: The dimension of the input and output feature vectors, which is set to the number of features output by the image encoder (`self.encoder.n_features`).
 - `nhead`: The number of attention heads in the multi-head attention mechanism. `d_model` is split across heads. 
@@ -275,6 +266,9 @@ if pretrained:
 ```
 
 Load pretrained weights from `torch.hub.load_state_dict_from_url(weights_url, map_location='cpu', progress=False)` which downloads the weights from the specified URL. The weights are stored in a dictionary, and we extract the 'weights' key to get the actual state dictionary for the model. Then, we remove the fixed positional encoding weights (`encoder.time_encoder.pe`) from the state dictionary to allow for variable clip lengths during inference. Finally, we load the remaining weights into the model using `model.load_state_dict(weights, strict=False)`, which allows for missing keys (like the removed positional encoding) without raising an error.
+
+
+
 
 
 ## Demo
