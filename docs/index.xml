@@ -10,7 +10,7 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Sun, 21 Jun 2026 04:00:00 GMT</lastBuildDate>
+<lastBuildDate>Mon, 29 Jun 2026 04:00:00 GMT</lastBuildDate>
 <item>
   <title>Deep Dive into PanEcho</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -23,100 +23,113 @@
 
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
-<p><img src="https://passthetorch.dev/posts/deep-dive-into-panecho/heart.png" class="img-fluid"></p>
-<p>PanEcho is a multivew, multitask, video-based deep learning model capable of performing the full range of key echocardiographic reporting tasks.</p>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><img src="https://passthetorch.dev/posts/deep-dive-into-panecho/thumbnail.png" class="img-fluid figure-img"></p>
-<figcaption>PanEcho workflow</figcaption>
-</figure>
-</div>
-<p>We designed a multitask, video-based deep learning model with a 2D image encoder, temporal transformer, and output heads dedicated to individual tasks (Figure 1B). In its design, the AI system mimics a human reader, integrating all available echocardiographic views and assessing all 39 echocardiographic reporting tasks described above. Each video frame is first processed by the 2D image encoder, a convolutional neural network that produces a learned embedding of each frame. These framewise embeddings are then interpreted as an ordered sequence and modeled using self attention30 to learn time-varying associations over the frames. Finally, a video-level embedding is formed and used as input to the task-specific output heads. Rather than develop separate view- and task-specific models, this design efficiently shares computation across views with a unified view-agnostic encoder and parallelizes task-specific modeling with lightweight output heads specialized for each task. The model was trained end to end to minimize the mean of all task-specific losses.</p>
-<p><code>src/models.py</code></p>
-<p><code>PositionalEncoding</code> implements the sinusoidal positional encoding. It is a way to represent position in a sequence as a vector of sine and cosine values at different frequencies. It was introduced in the original Transformer paper (“Attention Is All You Need”, 2017).</p>
-<p><code>ImageEncoder</code> consists of an if-else ladder of different CNN backbones (ResNet, DenseNet, EfficientNet) to extract features from the input image. Builds an image model, loads pre-trained weights, and removes the final classification layer and replaces it with the Identity function to output the feature vector.</p>
-<section id="frametransformer-class" class="level3">
-<h3 class="anchored" data-anchor-id="frametransformer-class"><code>FrameTransformer</code> class</h3>
-<div id="0d085f13" class="cell" data-execution_count="1">
+<p>This post is a code-focused deep dive into a echocardiographic deep learning model called <a href="https://www.medrxiv.org/content/10.1101/2024.11.16.24317431v2">PanEcho</a>. PanEcho is a multivew, multitask, and video-based deep learning model capable of performing 39 diverse interpretation tasks. PanEcho consists of a 2D image encoder, temporal transformer, and output heads dedicated to the 39 individual tasks.</p>
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-panecho/panecho.png" class="img-fluid"></p>
+<p>PanEcho processes an echocardiogram video — a sequence of frames — and turns it into predictions for 39 clinical tasks. The model does this in four stages:</p>
+<ol type="1">
+<li><p><strong>Per-frame feature extraction.</strong> Each video frame is passed independently through the 2D image encoder: an ImageNet-pretrained ConvNeXt-Tiny CNN. The CNN compresses each frame into a single 768-dimensional feature vector summarizing the anatomy/spatial content visible in that frame. Temporal dynamics (motion) across frames are then modeled separately by a 1D temporal Transformer over the sequence of frame embeddings.</p></li>
+<li><p><strong>Adding temporal order.</strong> A CNN treats each frame in isolation, so the model has no inherent sense of which frame came first. To restore this, the frame’s position in the sequence is encoded with a sinusoidal positional encoding and added elementwise to its feature vector.</p></li>
+<li><p><strong>Modeling relationships across frames.</strong> The position-aware feature vectors are fed into a Transformer encoder of four layers, each with eight self-attention heads. Self-attention lets every frame attend to every other frame, so the Transformer can model temporal dynamics across the whole clip — for example, how the heart wall moves between systole and diastole — and produces a refined, context-aware feature vector for each frame.</p></li>
+<li><p><strong>Pooling and prediction.</strong> The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task’s prediction.</p></li>
+</ol>
+<p>In the rest of this post, we will go through the <code>FrameTransformer</code> class, the <code>MultiTaskModel</code> class, and the PanEcho model listed on the PyTorch Hub. The <code>FrameTransformer</code> class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The <code>MultiTaskModel</code> class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions.</p>
+</section>
+<section id="frametransformer-class" class="level2">
+<h2 class="anchored" data-anchor-id="frametransformer-class"><code>FrameTransformer</code> Class</h2>
+<div id="ebdbab52" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">class</span> FrameTransformer(torch.nn.Module):</span>
 <span id="cb1-2">    <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">"""2+1D architecture with 2D image encoder and 1D temporal Transformer for echocardiogrpahy video modeling."""</span></span>
-<span id="cb1-3">    <span class="kw" style="color: #003B4F;
+font-style: inherit;">"""2+1D architecture with 2D image encoder and 1D temporal</span></span>
+<span id="cb1-3"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    Transformer for echocardiography video modeling."""</span></span>
+<span id="cb1-4">    <span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">def</span> <span class="fu" style="color: #4758AB;
 background-color: null;
 font-style: inherit;">__init__</span>(<span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">self</span>, arch, n_heads, n_layers, transformer_dropout, pooling, clip_len<span class="op" style="color: #5E5E5E;
+font-style: inherit;">self</span>, arch, n_heads, n_layers, transformer_dropout,</span>
+<span id="cb1-5">                 pooling, clip_len<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">16</span>):</span>
-<span id="cb1-4">        <span class="bu" style="color: null;
+<span id="cb1-6">        <span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">super</span>(FrameTransformer, <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>).<span class="fu" style="color: #4758AB;
 background-color: null;
 font-style: inherit;">__init__</span>()</span>
-<span id="cb1-5">        <span class="va" style="color: #111111;
+<span id="cb1-7">        <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.pooling <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> pooling</span>
-<span id="cb1-6">        <span class="va" style="color: #111111;
+<span id="cb1-8">        <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.encoder <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> ImageEncoder(arch)</span>
-<span id="cb1-7"></span>
-<span id="cb1-8">        transformer_encoder <span class="op" style="color: #5E5E5E;
+<span id="cb1-9"></span>
+<span id="cb1-10">        transformer_encoder <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span> torch.nn.TransformerEncoderLayer(d_model<span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">self</span>.encoder.n_features, nhead<span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span>n_heads, dim_feedforward<span class="op" style="color: #5E5E5E;
+font-style: inherit;">=</span> torch.nn.TransformerEncoderLayer(</span>
+<span id="cb1-11">            d_model<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">self</span>.encoder.n_features, dropout<span class="op" style="color: #5E5E5E;
+font-style: inherit;">self</span>.encoder.n_features,</span>
+<span id="cb1-12">            nhead<span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span>transformer_dropout, activation<span class="op" style="color: #5E5E5E;
+font-style: inherit;">=</span>n_heads,</span>
+<span id="cb1-13">            dim_feedforward<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.encoder.n_features,</span>
+<span id="cb1-14">            dropout<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>transformer_dropout,</span>
+<span id="cb1-15">            activation<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'relu'</span>, batch_first<span class="op" style="color: #5E5E5E;
+font-style: inherit;">'relu'</span>,</span>
+<span id="cb1-16">            batch_first<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">True</span>)</span>
-<span id="cb1-9">        <span class="va" style="color: #111111;
+font-style: inherit;">True</span>,</span>
+<span id="cb1-17">        )</span>
+<span id="cb1-18">        <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.transformer <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span> torch.nn.TransformerEncoder(transformer_encoder, num_layers<span class="op" style="color: #5E5E5E;
+font-style: inherit;">=</span> torch.nn.TransformerEncoder(</span>
+<span id="cb1-19">            transformer_encoder, num_layers<span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span>n_layers)</span>
-<span id="cb1-10"> </span>
-<span id="cb1-11">        <span class="va" style="color: #111111;
+font-style: inherit;">=</span>n_layers</span>
+<span id="cb1-20">        )</span>
+<span id="cb1-21"></span>
+<span id="cb1-22">        <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.classifier <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> torch.nn.Identity()</span>
-<span id="cb1-12">    </span>
-<span id="cb1-13">        <span class="va" style="color: #111111;
+<span id="cb1-23"></span>
+<span id="cb1-24">        <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.time_encoder <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span> PositionalEncoding(d_model<span class="op" style="color: #5E5E5E;
+font-style: inherit;">=</span> PositionalEncoding(</span>
+<span id="cb1-25">            d_model<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
@@ -126,34 +139,63 @@ font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">0</span>, max_len<span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span>clip_len)</span></code></pre></div></div>
+font-style: inherit;">=</span>clip_len</span>
+<span id="cb1-26">        )</span></code></pre></div></div>
 </div>
-<div id="93d76cb3" class="cell" data-execution_count="2">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">transformer_encoder <span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span> torch.nn.TransformerEncoderLayer(d_model<span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">self</span>.encoder.n_features, nhead<span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span>n_heads, dim_feedforward<span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">self</span>.encoder.n_features, dropout<span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span>transformer_dropout, activation<span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="st" style="color: #20794D;
-background-color: null;
-font-style: inherit;">'relu'</span>, batch_first<span class="op" style="color: #5E5E5E;
-background-color: null;
-font-style: inherit;">=</span><span class="va" style="color: #111111;
-background-color: null;
-font-style: inherit;">True</span>)</span></code></pre></div></div>
-</div>
-<p>This builds one Transformer encoder layer (<code>transformer_encoder</code>) with the following parameters:</p>
+<p>The <code>FrameTransformer</code> class uses the <span class="codetip"><code>ImageEncoder</code><span class="codetip-pop">class ImageEncoder(torch.nn.Module): “““2D image encoder.”“” def <strong>init</strong>(self, arch): super(ImageEncoder, self).__init__()</span></span></p>
+<pre><code>    if arch == 'resnet18':
+        self.model = torchvision.models.resnet18(weights='IMAGENET1K_V1')
+        self.n_features = self.model.fc.in_features
+        self.model.fc = torch.nn.Identity()
+    elif arch == 'resnet50':
+        self.model = torchvision.models.resnet50(weights='IMAGENET1K_V1')
+        self.n_features = self.model.fc.in_features
+        self.model.fc = torch.nn.Identity()
+    elif arch == 'convnext_tiny':
+        self.model = torchvision.models.convnext_tiny(weights='IMAGENET1K_V1')
+        self.n_features = self.model.classifier[-1].in_features
+        self.model.classifier[-1] = torch.nn.Identity()
+    elif arch == 'convnext_small':
+        self.model = torchvision.models.convnext_small(weights='IMAGENET1K_V1')
+        self.n_features = self.model.classifier[-1].in_features
+        self.model.classifier[-1] = torch.nn.Identity()
+    elif arch == 'convnext_base.fb_in22k_ft_in1k':
+        self.model = timm.create_model(arch, pretrained=True)
+        self.n_features = self.model.head.fc.in_features
+        self.model.head.fc = torch.nn.Identity()
+    elif arch == 'convnext_base.fb_in22k_ft_in1k_384':
+        self.model = timm.create_model(arch, pretrained=True)
+        self.n_features = self.model.head.fc.in_features
+        self.model.head.fc = torch.nn.Identity()
+    elif arch == 'swin_v2_s':
+        self.model = torchvision.models.swin_v2_s(weights='IMAGENET1K_V1')
+        self.n_features = self.model.head.in_features
+        self.model.head = torch.nn.Identity()
+    elif arch == 'swinv2_base_window12to16_192to256.ms_in22k_ft_in1k':
+        self.model = timm.create_model(arch, pretrained=True)
+        self.n_features = self.model.fc.in_features
+        self.model.fc = torch.nn.Identity()
+    elif arch == 'echo-clip':
+        from open_clip import create_model_and_transforms
+        self.model, _, _ = create_model_and_transforms(
+            f"hf-hub:mkaichristensen/{arch}", precision="bf16", device="cuda"
+        )
+        self.model = self.model.visual
+        self.n_features = self.model.head.proj.out_features  # 512
+    elif arch == 'convnextv2_tiny.fcmae_ft_in22k_in1k':
+        self.model = timm.create_model('convnextv2_tiny.fcmae_ft_in22k_in1k', pretrained=True)
+        self.n_features = self.model.head.fc.in_features
+        self.model.head.fc = torch.nn.Identity()
+    elif arch == 'convnextv2_tiny.fcmae':
+        self.model = timm.create_model('convnextv2_tiny.fcmae', pretrained=True)
+        self.n_features = 768
+    else:
+        import sys
+        sys.exit('invalid --arch')
+
+def forward(self, x):
+    return self.model(x)&lt;/span&gt;&lt;/span&gt; class to define a 2D image encoder. The `ImageEncoder` class dispatches depending on the `arch` argument, which defines the intended architecture, such as ResNet, ConvNeXt, or Swin. For the PanEcho model, we use the ConvNeXt Tiny model architecture. Then, it records the size of the original classification layer's input and replaces the classification layer with `torch.nn.Identity()`. </code></pre>
+<p>Also, the <code>FrameTransformer</code> class builds one Transformer encoder layer (<code>transformer_encoder</code>) with the following parameters:</p>
 <ul>
 <li><code>d_model</code>: The dimension of the input and output feature vectors, which is set to the number of features output by the image encoder (<code>self.encoder.n_features</code>).</li>
 <li><code>nhead</code>: The number of attention heads in the multi-head attention mechanism. <code>d_model</code> is split across heads.</li>
@@ -162,7 +204,7 @@ font-style: inherit;">True</span>)</span></code></pre></div></div>
 <li><code>activation</code>: The activation function used in the feedforward network.</li>
 <li><code>batch_first</code> : Indicates that the input and output tensors are expected to have the batch size as the first dimension.</li>
 </ul>
-<div id="b998f342" class="cell" data-execution_count="3">
+<div id="d9318f77" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Initialize the Transformer encoder</span></span>
@@ -170,16 +212,19 @@ font-style: inherit;"># Initialize the Transformer encoder</span></span>
 background-color: null;
 font-style: inherit;">self</span>.transformer <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span> nn.TransformerEncoder(encoder_layer<span class="op" style="color: #5E5E5E;
+font-style: inherit;">=</span> nn.TransformerEncoder(</span>
+<span id="cb3-3">    encoder_layer<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">self</span>.transformer_encoder, num_layers<span class="op" style="color: #5E5E5E;
+font-style: inherit;">self</span>.transformer_encoder,</span>
+<span id="cb3-4">    num_layers<span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span>num_layers)</span></code></pre></div></div>
+font-style: inherit;">=</span>num_layers,</span>
+<span id="cb3-5">)</span></code></pre></div></div>
 </div>
 <p>Then, <code>self.transformer</code> is created by stacking <code>num_layers</code> of these <code>transformer_encoder</code> layers to form a full Transformer encoder. This allows the model to learn complex temporal relationships in the echocardiography video data.</p>
-<div id="ed57dbee" class="cell" data-execution_count="4">
+<div id="1d96982f" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.classifier <span class="op" style="color: #5E5E5E;
@@ -187,22 +232,26 @@ background-color: null;
 font-style: inherit;">=</span> torch.nn.Identity()</span></code></pre></div></div>
 </div>
 <p>Then, the model’s output is passed through a classifier to produce the final prediction. In this case, the classifier is set to <code>torch.nn.Identity()</code>, which means it will simply return the output of the Transformer without applying any additional transformations.</p>
-<div id="bbb808fc" class="cell" data-execution_count="5">
+<div id="5099612d" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.time_encoder <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span> PositionalEncoding(d_model<span class="op" style="color: #5E5E5E;
+font-style: inherit;">=</span> PositionalEncoding(</span>
+<span id="cb5-2">    d_model<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">self</span>.encoder.n_features, dropout<span class="op" style="color: #5E5E5E;
+font-style: inherit;">self</span>.encoder.n_features,</span>
+<span id="cb5-3">    dropout<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
 background-color: null;
-font-style: inherit;">0</span>, max_len<span class="op" style="color: #5E5E5E;
+font-style: inherit;">0</span>,</span>
+<span id="cb5-4">    max_len<span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span>clip_len)</span></code></pre></div></div>
+font-style: inherit;">=</span>clip_len,</span>
+<span id="cb5-5">)</span></code></pre></div></div>
 </div>
 <p>Finally, <code>self.time_encoder</code> is initialized as an instance of the <code>PositionalEncoding</code> class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The <code>max_len</code> parameter is set to <code>clip_len</code>, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.</p>
 <section id="forward-method" class="level4">
@@ -212,19 +261,21 @@ font-style: inherit;">=</span>clip_len)</span></code></pre></div></div>
 <p>After reshaping to <code>(batch_size, clip_len, 1024)</code>, the positional encoding is added to the feature vectors to incorporate temporal information. The resulting tensor is then passed through the Transformer encoder to model the temporal relationships between frames. The output of the Transformer is shaped <code>(batch_size, clip_len, n_features)</code> - e.g.&nbsp;<code>(2, 16, 1024)</code>.</p>
 <p>Temporal pooling step is applied by computing the mean along axis 1 (the frame axis), which averages across all 16 frames and removes that dimension. This results in a tensor of shape <code>(batch_size, n_features)</code>, - e.g.&nbsp;<code>(2, 1024)</code> giving us a single feature vector for each video clip. Finally, the output of the Transformer is passed through the classifier (which is an identity function in this case) to produce the final output.</p>
 </section>
-</section>
 <section id="multitaskmodel-class" class="level3">
 <h3 class="anchored" data-anchor-id="multitaskmodel-class"><code>MultiTaskModel</code> class</h3>
 <p>Top-level PanEcho model. Take the shared video encoder and attach one prediction head per clinical task, so a single forward pass produces dozens of outputs.</p>
-<div id="fa257768" class="cell" data-execution_count="6">
+<div id="b6fd8b21" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">class</span> MultiTaskModel(torch.nn.Module):</span>
 <span id="cb6-2">    <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">"""Multi-task model with shared video encoder and separate prediction heads for each clinical task."""</span></span>
-<span id="cb6-3">    <span class="kw" style="color: #003B4F;
+font-style: inherit;">"""Multi-task model with shared video encoder and separate</span></span>
+<span id="cb6-3"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    prediction heads for each clinical task."""</span></span>
+<span id="cb6-4">    <span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">def</span> <span class="fu" style="color: #4758AB;
@@ -235,33 +286,34 @@ font-style: inherit;">self</span>, encoder, encoder_dim, tasks, fc_dropout<span 
 background-color: null;
 font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
 background-color: null;
-font-style: inherit;">0</span>, activations<span class="op" style="color: #5E5E5E;
+font-style: inherit;">0</span>,</span>
+<span id="cb6-5">                 activations<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">True</span>):</span>
-<span id="cb6-4">        <span class="bu" style="color: null;
+<span id="cb6-6">        <span class="bu" style="color: null;
 background-color: null;
 font-style: inherit;">super</span>().<span class="fu" style="color: #4758AB;
 background-color: null;
 font-style: inherit;">__init__</span>()</span>
-<span id="cb6-5">        <span class="va" style="color: #111111;
+<span id="cb6-7">        <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.encoder <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> encoder</span>
-<span id="cb6-6">        <span class="va" style="color: #111111;
+<span id="cb6-8">        <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.tasks <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> tasks</span>
-<span id="cb6-7">        <span class="va" style="color: #111111;
+<span id="cb6-9">        <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.activations <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> activations</span>
-<span id="cb6-8"></span>
-<span id="cb6-9">        <span class="cf" style="color: #003B4F;
+<span id="cb6-10"></span>
+<span id="cb6-11">        <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">for</span> task <span class="kw" style="color: #003B4F;
@@ -270,7 +322,7 @@ font-weight: bold;
 font-style: inherit;">in</span> <span class="va" style="color: #111111;
 background-color: null;
 font-style: inherit;">self</span>.tasks:</span>
-<span id="cb6-10">            <span class="cf" style="color: #003B4F;
+<span id="cb6-12">            <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">if</span> task.task_type <span class="op" style="color: #5E5E5E;
@@ -278,43 +330,61 @@ background-color: null;
 font-style: inherit;">==</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">'multi-class_classification'</span>:</span>
-<span id="cb6-11">                <span class="va" style="color: #111111;
+<span id="cb6-13">                <span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">self</span>.add_module(task.task_name<span class="op" style="color: #5E5E5E;
+font-style: inherit;">self</span>.add_module(</span>
+<span id="cb6-14">                    task.task_name <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">+</span><span class="st" style="color: #20794D;
+font-style: inherit;">+</span> <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'_head'</span>, torch.nn.Sequential(torch.nn.Dropout(p<span class="op" style="color: #5E5E5E;
+font-style: inherit;">'_head'</span>,</span>
+<span id="cb6-15">                    torch.nn.Sequential(</span>
+<span id="cb6-16">                        torch.nn.Dropout(p<span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span>fc_dropout), torch.nn.Linear(encoder_dim, task.class_names.size)))</span>
-<span id="cb6-12">            <span class="cf" style="color: #003B4F;
+font-style: inherit;">=</span>fc_dropout),</span>
+<span id="cb6-17">                        torch.nn.Linear(encoder_dim, task.class_names.size),</span>
+<span id="cb6-18">                    ),</span>
+<span id="cb6-19">                )</span>
+<span id="cb6-20">            <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">else</span>:  <span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># binary classification or regression, both have 1 output</span></span>
-<span id="cb6-13">                <span class="va" style="color: #111111;
+<span id="cb6-21">                <span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">self</span>.add_module(task.task_name<span class="op" style="color: #5E5E5E;
+font-style: inherit;">self</span>.add_module(</span>
+<span id="cb6-22">                    task.task_name <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">+</span><span class="st" style="color: #20794D;
+font-style: inherit;">+</span> <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'_head'</span>, torch.nn.Sequential(torch.nn.Dropout(p<span class="op" style="color: #5E5E5E;
+font-style: inherit;">'_head'</span>,</span>
+<span id="cb6-23">                    torch.nn.Sequential(</span>
+<span id="cb6-24">                        torch.nn.Dropout(p<span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span>fc_dropout), torch.nn.Linear(encoder_dim, <span class="dv" style="color: #AD0000;
+font-style: inherit;">=</span>fc_dropout),</span>
+<span id="cb6-25">                        torch.nn.Linear(encoder_dim, <span class="dv" style="color: #AD0000;
 background-color: null;
-font-style: inherit;">1</span>)))</span>
-<span id="cb6-14">            </span>
-<span id="cb6-15">                <span class="co" style="color: #5E5E5E;
+font-style: inherit;">1</span>),</span>
+<span id="cb6-26">                    ),</span>
+<span id="cb6-27">                )</span>
+<span id="cb6-28"></span>
+<span id="cb6-29">                <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;"># Initialize bias term to training set mean value (to account for different scales/units)</span></span>
-<span id="cb6-16">                <span class="va" style="color: #111111;
+font-style: inherit;"># Initialize bias term to training set mean value</span></span>
+<span id="cb6-30">                <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">self</span>.get_submodule(task.task_name<span class="op" style="color: #5E5E5E;
+font-style: inherit;"># (to account for different scales/units)</span></span>
+<span id="cb6-31">                head <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">+</span><span class="st" style="color: #20794D;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
 background-color: null;
-font-style: inherit;">'_head'</span>)[<span class="op" style="color: #5E5E5E;
+font-style: inherit;">self</span>.get_submodule(task.task_name <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">'_head'</span>)</span>
+<span id="cb6-32">                head[<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
 background-color: null;
@@ -328,7 +398,7 @@ font-style: inherit;">=</span> task.mean</span></code></pre></div></div>
 <p>Binary classification or regression: A head that maps <code>encoder_dim</code>-wide feature vector to a single output (1 output). Then, sets the bias of the head’s final <code>Linear</code> layer to that task’s training-set mean value.</p>
 <section id="forward-method-1" class="level4">
 <h4 class="anchored" data-anchor-id="forward-method-1">forward method</h4>
-<div id="e59fce31" class="cell" data-execution_count="7">
+<div id="ed0d7d24" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -379,43 +449,53 @@ background-color: null;
 font-style: inherit;">'binary_classification'</span>:</span>
 <span id="cb7-10">                <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;"># Ensure that output corresponds to "positive" class for all binary classification tasks</span></span>
-<span id="cb7-11">                <span class="cf" style="color: #003B4F;
+font-style: inherit;"># Ensure that output corresponds to "positive" class</span></span>
+<span id="cb7-11">                <span class="co" style="color: #5E5E5E;
 background-color: null;
-font-weight: bold;
-font-style: inherit;">if</span> task.task_name <span class="kw" style="color: #003B4F;
+font-style: inherit;"># for all binary classification tasks</span></span>
+<span id="cb7-12">                flipped_tasks <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-weight: bold;
-font-style: inherit;">in</span> [<span class="st" style="color: #20794D;
+font-style: inherit;">=</span> [</span>
+<span id="cb7-13">                    <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">'MVStenosis'</span>, <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">'AVStructure'</span>, <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'RASize'</span>, <span class="st" style="color: #20794D;
+font-style: inherit;">'RASize'</span>,</span>
+<span id="cb7-14">                    <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">'RVSystolicFunction'</span>, <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'LVWallThickness-increased-modsev'</span>, <span class="st" style="color: #20794D;
+font-style: inherit;">'LVWallThickness-increased-modsev'</span>,</span>
+<span id="cb7-15">                    <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">'LVWallThickness-increased-any'</span>, <span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'pericardial-effusion'</span>]:</span>
-<span id="cb7-12">                    out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
+font-style: inherit;">'pericardial-effusion'</span>,</span>
+<span id="cb7-16">                ]</span>
+<span id="cb7-17">                <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> task.task_name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> flipped_tasks:</span>
+<span id="cb7-18">                    out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">1</span><span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">-</span>torch.sigmoid(out)</span>
-<span id="cb7-13">                <span class="cf" style="color: #003B4F;
+<span id="cb7-19">                <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">else</span>:</span>
-<span id="cb7-14">                    out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
+<span id="cb7-20">                    out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> torch.sigmoid(out)</span>
-<span id="cb7-15">            <span class="cf" style="color: #003B4F;
+<span id="cb7-21">            <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">elif</span> task.task_type <span class="op" style="color: #5E5E5E;
@@ -423,29 +503,29 @@ background-color: null;
 font-style: inherit;">==</span> <span class="st" style="color: #20794D;
 background-color: null;
 font-style: inherit;">'multi-class_classification'</span>:</span>
-<span id="cb7-16">                out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
+<span id="cb7-22">                out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> torch.softmax(out, dim<span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
 background-color: null;
 font-style: inherit;">1</span>)</span>
-<span id="cb7-17">            <span class="cf" style="color: #003B4F;
+<span id="cb7-23">            <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">else</span>:</span>
-<span id="cb7-18">                out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
+<span id="cb7-24">                out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> out</span>
-<span id="cb7-19">        <span class="cf" style="color: #003B4F;
+<span id="cb7-25">        <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">else</span>:</span>
-<span id="cb7-20">            out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
+<span id="cb7-26">            out_dict[task.task_name] <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> out</span>
-<span id="cb7-21"></span>
-<span id="cb7-22">    <span class="cf" style="color: #003B4F;
+<span id="cb7-27"></span>
+<span id="cb7-28">    <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">return</span> out_dict</span></code></pre></div></div>
@@ -456,7 +536,7 @@ font-style: inherit;">return</span> out_dict</span></code></pre></div></div>
 <section id="hubconf.py" class="level3">
 <h3 class="anchored" data-anchor-id="hubconf.py">hubconf.py</h3>
 <p>Imports the classes built in <code>models.py</code> and hands you a ready-to-use model.</p>
-<div id="b9c4f596" class="cell" data-execution_count="8">
+<div id="a5b58d0c" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1">arch <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> <span class="st" style="color: #20794D;
@@ -484,7 +564,7 @@ background-color: null;
 font-style: inherit;">0.</span></span></code></pre></div></div>
 </div>
 <p>First, initialize the PanEcho architecture specifications, exactly the constructor arguments that <code>FrameTransformer</code> expects. So the architecture of the image encoder is set to <code>convnext_tiny</code>, the number of Transformer layers is set to 4, the number of attention heads is set to 8, the pooling method is set to ‘mean’, and the dropout rate for the Transformer is set to 0.</p>
-<div id="1d8a120b" class="cell" data-execution_count="9">
+<div id="311238ec" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Load tasks</span></span>
@@ -503,38 +583,47 @@ font-style: inherit;">list</span>(task_dict.keys())</span>
 <span id="cb9-6">task_list <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> [</span>
-<span id="cb9-7">    Task(t, task_dict[t][<span class="st" style="color: #20794D;
+<span id="cb9-7">    Task(</span>
+<span id="cb9-8">        t,</span>
+<span id="cb9-9">        task_dict[t][<span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'task_type'</span>], task_dict[t][<span class="st" style="color: #20794D;
+font-style: inherit;">'task_type'</span>],</span>
+<span id="cb9-10">        task_dict[t][<span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'class_names'</span>], task_dict[t][<span class="st" style="color: #20794D;
+font-style: inherit;">'class_names'</span>],</span>
+<span id="cb9-11">        task_dict[t][<span class="st" style="color: #20794D;
 background-color: null;
-font-style: inherit;">'mean'</span>])</span>
-<span id="cb9-8">    <span class="cf" style="color: #003B4F;
+font-style: inherit;">'mean'</span>],</span>
+<span id="cb9-12">    )</span>
+<span id="cb9-13">    <span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">for</span> t <span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
 font-style: inherit;">in</span> all_tasks</span>
-<span id="cb9-9">]</span></code></pre></div></div>
+<span id="cb9-14">]</span></code></pre></div></div>
 </div>
 <p>Load a Python pickle file containing the definitions of all the clinical tasks that PanEcho is designed to predict. Each task is represented as an instance of the <code>Task</code> class, which includes the task name, type (e.g., binary classification, multi-class classification, regression), class names (if applicable), and mean value (for regression tasks).</p>
-<div id="3e4c2493" class="cell" data-execution_count="10">
+<div id="cacec18a" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1">encoder <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span> FrameTransformer(arch, n_heads, n_layers, transformer_dropout, pooling, clip_len)</span>
-<span id="cb10-2">encoder_dim <span class="op" style="color: #5E5E5E;
+font-style: inherit;">=</span> FrameTransformer(</span>
+<span id="cb10-2">    arch, n_heads, n_layers, transformer_dropout, pooling, clip_len</span>
+<span id="cb10-3">)</span>
+<span id="cb10-4">encoder_dim <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> encoder.encoder.n_features</span>
-<span id="cb10-3">model <span class="op" style="color: #5E5E5E;
+<span id="cb10-5">model <span class="op" style="color: #5E5E5E;
 background-color: null;
-font-style: inherit;">=</span> MultiTaskModel(encoder, encoder_dim, task_list, <span class="fl" style="color: #AD0000;
+font-style: inherit;">=</span> MultiTaskModel(</span>
+<span id="cb10-6">    encoder, encoder_dim, task_list, <span class="fl" style="color: #AD0000;
 background-color: null;
-font-style: inherit;">0.25</span>, activations)</span></code></pre></div></div>
+font-style: inherit;">0.25</span>, activations</span>
+<span id="cb10-7">)</span></code></pre></div></div>
 </div>
 <p>Initialize the encoder using the <code>FrameTransformer</code> class with the specified architecture parameters. Then, create an instance of the <code>MultiTaskModel</code> class, passing in the encoder, its output feature dimension (<code>encoder_dim</code>), the list of tasks, a dropout rate of 0.25 for the fully connected layers in the prediction heads, and whether to apply activation functions to the outputs.</p>
-<div id="c3436a60" class="cell" data-execution_count="11">
+<div id="09f77e5a" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><span class="co" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;"># Load pretrained weights</span></span>
@@ -592,8 +681,8 @@ font-style: inherit;">False</span>)</span></code></pre></div></div>
  ]]></description>
   <category>Medical AI</category>
   <guid>https://passthetorch.dev/posts/deep-dive-into-panecho/</guid>
-  <pubDate>Sun, 21 Jun 2026 04:00:00 GMT</pubDate>
-  <media:content url="https://passthetorch.dev/posts/deep-dive-into-panecho/thumbnail.png" medium="image" type="image/png" height="78" width="144"/>
+  <pubDate>Mon, 29 Jun 2026 04:00:00 GMT</pubDate>
+  <media:content url="https://passthetorch.dev/posts/deep-dive-into-panecho/panecho.png" medium="image" type="image/png" height="73" width="144"/>
 </item>
 <item>
   <title>Deep Dive into Merlin</title>

@@ -4,37 +4,34 @@ format: html
 engine: none
 author: "Howard Baik"
 date: "2026-06-29"
-image: "thumbnail.png"
+image: "panecho.png"
 eval: false
 categories: [Medical AI]
 ---
 
 ## Introduction
 
-![](heart.png)
+This post is a code-focused deep dive into a echocardiographic deep learning model called [PanEcho](https://www.medrxiv.org/content/10.1101/2024.11.16.24317431v2). PanEcho is a multivew, multitask, and video-based deep learning model capable of performing 39 diverse interpretation tasks. PanEcho consists of a 2D image encoder, temporal transformer, and output heads dedicated to the 39 individual tasks.
 
-This post is a code-focused deep dive into a echocardiographic deep learning model called PanEcho. PanEcho is a multivew, multitask, video-based deep learning model capable of performing the full range of key echocardiographic reporting tasks.
-
-![PanEcho workflow](thumbnail.png)
-
-(From the Model Development section)
-
-We designed a multitask, video-based deep learning model with a 2D image encoder, temporal transformer, and output heads dedicated to individual tasks (Figure 1B). In its design, the AI system mimics a human reader, integrating all available echocardiographic views and assessing all 39 echocardiographic reporting tasks described above. Each video frame is first processed by the 2D image encoder, a convolutional neural network that produces a learned embedding of each frame. These framewise embeddings are then interpreted as an ordered sequence and modeled using self attention30 to learn time-varying associations over the frames. Finally, a video-level embedding is formed and used as input to the task-specific output heads. Rather than develop separate view- and task-specific models, this design efficiently shares computation across views with a unified view-agnostic encoder and parallelizes task-specific modeling with lightweight output heads specialized for each task. The model was trained end to end to minimize the mean of all task-specific losses.
-
-(From the PanEcho Implementation Details in eMethods)
-
-Steps
-1. Each video frame is first processed by the 2D image encoder, an ImageNet5-pretrained ConvNeXt-T3 convolutional neural network (CNN) which produces a learned feature vector, or representation, of each frame. 
-
-2. These frame-wise representations are then interpreted as an ordered sequence – like words in a sentence in natural language processing and modeled using self-attention to learn time-varying associations over the frames. 
-
-3. Frame order is embedded via sinusoidal positional encoding, which is then elementwise added to the frame-wise feature vectors and fed to a Transformer encoder consisting of four layers, each with eight self-attention heads. 
-
-4. Mean pooling is then used to aggregate frame-wise feature vectors into a single video-level representation, which is used as input to the task-specific output heads. Each output head consists of a Dropout layer with probability 0.25 and a fully-connected layer. 
+![](panecho.png)
 
 
+PanEcho processes an echocardiogram video — a sequence of frames — and turns it into predictions for 39 clinical tasks. The model does this in four stages:
 
-### `FrameTransformer` class
+1. **Per-frame feature extraction.** Each video frame is passed independently through the 2D image encoder: an ImageNet-pretrained ConvNeXt-Tiny CNN. The CNN compresses each frame into a single 768-dimensional feature vector summarizing the anatomy/spatial content visible in that frame. Temporal dynamics (motion) across frames are then modeled separately by a 1D temporal Transformer over the sequence of frame embeddings.
+
+2. **Adding temporal order.** A CNN treats each frame in isolation, so the model has no inherent sense of which frame came first. To restore this, the frame's position in the sequence is encoded with a sinusoidal positional encoding and added elementwise to its feature vector. 
+
+3. **Modeling relationships across frames.** The position-aware feature vectors are fed into a Transformer encoder of four layers, each with eight self-attention heads. Self-attention lets every frame attend to every other frame, so the Transformer can model temporal dynamics across the whole clip — for example, how the heart wall moves between systole and diastole — and produces a refined, context-aware feature vector for each frame.
+
+4. **Pooling and prediction.** The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task's prediction.
+
+In the rest of this post, we will go through the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the PyTorch Hub. The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions.
+
+
+## `FrameTransformer` Class
+
+### `__init__` method
 
 ```{python}
 class FrameTransformer(torch.nn.Module):
@@ -65,19 +62,9 @@ class FrameTransformer(torch.nn.Module):
         )
 ```
 
+The `FrameTransformer` class uses the `ImageEncoder` class to define a 2D image encoder. The `ImageEncoder` class dispatches depending on the `arch` argument, which defines the intended architecture, such as ResNet, ConvNeXt, or Swin. For the PanEcho model, we use the ConvNeXt Tiny model architecture. Then, it records the size of the original classification layer's input and replaces the classification layer with `torch.nn.Identity()`. 
 
-```{python}
-transformer_encoder = torch.nn.TransformerEncoderLayer(
-    d_model=self.encoder.n_features,
-    nhead=n_heads,
-    dim_feedforward=self.encoder.n_features,
-    dropout=transformer_dropout,
-    activation='relu',
-    batch_first=True,
-)
-```
-
-This builds one Transformer encoder layer (`transformer_encoder`) with the following parameters:
+Also, the `FrameTransformer` class builds one Transformer encoder layer (`transformer_encoder`) with the following parameters:
 
 - `d_model`: The dimension of the input and output feature vectors, which is set to the number of features output by the image encoder (`self.encoder.n_features`).
 - `nhead`: The number of attention heads in the multi-head attention mechanism. `d_model` is split across heads. 
@@ -86,16 +73,7 @@ This builds one Transformer encoder layer (`transformer_encoder`) with the follo
 - `activation`: The activation function used in the feedforward network.
 - `batch_first` : Indicates that the input and output tensors are expected to have the batch size as the first dimension.
 
-
-```{python}
-# Initialize the Transformer encoder
-self.transformer = nn.TransformerEncoder(
-    encoder_layer=self.transformer_encoder,
-    num_layers=num_layers,
-)
-```
-
-Then, `self.transformer` is created by stacking `num_layers` of these `transformer_encoder` layers to form a full Transformer encoder. This allows the model to learn complex temporal relationships in the echocardiography video data.
+Then, we form a full Transformer encoder by stacking `num_layers` of these `transformer_encoder` layers. This allows the model to learn complex temporal relationships in the echocardiography video data.
 
 ```{python}
 self.classifier = torch.nn.Identity()
@@ -114,9 +92,9 @@ self.time_encoder = PositionalEncoding(
 Finally, `self.time_encoder` is initialized as an instance of the `PositionalEncoding` class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The `max_len` parameter is set to `clip_len`, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.
 
 
-#### forward method
+### `forward()` method
 
-The `forward` method takes an input tensor `x` of shape `(batch_size, channels, clip_len, height, width)` and processes it as follows:
+The `forward()` method takes an input tensor `x` of shape `(batch_size, channels, clip_len, height, width)` and processes it as follows:
 
 The input tensor is first reshaped to `(batch_size * clip_len, channels, height, width)` to ensure the correct dimensions for processing and then passed through the image encoder to extract features from each frame. The output of the image encoder is shaped 
 `(batch_size * clip_len, 1024)`. 
