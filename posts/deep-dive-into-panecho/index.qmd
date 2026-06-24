@@ -18,15 +18,15 @@ This post is a code-focused deep dive into a echocardiographic deep learning mod
 
 PanEcho processes an echocardiogram video — a sequence of frames — and turns it into predictions for 39 clinical tasks. The model does this in four stages:
 
-1. **Per-frame feature extraction.** Each video frame is passed independently through the 2D image encoder: an ImageNet-pretrained ConvNeXt-Tiny CNN. The CNN compresses each frame into a single 768-dimensional feature vector summarizing the anatomy/spatial content visible in that frame. Temporal dynamics (motion) across frames are then modeled separately by a 1D temporal Transformer over the sequence of frame embeddings.
+1. **Per-frame feature extraction:** Each video frame is passed independently through the 2D image encoder: an ImageNet-pretrained ConvNeXt-Tiny CNN. The CNN compresses each frame into a single 768-dimensional feature vector summarizing the anatomy/spatial content visible in that frame. Temporal dynamics across frames are then modeled separately by a 1D temporal Transformer over the sequence of frame embeddings.
 
-2. **Adding temporal order.** A CNN treats each frame in isolation, so the model has no inherent sense of which frame came first. To restore this, the frame's position in the sequence is encoded with a sinusoidal positional encoding and added elementwise to its feature vector. 
+2. **Adding temporal order:** A CNN treats each frame in isolation, so the model has no inherent sense of which frame came first. To restore this, the frame's position in the sequence is encoded with a sinusoidal positional encoding and added elementwise to its feature vector. 
 
-3. **Modeling relationships across frames.** The position-aware feature vectors are fed into a Transformer encoder of four layers, each with eight self-attention heads. Self-attention lets every frame attend to every other frame, so the Transformer can model temporal dynamics across the whole clip — for example, how the heart wall moves between systole and diastole — and produces a refined, context-aware feature vector for each frame.
+3. **Modeling relationships across frames:** The position-aware feature vectors are fed into a Transformer encoder of four layers, each with eight self-attention heads. Self-attention lets every frame attend to every other frame, so the Transformer can model temporal dynamics across the whole clip — for example, how the heart wall moves between systole and diastole — and produces a refined, context-aware feature vector for each frame.
 
-4. **Pooling and prediction.** The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task's prediction.
+4. **Pooling and prediction:** The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task's prediction.
 
-In the rest of this post, we will go through the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the PyTorch Hub. The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions.
+In the rest of this post, we will go through the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the [PyTorch Hub](https://pytorch.org/hub/). The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions.
 
 
 ## `FrameTransformer` Class
@@ -226,7 +226,7 @@ model = MultiTaskModel(
 )
 ```
 
-Then, it initializes the encoder using the `FrameTransformer` class with the specified architecture parameters. Then, create an instance of the `MultiTaskModel` class, passing in the encoder, its output feature dimension (`encoder_dim`), the list of tasks, a dropout rate of 0.25 for the fully connected layers in the prediction heads, and whether to apply activation functions to the outputs.
+Then, it initializes the shared video encoder (`FrameTransformer` class) with the specified architecture parameters and creates an instance of the `MultiTaskModel` class, passing in the shared video encoder, its output feature dimension (`encoder_dim`), the list of tasks, a dropout rate of 0.25 for the fully connected layers in the prediction heads, and whether to apply activation functions to the outputs.
 
 ```{python}
 # Load pretrained weights
@@ -241,9 +241,6 @@ if pretrained:
 ```
 
 Finally, it loads the pretrained weights from the PanEcho GitHub repo. The weights are stored in a dictionary, and we extract the 'weights' key to get the actual state dictionary for the model. Then, we remove the fixed positional encoding weights (`encoder.time_encoder.pe`) from the state dictionary to allow for variable clip lengths during inference. Finally, we load the remaining weights into the model using `model.load_state_dict(weights, strict=False)`, which allows for missing keys (like the removed positional encoding) without raising an error.
-
-
-
 
 
 ## Demo
