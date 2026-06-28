@@ -1,11 +1,15 @@
 ---
 title: "Deep Dive into PanEcho"
-format: html
+format:
+  html:
+    code-fold: true
+    code-summary: "Show code"
 engine: none
 author: "Howard Baik"
 date: "2026-06-29"
 image: "panecho.png"
 eval: false
+draft: false
 categories: [Medical AI]
 ---
 
@@ -18,18 +22,18 @@ This post is a code-focused deep dive into a echocardiographic deep learning mod
 
 PanEcho processes an echocardiogram video — a sequence of frames — and turns it into predictions for 39 clinical tasks. The model does this in four stages:
 
-1. **Per-frame feature extraction:** Each video frame is passed independently through the 2D image encoder: an ImageNet-pretrained ConvNeXt-Tiny CNN. The CNN compresses each frame into a single 768-dimensional feature vector summarizing the anatomy/spatial content visible in that frame. Temporal dynamics across frames are then modeled separately by a 1D temporal Transformer over the sequence of frame embeddings.
+1. **Per-frame feature extraction:** Each video frame is passed independently through the 2D image encoder, an ImageNet-pretrained ConvNeXt-Tiny CNN. The image encoder compresses each frame into a single 768-dimensional feature vector summarizing the spatial content visible in that frame. Temporal dynamics across frames are then modeled separately by a 1D temporal Transformer over the sequence of frame embeddings.
 
-2. **Adding temporal order:** A CNN treats each frame in isolation, so the model has no inherent sense of which frame came first. To restore this, the frame's position in the sequence is encoded with a sinusoidal positional encoding and added elementwise to its feature vector. 
+2. **Adding temporal order:** The image encoder treats each frame in isolation, so the model has no inherent sense of which frame came first. To restore this, the frame's position in the sequence is encoded with a sinusoidal positional encoding and added elementwise to its feature vector. 
 
 3. **Modeling relationships across frames:** The position-aware feature vectors are fed into a Transformer encoder of four layers, each with eight self-attention heads. Self-attention lets every frame attend to every other frame, so the Transformer can model temporal dynamics across the whole clip — for example, how the heart wall moves between systole and diastole — and produces a refined, context-aware feature vector for each frame.
 
 4. **Pooling and prediction:** The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task's prediction.
 
-In the rest of this post, we will go through the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the [PyTorch Hub](https://pytorch.org/hub/). The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions.
+In the rest of this post, we will go through the [source code](https://github.com/CarDS-Yale/PanEcho) of the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the [PyTorch Hub](https://pytorch.org/hub/). The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions.
 
 
-## `FrameTransformer` Class
+## The `FrameTransformer` class
 
 The `FrameTransformer` class implements the 2+1D architecture with the 2D image encoder and 1D temporal Transformer for echocardiography video modeling. The `__init__` method initializes the architecture with the specified parameters.
 
@@ -62,7 +66,7 @@ class FrameTransformer(torch.nn.Module):
         )
 ```
 
-### `__init__()` method
+### The `__init__()` method
 
 The `FrameTransformer` class uses the `ImageEncoder` class to define a 2D image encoder. The `ImageEncoder` class dispatches depending on the `arch` argument, which defines the intended architecture, such as ResNet, ConvNeXt, or Swin. For the PanEcho model, we use the ConvNeXt Tiny model architecture. Then, it records the size of the original classification layer's input and replaces the classification layer with `torch.nn.Identity()`. 
 
@@ -77,16 +81,12 @@ Also, the `FrameTransformer` class builds one Transformer encoder layer (`transf
 
 Then, we form a full Transformer encoder by stacking `num_layers` of these `transformer_encoder` layers. This allows the model to learn complex temporal relationships in the echocardiography video data.
 
-```{python}
-self.classifier = torch.nn.Identity()
-```
-
 The model's classifier is set to `torch.nn.Identity()`, which means it will simply return the output of the Transformer without applying any additional transformations. 
 
 `self.time_encoder` is initialized as an instance of the `PositionalEncoding` class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The `max_len` parameter is set to `clip_len`, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.
 
 
-### `forward()` method
+### The `forward()` method
 
 The `forward()` method takes an input tensor `x` of shape `(batch_size, channels, clip_len, height, width)` and processes it as follows:
 
@@ -100,7 +100,7 @@ The `forward()` method takes an input tensor `x` of shape `(batch_size, channels
 
 
 
-## `MultiTaskModel` class
+## The `MultiTaskModel` class
 
 The `MultiTaskModel` class is the top-level PanEcho model. It takes the shared video encoder (the `FrameTransformer` class) and attaches one prediction head per clinical task. As a result, a single forward pass produces multiple outputs. The `__init__` method initializes the `MultiTaskModel` class with the specified parameters.
 
@@ -139,7 +139,7 @@ class MultiTaskModel(torch.nn.Module):
                 head[-1].bias.data[0] = task.mean
 ```
 
-### `__init__()` method
+### The `__init__()` method
 
 The `MultiTaskModel` class creates a `head` for each task, consisting of a `Dropout` and a `Linear` layer. The output width depends on whether the task type is binary classification or regression or multi-class classification:
 
@@ -147,42 +147,11 @@ The `MultiTaskModel` class creates a `head` for each task, consisting of a `Drop
 - Multi-class classification: A head that maps `encoder_dim`-wide feature vector to one output per class (`task.class_names.size` outputs)
 
 
-### forward() method
-
-```{python}
-def forward(self, x):
-    x = self.encoder(x)
-
-    out_dict = {}
-    for task in self.tasks:
-        out = self.get_submodule(task.task_name+'_head')(x)
-
-        if self.activations:
-            if task.task_type == 'binary_classification':
-                # Ensure that output corresponds to "positive" class
-                # for all binary classification tasks
-                flipped_tasks = [
-                    'MVStenosis', 'AVStructure', 'RASize',
-                    'RVSystolicFunction', 'LVWallThickness-increased-modsev',
-                    'LVWallThickness-increased-any', 'pericardial-effusion',
-                ]
-                if task.task_name in flipped_tasks:
-                    out_dict[task.task_name] = 1-torch.sigmoid(out)
-                else:
-                    out_dict[task.task_name] = torch.sigmoid(out)
-            elif task.task_type == 'multi-class_classification':
-                out_dict[task.task_name] = torch.softmax(out, dim=1)
-            else:
-                out_dict[task.task_name] = out
-        else:
-            out_dict[task.task_name] = out
-
-    return out_dict
-```
+### The `forward()` method
 
 In the forward method, we run the input through the shared video encoder (`FrameTransformer` class) to get a feature vector `(batch_size, encoder_dim)` and then pass that feature vector through each task's prediction head, then run an activation function to get the output for that task. The outputs for all tasks are collected and returned.
 
-### Torch Hub
+## PanEcho on Torch Hub
 
 The PanEcho repo contains a `hubconf.py` file that imports the classes built in `models.py` and provides a ready-to-use model with the `PanEcho()` function.
 
@@ -243,10 +212,59 @@ if pretrained:
 Finally, it loads the pretrained weights from the PanEcho GitHub repo. The weights are stored in a dictionary, and we extract the 'weights' key to get the actual state dictionary for the model. Then, we remove the fixed positional encoding weights (`encoder.time_encoder.pe`) from the state dictionary to allow for variable clip lengths during inference. Finally, we load the remaining weights into the model using `model.load_state_dict(weights, strict=False)`, which allows for missing keys (like the removed positional encoding) without raising an error.
 
 
+
 ## Demo
 
 TODO: Walk through one sample data entry, show how it flows through the model, and explain the dimensions at each step.
 
-```{python}
+TODO: Retrieve datasets from `src/datasets.py`
 
+```{python}
+# Demo for Blog post
+import os
+import torch
+import pandas as pd
+import numpy as np
+from hubconf import Task
+from src.dataset import EchoNetPediatricDataset
+
+
+# Parent dir that contains the A4C/ and PSAX/ view folders.
+# EchoNetPediatricDataset reads videos from <data_dir>/<VIEW>/Videos/<FileName>.
+data_dir = "."
+
+# --- Load + assemble metadata (one row per video), mirroring train_echonetpediatric.py ---
+a4c_df = pd.read_csv(os.path.join(data_dir, "A4C", "FileList.csv"))
+a4c_df["acc_num"] = a4c_df["FileName"].apply(lambda x: x.split("-")[1])
+a4c_df["view"] = "a4c"
+
+psax_df = pd.read_csv(os.path.join(data_dir, "PSAX", "FileList.csv"))
+psax_df["acc_num"] = psax_df["FileName"].apply(lambda x: x.split("-")[1])
+psax_df["view"] = "psax"
+
+data_df = pd.concat([a4c_df, psax_df], axis=0).reset_index(drop=True)
+data_df = data_df.rename(columns={"Split": "fold"})  # 'Split' holds the 0-9 cross-val fold ID
+
+# --- Load task definitions and keep just EF (the pediatric target) ---
+tasks = np.load("content/tasks.npy", allow_pickle=True)
+tasks = [t for t in tasks if t.task_name == "EF"]
+
+# --- Build the dataset for one cross-validation fold/split ---
+train_dataset = EchoNetPediatricDataset(
+    data_dir=data_dir,
+    data_df=data_df,
+    tasks=tasks,
+    split="train",   # 'train' | 'val' | 'test'
+    fold=0,          # which of the 10 folds is held out as test (val = fold+1)
+    clip_len=16,
+    num_clips=4,
+    augment=True,    # train-time augmentations; set False for val/test
+    normalization="",
+)
+
+print(f"Dataset size: {len(train_dataset)}")
+
+# Fetch one sample to verify it works
+sample = train_dataset[0]
+print({k: (v.shape if torch.is_tensor(v) else v) for k, v in sample.items()})
 ```
