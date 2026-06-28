@@ -9,7 +9,7 @@ author: "Howard Baik"
 date: "2026-06-29"
 image: "panecho.png"
 eval: false
-draft: false
+draft: true
 categories: [Medical AI]
 ---
 

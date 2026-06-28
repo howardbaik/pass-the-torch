@@ -2,7 +2,6 @@
   {
     "listing": "/index.html",
     "items": [
-      "/posts/deep-dive-into-panecho/index.html",
       "/posts/deep-dive-into-merlin/index.html",
       "/posts/finetuning-with-trl/index.html",
       "/posts/deep-dive-into-echoclip/index.html",
