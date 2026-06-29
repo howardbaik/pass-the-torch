@@ -215,11 +215,14 @@ Finally, it loads the pretrained weights from the PanEcho GitHub repo. The weigh
 
 ## Demo
 
+
+
 TODO: Walk through one sample data entry, show how it flows through the model, and explain the dimensions at each step.
 
 TODO: Retrieve datasets from `src/datasets.py`
 
 ```{python}
+# Demo for Blog post
 # Demo for Blog post
 import os
 import torch
@@ -227,7 +230,7 @@ import pandas as pd
 import numpy as np
 from hubconf import Task
 from src.dataset import EchoNetPediatricDataset
-
+from src.models import PositionalEncoding, ImageEncoder, FrameTransformer,  MultiTaskModel
 
 # Parent dir that contains the A4C/ and PSAX/ view folders.
 # EchoNetPediatricDataset reads videos from <data_dir>/<VIEW>/Videos/<FileName>.
@@ -246,14 +249,14 @@ data_df = pd.concat([a4c_df, psax_df], axis=0).reset_index(drop=True)
 data_df = data_df.rename(columns={"Split": "fold"})  # 'Split' holds the 0-9 cross-val fold ID
 
 # --- Load task definitions and keep just EF (the pediatric target) ---
-tasks = np.load("content/tasks.npy", allow_pickle=True)
-tasks = [t for t in tasks if t.task_name == "EF"]
+task_list = np.load("content/tasks.npy", allow_pickle=True)
+task_list = [t for t in task_list if t.task_name == "EF"]
 
 # --- Build the dataset for one cross-validation fold/split ---
 train_dataset = EchoNetPediatricDataset(
     data_dir=data_dir,
     data_df=data_df,
-    tasks=tasks,
+    tasks=task_list,
     split="train",   # 'train' | 'val' | 'test'
     fold=0,          # which of the 10 folds is held out as test (val = fold+1)
     clip_len=16,
@@ -267,4 +270,16 @@ print(f"Dataset size: {len(train_dataset)}")
 # Fetch one sample to verify it works
 sample = train_dataset[0]
 print({k: (v.shape if torch.is_tensor(v) else v) for k, v in sample.items()})
+
+x = sample["x"]
+x = x.unsqueeze(0)
+x
+
+model = torch.hub.load('CarDS-Yale/PanEcho', 'PanEcho', force_reload=True)
+
+model.eval()
+with torch.no_grad():
+    output = model(x)
+
+output 
 ```
