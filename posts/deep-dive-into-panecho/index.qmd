@@ -6,7 +6,7 @@ format:
     code-summary: "Show code"
 engine: none
 author: "Howard Baik"
-date: "2026-06-29"
+date: "2026-06-30"
 image: "panecho.png"
 eval: false
 draft: false
@@ -279,11 +279,15 @@ Finally, it loads the pretrained weights from the PanEcho GitHub repo. The weigh
 
 
 
-## Demo
+## Quick Demo
 
 In the last section of this blog post, we will demonstrate the PanEcho model in action with a sample from the [EchoNet-Pediatric](https://echonet.github.io/pediatric/) dataset. The dataset consists of 3,176 apical-4-chamber echocardiography (A4C) videos and 4,424 parasternal short axis echocardiography (PSAX) videos from individuals who underwent imaging between 2014 and 2021 as part of routine clinical care at Lucile Packard Children’s Hospital at Stanford. 
 
-First, we download the EchoNet-Pediatric dataset from the [Stanford Artificial Intelligence in Medicine and Imaging (AIMI) Center Shared Datasets Portal](https://stanfordaimi.azurewebsites.net/datasets/a84b6be6-0d33-41f9-8996-86e5df53b005), which consists of the A4C/ and PSAX/ view folders. Then, we load the metadata (one row per video) and the task definitions, keeping just EF (ejection fraction). The reason for keeping just EF is that the EchoNet-Pediatric dataset is particularly focused on it.
+The PanEcho paper evaluates the model on several large echocardiography datasets, including EchoNet-Dynamic and EchoNet-LVH. For this demo, however, we will use EchoNet-Pediatric, since it is the smallest of these datasets and fits comfortably on a local machine.
+
+First, we download the EchoNet-Pediatric dataset from the [Stanford Artificial Intelligence in Medicine and Imaging (AIMI) Center Shared Datasets Portal](https://stanfordaimi.azurewebsites.net/datasets/a84b6be6-0d33-41f9-8996-86e5df53b005), which consists of the `A4C/` and `PSAX/` view folders. Then, we load the metadata (one row per video) and the task definitions, keeping just EF (ejection fraction). The reason for keeping just EF is that the EchoNet-Pediatric dataset is particularly focused on it. Then, we build the dataset with the `EchoNetPediatricDataset` class.
+
+Finally, we load the PanEcho model from Torch Hub and run it on a sample from the EchoNet-Pediatric dataset.
 
 ```{python}
 # Demo for Blog post
@@ -346,3 +350,5 @@ with torch.no_grad():
 
 output 
 ```
+
+We get an output of `EF = 45.8655`, meaning that the ejection fraction is predicted to be approximately 45.9%. This shows that the model predicted that ~45.9% of the blood in the left ventricle is ejected per contraction.
