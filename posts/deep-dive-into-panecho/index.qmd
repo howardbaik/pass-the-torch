@@ -9,13 +9,13 @@ author: "Howard Baik"
 date: "2026-06-29"
 image: "panecho.png"
 eval: false
-draft: true
+draft: false
 categories: [Medical AI]
 ---
 
 ## Introduction
 
-This post is a code-focused deep dive into a echocardiographic deep learning model called [PanEcho](https://www.medrxiv.org/content/10.1101/2024.11.16.24317431v2). PanEcho is a multivew, multitask, and video-based deep learning model capable of performing 39 diverse interpretation tasks. PanEcho consists of a 2D image encoder, temporal transformer, and output heads dedicated to the 39 individual tasks.
+This post is a code-focused deep dive into an echocardiographic deep learning model called [PanEcho](https://www.medrxiv.org/content/10.1101/2024.11.16.24317431v2). PanEcho is a multivew, multitask, and video-based deep learning model capable of performing 39 diverse interpretation tasks. PanEcho consists of a 2D image encoder, temporal transformer, and output heads dedicated to the 39 individual tasks.
 
 ![](panecho.png)
 
@@ -30,7 +30,7 @@ PanEcho processes an echocardiogram video — a sequence of frames — and turns
 
 4. **Pooling and prediction:** The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task's prediction.
 
-In the rest of this post, we will go through the [source code](https://github.com/CarDS-Yale/PanEcho) of the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the [PyTorch Hub](https://pytorch.org/hub/). The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions.
+In the rest of this post, we will go through the [source code](https://github.com/CarDS-Yale/PanEcho) of the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the [PyTorch Hub](https://pytorch.org/hub/). The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions. Finally, we will run the PanEcho model on a public dataset, [EchoNet-Pediatric](https://echonet.github.io/pediatric/), to see it in action.
 
 
 ## The `FrameTransformer` class
@@ -215,14 +215,11 @@ Finally, it loads the pretrained weights from the PanEcho GitHub repo. The weigh
 
 ## Demo
 
+In the last section of this blog post, we will demonstrate the PanEcho model in action with a sample from the [EchoNet-Pediatric](https://echonet.github.io/pediatric/) dataset. 
 
 
-TODO: Walk through one sample data entry, show how it flows through the model, and explain the dimensions at each step.
-
-TODO: Retrieve datasets from `src/datasets.py`
 
 ```{python}
-# Demo for Blog post
 # Demo for Blog post
 import os
 import torch
