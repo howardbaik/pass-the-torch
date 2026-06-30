@@ -30,12 +30,31 @@ PanEcho processes an echocardiogram video — a sequence of frames — and turns
 
 4. **Pooling and prediction:** The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task's prediction.
 
-In the rest of this post, we will go through the [source code](https://github.com/CarDS-Yale/PanEcho) of the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the [PyTorch Hub](https://pytorch.org/hub/). The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions. Finally, we will run the PanEcho model on a public dataset, [EchoNet-Pediatric](https://echonet.github.io/pediatric/), to see it in action.
+In the rest of this post, we will go through the [source code](https://github.com/CarDS-Yale/PanEcho) of the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the [PyTorch Hub](https://pytorch.org/hub/). The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions. Finally, we will run the PanEcho model on a sample from a public dataset, [EchoNet-Pediatric](https://echonet.github.io/pediatric/), to see it in action.
 
 
 ## The `FrameTransformer` class
 
 The `FrameTransformer` class implements the 2+1D architecture with the 2D image encoder and 1D temporal Transformer for echocardiography video modeling. The `__init__` method initializes the architecture with the specified parameters.
+
+### The `__init__()` method
+
+The `FrameTransformer` class uses the `ImageEncoder` class to define a 2D image encoder. The `ImageEncoder` class dispatches depending on the `arch` argument, which defines the intended architecture, such as ResNet, ConvNeXt, or Swin. For the PanEcho model, we use the ConvNeXt Tiny model architecture. Then, it records the size of the original classification layer's input and replaces the classification layer with `torch.nn.Identity()`. 
+
+Also, the `FrameTransformer` class builds one Transformer encoder layer (`transformer_encoder`) with the following parameters:
+
+- `d_model`: The dimension of the input and output feature vectors, which is set to the number of features output by the image encoder (`self.encoder.n_features`).
+- `nhead`: The number of attention heads in the multi-head attention mechanism. `d_model` is split across heads. 
+- `dim_feedforward`: The dimension of the feedforward network within the Transformer encoder layer, which is also set to `self.encoder.n_features`.
+- `dropout`: The dropout rate applied to the output of the feedforward network and the attention mechanism, specified by the `transformer_dropout` parameter.
+- `activation`: The activation function used in the feedforward network.
+- `batch_first` : Indicates that the input and output tensors are expected to have the batch size as the first dimension.
+
+Then, we form a full Transformer encoder by stacking `num_layers` of these `transformer_encoder` layers. This allows the model to learn complex temporal relationships in the echocardiography video data.
+
+The model's classifier is set to `torch.nn.Identity()`, which means it will simply return the output of the Transformer without applying any additional transformations. 
+
+`self.time_encoder` is initialized as an instance of the `PositionalEncoding` class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The `max_len` parameter is set to `clip_len`, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.
 
 ```{python}
 class FrameTransformer(torch.nn.Module):
@@ -66,25 +85,6 @@ class FrameTransformer(torch.nn.Module):
         )
 ```
 
-### The `__init__()` method
-
-The `FrameTransformer` class uses the `ImageEncoder` class to define a 2D image encoder. The `ImageEncoder` class dispatches depending on the `arch` argument, which defines the intended architecture, such as ResNet, ConvNeXt, or Swin. For the PanEcho model, we use the ConvNeXt Tiny model architecture. Then, it records the size of the original classification layer's input and replaces the classification layer with `torch.nn.Identity()`. 
-
-Also, the `FrameTransformer` class builds one Transformer encoder layer (`transformer_encoder`) with the following parameters:
-
-- `d_model`: The dimension of the input and output feature vectors, which is set to the number of features output by the image encoder (`self.encoder.n_features`).
-- `nhead`: The number of attention heads in the multi-head attention mechanism. `d_model` is split across heads. 
-- `dim_feedforward`: The dimension of the feedforward network within the Transformer encoder layer, which is also set to `self.encoder.n_features`.
-- `dropout`: The dropout rate applied to the output of the feedforward network and the attention mechanism, specified by the `transformer_dropout` parameter.
-- `activation`: The activation function used in the feedforward network.
-- `batch_first` : Indicates that the input and output tensors are expected to have the batch size as the first dimension.
-
-Then, we form a full Transformer encoder by stacking `num_layers` of these `transformer_encoder` layers. This allows the model to learn complex temporal relationships in the echocardiography video data.
-
-The model's classifier is set to `torch.nn.Identity()`, which means it will simply return the output of the Transformer without applying any additional transformations. 
-
-`self.time_encoder` is initialized as an instance of the `PositionalEncoding` class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The `max_len` parameter is set to `clip_len`, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.
-
 
 ### The `forward()` method
 
@@ -99,10 +99,48 @@ The `forward()` method takes an input tensor `x` of shape `(batch_size, channels
 4. Finally, the output of the Transformer is passed through the classifier (which is an identity function in this case) to produce the final output.
 
 
+```{python}
+def forward(self, x):
+    b, c, l, h, w = x.shape
+
+    # x: batch_size x 3 x clip_len x h x w
+    x = x.reshape(b*l, c, h, w)  # batch_size*clip_len x 3 x h x w
+
+    embeddings = self.encoder(x)
+
+    # embeddings: batch_size x clip_len x n_features
+    embeddings = embeddings.reshape(b, l, self.encoder.n_features)
+    embeddings = self.time_encoder(embeddings)
+
+    feats = self.transformer(embeddings)
+
+    if self.pooling == 'mean':
+        pooled_feats = feats.mean(1)
+    elif self.pooling == 'mean-max':
+        mean_pooled_feats = feats.mean(1)
+        max_pooled_feats, _ = feats.max(1)
+        pooled_feats = torch.cat([mean_pooled_feats, max_pooled_feats], dim=1)
+    else:
+        import sys
+        sys.exit(-1)
+
+    out = self.classifier(pooled_feats)
+
+    return out
+```
+
 
 ## The `MultiTaskModel` class
 
 The `MultiTaskModel` class is the top-level PanEcho model. It takes the shared video encoder (the `FrameTransformer` class) and attaches one prediction head per clinical task. As a result, a single forward pass produces multiple outputs. The `__init__` method initializes the `MultiTaskModel` class with the specified parameters.
+
+
+### The `__init__()` method
+
+The `MultiTaskModel` class creates a `head` for each task, consisting of a `Dropout` and a `Linear` layer. The output width depends on whether the task type is binary classification or regression or multi-class classification:
+
+- Binary classification or regression: A head that maps `encoder_dim`-wide feature vector to a single output (1 output). Then, it sets the bias of the head's final `Linear` layer to that task's training-set mean value to account for different scales.
+- Multi-class classification: A head that maps `encoder_dim`-wide feature vector to one output per class. (`task.class_names.size` outputs)
 
 ```{python}
 class MultiTaskModel(torch.nn.Module):
@@ -139,17 +177,45 @@ class MultiTaskModel(torch.nn.Module):
                 head[-1].bias.data[0] = task.mean
 ```
 
-### The `__init__()` method
-
-The `MultiTaskModel` class creates a `head` for each task, consisting of a `Dropout` and a `Linear` layer. The output width depends on whether the task type is binary classification or regression or multi-class classification:
-
-- Binary classification or regression: A head that maps `encoder_dim`-wide feature vector to a single output (1 output). Then, it sets the bias of the head's final `Linear` layer to that task's training-set mean value to account for different scales.
-- Multi-class classification: A head that maps `encoder_dim`-wide feature vector to one output per class (`task.class_names.size` outputs)
-
 
 ### The `forward()` method
 
 In the forward method, we run the input through the shared video encoder (`FrameTransformer` class) to get a feature vector `(batch_size, encoder_dim)` and then pass that feature vector through each task's prediction head, then run an activation function to get the output for that task. The outputs for all tasks are collected and returned.
+
+```{python}
+def forward(self, x):
+    x = self.encoder(x)
+
+    out_dict = {}
+    for task in self.tasks:
+        out = self.get_submodule(task.task_name+'_head')(x)
+
+        if self.activations:
+            if task.task_type == 'binary_classification':
+                # Ensure that output corresponds to "positive" class
+                # for all binary classification tasks
+                inverted_tasks = [
+                    'MVStenosis',
+                    'AVStructure',
+                    'RASize',
+                    'RVSystolicFunction',
+                    'LVWallThickness-increased-modsev',
+                    'LVWallThickness-increased-any',
+                    'pericardial-effusion',
+                ]
+                if task.task_name in inverted_tasks:
+                    out_dict[task.task_name] = 1 - torch.sigmoid(out)
+                else:
+                    out_dict[task.task_name] = torch.sigmoid(out)
+            elif task.task_type == 'multi-class_classification':
+                out_dict[task.task_name] = torch.softmax(out, dim=1)
+            else:
+                out_dict[task.task_name] = out
+        else:
+            out_dict[task.task_name] = out
+
+    return out_dict
+```
 
 ## PanEcho on Torch Hub
 
@@ -215,9 +281,9 @@ Finally, it loads the pretrained weights from the PanEcho GitHub repo. The weigh
 
 ## Demo
 
-In the last section of this blog post, we will demonstrate the PanEcho model in action with a sample from the [EchoNet-Pediatric](https://echonet.github.io/pediatric/) dataset. 
+In the last section of this blog post, we will demonstrate the PanEcho model in action with a sample from the [EchoNet-Pediatric](https://echonet.github.io/pediatric/) dataset. The dataset consists of 3,176 apical-4-chamber echocardiography (A4C) videos and 4,424 parasternal short axis echocardiography (PSAX) videos from individuals who underwent imaging between 2014 and 2021 as part of routine clinical care at Lucile Packard Children’s Hospital at Stanford. 
 
-
+First, we download the EchoNet-Pediatric dataset from the [Stanford Artificial Intelligence in Medicine and Imaging (AIMI) Center Shared Datasets Portal](https://stanfordaimi.azurewebsites.net/datasets/a84b6be6-0d33-41f9-8996-86e5df53b005), which consists of the A4C/ and PSAX/ view folders. Then, we load the metadata (one row per video) and the task definitions, keeping just EF (ejection fraction). The reason for keeping just EF is that the EchoNet-Pediatric dataset is particularly focused on it.
 
 ```{python}
 # Demo for Blog post
