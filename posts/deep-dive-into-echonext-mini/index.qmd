@@ -1,13 +1,12 @@
 ---
-title: "Deep Dive into PanEcho"
+title: "Deep Dive into EchoNext-Mini"
 format:
   html:
     code-fold: true
     code-summary: "Show code"
 engine: none
 author: "Howard Baik"
-date: "2026-06-30"
-image: "panecho.png"
+date: "2026-07-30"
 eval: false
 categories: [Medical AI]
 ---
