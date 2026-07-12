@@ -13,172 +13,143 @@ categories: [Medical AI]
 
 ## Introduction
 
-This post is a code-focused deep dive into an echocardiographic deep learning model called [PanEcho](https://www.medrxiv.org/content/10.1101/2024.11.16.24317431v2). PanEcho is a multivew, multitask, and video-based deep learning model capable of performing 39 diverse interpretation tasks. PanEcho consists of a 2D image encoder, temporal transformer, and output heads dedicated to the 39 individual tasks.
-
-![](panecho.png)
+This post is a code-focused deep dive into an electrocardiographic deep learning model called [EchoNext-Mini](https://ai.nejm.org/doi/10.1056/AIdbp2500516). EchoNext-Mini detects structural heart disease from a 12-lead ECG by combining two inputs: the raw ECG waveforms and a handful of tabular features (age, sex, and a few ECG measurements). It's a multi-label classifier that outputs 12 disease probabilities per ECG.
 
 
-PanEcho processes an echocardiogram video — a sequence of frames — and turns it into predictions for 39 clinical tasks. The model does this in four stages:
-
-1. **Per-frame feature extraction:** Each video frame is passed independently through the 2D image encoder, an ImageNet-pretrained ConvNeXt-Tiny CNN. The image encoder compresses each frame into a single 768-dimensional feature vector summarizing the spatial content visible in that frame. Temporal dynamics across frames are then modeled separately by a 1D temporal Transformer over the sequence of frame embeddings.
-
-2. **Adding temporal order:** The image encoder treats each frame in isolation, so the model has no inherent sense of which frame came first. To restore this, the frame's position in the sequence is encoded with a sinusoidal positional encoding and added elementwise to its feature vector. 
-
-3. **Modeling relationships across frames:** The position-aware feature vectors are fed into a Transformer encoder of four layers, each with eight self-attention heads. Self-attention lets every frame attend to every other frame, so the Transformer can model temporal dynamics across the whole clip — for example, how the heart wall moves between systole and diastole — and produces a refined, context-aware feature vector for each frame.
-
-4. **Pooling and prediction:** The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task's prediction.
-
-In the rest of this post, we will go through the [source code](https://github.com/CarDS-Yale/PanEcho) of the `FrameTransformer` class, the `MultiTaskModel` class, and the PanEcho model listed on the [PyTorch Hub](https://pytorch.org/hub/). The `FrameTransformer` class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The `MultiTaskModel` class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions. Finally, we will run the PanEcho model on a sample from a public dataset, [EchoNet-Pediatric](https://echonet.github.io/pediatric/), to see it in action.
+In the rest of this post, we will go through the [source code](https://github.com/howardbaik/IntroECG/tree/master/7-EchoNext%20Minimodel).
 
 
-## The `FrameTransformer` class
 
-The `FrameTransformer` class implements the 2+1D architecture with the 2D image encoder and 1D temporal Transformer for echocardiography video modeling. The `__init__` method initializes the architecture with the specified parameters.
+## The `BasicBlock1d` class
+
+TODO: The `BasicBlock1d` class implements the 
 
 ### The `__init__()` method
 
-The `FrameTransformer` class uses the `ImageEncoder` class to define a 2D image encoder. The `ImageEncoder` class dispatches depending on the `arch` argument, which defines the intended architecture, such as ResNet, ConvNeXt, or Swin. For the PanEcho model, we use the ConvNeXt Tiny model architecture. Then, it records the size of the original classification layer's input and replaces the classification layer with `torch.nn.Identity()`. 
-
-Also, the `FrameTransformer` class builds one Transformer encoder layer (`transformer_encoder`) with the following parameters:
-
-- `d_model`: The dimension of the input and output feature vectors, which is set to the number of features output by the image encoder (`self.encoder.n_features`).
-- `nhead`: The number of attention heads in the multi-head attention mechanism. `d_model` is split across heads. 
-- `dim_feedforward`: The dimension of the feedforward network within the Transformer encoder layer, which is also set to `self.encoder.n_features`.
-- `dropout`: The dropout rate applied to the output of the feedforward network and the attention mechanism, specified by the `transformer_dropout` parameter.
-- `activation`: The activation function used in the feedforward network.
-- `batch_first` : Indicates that the input and output tensors are expected to have the batch size as the first dimension.
-
-Then, we form a full Transformer encoder by stacking `num_layers` of these `transformer_encoder` layers. This allows the model to learn complex temporal relationships in the echocardiography video data.
-
-The model's classifier is set to `torch.nn.Identity()`, which means it will simply return the output of the Transformer without applying any additional transformations. 
-
-`self.time_encoder` is initialized as an instance of the `PositionalEncoding` class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The `max_len` parameter is set to `clip_len`, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.
+The `BasicBlock1d` class is first initialized with `nn.Conv1d`, which is PyTorch's 1D convolution layer - it slides learnable filters along a single dimension (here, time) instead of over a 2D image. It slides the filters along time with the parameters `stride`, `padding`, and `kernel_size`. Also, it has `nn.BatchNorm1d`, batch normalization, `nn.ReLU`, ReLU, and `nn.Dropout` for Dropout. 
 
 ```{python}
-class FrameTransformer(torch.nn.Module):
-    """2+1D architecture with 2D image encoder and 1D temporal
-    Transformer for echocardiography video modeling."""
-    def __init__(self, arch, n_heads, n_layers, transformer_dropout,
-                 pooling, clip_len=16):
-        super(FrameTransformer, self).__init__()
-        self.pooling = pooling
-        self.encoder = ImageEncoder(arch)
+class BasicBlock1d(nn.Module):
+    expansion = 1
 
-        transformer_encoder = torch.nn.TransformerEncoderLayer(
-            d_model=self.encoder.n_features,
-            nhead=n_heads,
-            dim_feedforward=self.encoder.n_features,
-            dropout=transformer_dropout,
-            activation='relu',
-            batch_first=True,
+    def __init__(
+        self,
+        inplanes: int,
+        planes: int,
+        stride: int = 1,
+        downsample: Optional[float] = None,
+        dropout: float = 0.5,
+        kernel_size: int = 7,
+        padding: int = 3,
+        bias: bool = False,
+        inplace: bool = True,
+    ):
+        super().__init__()
+        self.conv1 = nn.Conv1d(
+            inplanes, planes, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias
         )
-        self.transformer = torch.nn.TransformerEncoder(
-            transformer_encoder, num_layers=n_layers
+        self.bn1 = nn.BatchNorm1d(planes)
+        self.relu = nn.ReLU(inplace=inplace)
+        self.dropout = nn.Dropout(p=dropout)
+        self.conv2 = nn.Conv1d(
+            planes, planes, kernel_size=kernel_size, stride=1, padding=padding, bias=bias
         )
-
-        self.classifier = torch.nn.Identity()
-
-        self.time_encoder = PositionalEncoding(
-            d_model=self.encoder.n_features, dropout=0, max_len=clip_len
-        )
+        self.bn2 = nn.BatchNorm1d(planes)
+        self.downsample = downsample
 ```
-
 
 ### The `forward()` method
 
-The `forward()` method takes an input tensor `x` of shape `(batch_size, channels, clip_len, height, width)` and processes it as follows:
-
-1. The input tensor is reshaped to `(batch_size * clip_len, channels, height, width)` to ensure the correct dimensions for processing and then passed through the image encoder to extract features from each frame. The output shape of the image encoder is `(batch_size * clip_len, n_features)`. 
-
-2. After reshaping to `(batch_size, clip_len, n_features)`, the positional encoding is added to the feature vectors to incorporate temporal information. The resulting tensor is then passed through the Transformer encoder to model the temporal relationships between frames.  The output of the Transformer is shaped `(batch_size, clip_len, n_features)` - e.g. `(2, 16, 1024)`.
-
-3. Temporal pooling step is applied by computing the mean along axis 1 (the frame axis), which averages across all 16 frames and removes that dimension. This results in a tensor of shape `(batch_size, n_features)`, - e.g. `(2, 1024)` giving us a single feature vector for each video clip. 
-
-4. Finally, the output of the Transformer is passed through the classifier (which is an identity function in this case) to produce the final output.
-
+The `forward()` method defines how data flows through the `BasicBlock1d` class. First, its saves the input as `residual` so it can be added back later ("skip connection"). Then, it goes through the first conv stage - convolution, batch norm, ReLU, and dropout. Then, the second conv stage involves another convolution and then batch normalization. The final residual addition only works if the `out` and `x` have identical shapes. In the case where the shapes don't match, `downsample` projects the original input `x` to the new shape. Note there's no ReLU here yet — the activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering. 
 
 ```{python}
-def forward(self, x):
-    b, c, l, h, w = x.shape
-
-    # x: batch_size x 3 x clip_len x h x w
-    x = x.reshape(b*l, c, h, w)  # batch_size*clip_len x 3 x h x w
-
-    embeddings = self.encoder(x)
-
-    # embeddings: batch_size x clip_len x n_features
-    embeddings = embeddings.reshape(b, l, self.encoder.n_features)
-    embeddings = self.time_encoder(embeddings)
-
-    feats = self.transformer(embeddings)
-
-    if self.pooling == 'mean':
-        pooled_feats = feats.mean(1)
-    elif self.pooling == 'mean-max':
-        mean_pooled_feats = feats.mean(1)
-        max_pooled_feats, _ = feats.max(1)
-        pooled_feats = torch.cat([mean_pooled_feats, max_pooled_feats], dim=1)
-    else:
-        import sys
-        sys.exit(-1)
-
-    out = self.classifier(pooled_feats)
-
+def forward(self, x: torch.Tensor) -> torch.Tensor:
+    residual = x
+    out = self.conv1(x)
+    out = self.bn1(out)
+    out = self.relu(out)
+    out = self.dropout(out)
+    out = self.conv2(out)
+    out = self.bn2(out)
+    if self.downsample is not None:
+        residual = self.downsample(x)
+    out += residual
+    out = self.relu(out)
     return out
 ```
 
 
-## The `MultiTaskModel` class
+## The `ResNet1dWithTabular` class
 
-The `MultiTaskModel` class is the top-level PanEcho model. It takes the shared video encoder (the `FrameTransformer` class) and attaches one prediction head per clinical task. As a result, a single forward pass produces multiple outputs. The `__init__` method initializes the `MultiTaskModel` class with the specified parameters.
-
+The `ResNet1dWithTabular` class is the top-level class representing a ResNet-34 model adapted to 1D signals (12-lead ECG waveforms). Right before the final classification layer, the model concatenates a vector of tabular features (e.g., patient demographics) alongside the learned ECG features.
 
 ### The `__init__()` method
 
-The `MultiTaskModel` class creates a `head` for each task, consisting of a `Dropout` and a `Linear` layer. The output width depends on whether the task type is binary classification or regression or multi-class classification:
+The `ResNet1dWithTabular` class has the following constructor parameters:
 
-- Binary classification or regression: A head that maps `encoder_dim`-wide feature vector to a single output (1 output). Then, it sets the bias of the head's final `Linear` layer to that task's training-set mean value to account for different scales.
-- Multi-class classification: A head that maps `encoder_dim`-wide feature vector to one output per class. (`task.class_names.size` outputs)
+- `len_tabular_feature_vector`: Number of tabular features to be appended before the output layer.
+- `filter_size=64`: Number of channels after the first conv; each subsequent stage doubles it (64 → 128 → 256 → 512).
+- `input_channels=12`: The 12 ECG leads.
+- `dropout_value=0.5`: Dropout rate used both inside every residual block and before the final layer.
+- `num_classes=1`: A single logit, i.e., binary classification.
+- `conv1_kernel_size=15`, `conv1_stride=2`, `padding=7`: The convolution parameters: a wide kernel (15 samples) to capture ECG morphology, stride 2 halves the time dimension, and padding 7 = (15−1)/2 keeps "same" length otherwise.
+- `bias=False`: Convolutions skip their bias term because the batch norm right after each conv has its own learnable shift, making a conv bias redundant.
+
+Then, it stores these parameters in `self`:
+
+- `self.inplanes = filter_size`: Current channel count
+- `self.layers = [3, 4, 6, 3]`: The number of blocks per stage. This 3-4-6-3 pattern comes from ResNet-34.
+- `self.conv1`:The stem convolution that maps the 12 ECG leads to 64 channels.
+- `self.layer1`, `self.layer2`, `self.layer3`, `self.layer4`: The four residual stages
+- `self.adaptiveavgpool` and `self.adaptivemaxpool`:Two adaptive pools that each collapse the entire time axis to a single value per channel. The average pool signifies the "overall level" of each feature and the max pool the "strongest occurrence" of each feature.
+- `self.output`: The final linear layer, where the input width is `8 * filter_Size * expansion * 2 + len_tabular_feature_vector` and the output width is `num_classes` (A single logit for binary classification of structural heart disease).
+
+
+
 
 ```{python}
-class MultiTaskModel(torch.nn.Module):
-    """Multi-task model with shared video encoder and separate
-    prediction heads for each clinical task."""
-    def __init__(self, encoder, encoder_dim, tasks, fc_dropout=0,
-                 activations=True):
-        super().__init__()
-        self.encoder = encoder
-        self.tasks = tasks
-        self.activations = activations
-
-        for task in self.tasks:
-            if task.task_type == 'multi-class_classification':
-                self.add_module(
-                    task.task_name + '_head',
-                    torch.nn.Sequential(
-                        torch.nn.Dropout(p=fc_dropout),
-                        torch.nn.Linear(encoder_dim, task.class_names.size),
-                    ),
-                )
-            else:  # binary classification or regression, both have 1 output
-                self.add_module(
-                    task.task_name + '_head',
-                    torch.nn.Sequential(
-                        torch.nn.Dropout(p=fc_dropout),
-                        torch.nn.Linear(encoder_dim, 1),
-                    ),
-                )
-
-                # Initialize bias term to training set mean value
-                # (to account for different scales/units)
-                head = self.get_submodule(task.task_name + '_head')
-                head[-1].bias.data[0] = task.mean
+def __init__(
+        self,
+        len_tabular_feature_vector: int,
+        filter_size: int = 64,
+        input_channels: int = 12,
+        dropout_value: float = 0.5,
+        num_classes: int = 1,
+        conv1_kernel_size: int = 15,
+        conv1_stride: int = 2,
+        padding: int = 7,
+        bias: bool = False,
+    ):
+    super().__init__()
+    self.inplanes = filter_size
+    self.layers = [3, 4, 6, 3]
+    self.conv1 = nn.Conv1d(
+        input_channels,
+        self.inplanes,
+        kernel_size=conv1_kernel_size,
+        stride=conv1_stride,
+        padding=padding,
+        bias=bias,
+    )
+    self.dropout_value = dropout_value
+    self.bn1 = nn.BatchNorm1d(self.inplanes)
+    self.relu = nn.ReLU(inplace=True)
+    self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+    self.layer1 = self._make_layer(BasicBlock1d, filter_size, self.layers[0])
+    self.layer2 = self._make_layer(BasicBlock1d, 2 * filter_size, self.layers[1], stride=2)
+    self.layer3 = self._make_layer(BasicBlock1d, 4 * filter_size, self.layers[2], stride=2)
+    self.layer4 = self._make_layer(BasicBlock1d, 8 * filter_size, self.layers[3], stride=2)
+    self.adaptiveavgpool = nn.AdaptiveAvgPool1d(1)
+    self.adaptivemaxpool = nn.AdaptiveMaxPool1d(1)
+    self.output = nn.Linear(
+        8 * filter_size * BasicBlock1d.expansion * 2 + len_tabular_feature_vector, num_classes
+    )
+    self.dropout = nn.Dropout(dropout_value)
 ```
 
 
 ### The `forward()` method
 
-In the forward method, we run the input through the shared video encoder (`FrameTransformer` class) to get a feature vector `(batch_size, encoder_dim)` and then pass that feature vector through each task's prediction head, then run an activation function to get the output for that task. The outputs for all tasks are collected and returned.
 
 ```{python}
 def forward(self, x):

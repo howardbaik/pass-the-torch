@@ -7,9 +7,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Howard Baik">
-<meta name="dcterms.date" content="2026-06-30">
+<meta name="dcterms.date" content="2026-07-30">
 
-<title>Deep Dive into PanEcho – Pass The Torch</title>
+<title>Deep Dive into EchoNext-Mini – Pass The Torch</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -150,7 +150,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <header id="title-block-header" class="quarto-title-block default page-columns page-full">
   <div class="quarto-title-banner page-columns page-full">
     <div class="quarto-title column-body">
-      <h1 class="title">Deep Dive into PanEcho</h1>
+      <h1 class="title">Deep Dive into EchoNext-Mini</h1>
                                 <div class="quarto-categories">
                 <div class="quarto-category">Medical AI</div>
               </div>
@@ -170,7 +170,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div>
       <div class="quarto-title-meta-heading">Published</div>
       <div class="quarto-title-meta-contents">
-        <p class="date">June 30, 2026</p>
+        <p class="date">July 30, 2026</p>
       </div>
     </div>
     
@@ -191,16 +191,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
-<p>This post is a code-focused deep dive into an echocardiographic deep learning model called <a href="https://www.medrxiv.org/content/10.1101/2024.11.16.24317431v2">PanEcho</a>. PanEcho is a multivew, multitask, and video-based deep learning model capable of performing 39 diverse interpretation tasks. PanEcho consists of a 2D image encoder, temporal transformer, and output heads dedicated to the 39 individual tasks.</p>
-<p><img src="panecho.png" class="img-fluid"></p>
-<p>PanEcho processes an echocardiogram video — a sequence of frames — and turns it into predictions for 39 clinical tasks. The model does this in four stages:</p>
-<ol type="1">
-<li><p><strong>Per-frame feature extraction:</strong> Each video frame is passed independently through the 2D image encoder, an ImageNet-pretrained ConvNeXt-Tiny CNN. The image encoder compresses each frame into a single 768-dimensional feature vector summarizing the spatial content visible in that frame. Temporal dynamics across frames are then modeled separately by a 1D temporal Transformer over the sequence of frame embeddings.</p></li>
-<li><p><strong>Adding temporal order:</strong> The image encoder treats each frame in isolation, so the model has no inherent sense of which frame came first. To restore this, the frame’s position in the sequence is encoded with a sinusoidal positional encoding and added elementwise to its feature vector.</p></li>
-<li><p><strong>Modeling relationships across frames:</strong> The position-aware feature vectors are fed into a Transformer encoder of four layers, each with eight self-attention heads. Self-attention lets every frame attend to every other frame, so the Transformer can model temporal dynamics across the whole clip — for example, how the heart wall moves between systole and diastole — and produces a refined, context-aware feature vector for each frame.</p></li>
-<li><p><strong>Pooling and prediction:</strong> The refined frame-wise vectors are aggregated into a single video-level representation by mean pooling (averaging across the frame axis). This one vector is fed to each of the task-specific output heads. Every head consists of a Dropout layer followed by a fully-connected layer that produces that task’s prediction.</p></li>
-</ol>
-<p>In the rest of this post, we will go through the <a href="https://github.com/CarDS-Yale/PanEcho">source code</a> of the <code>FrameTransformer</code> class, the <code>MultiTaskModel</code> class, and the PanEcho model listed on the <a href="https://pytorch.org/hub/">PyTorch Hub</a>. The <code>FrameTransformer</code> class specifies the architecture involving the 2D image encoder and 1D temporal Transformer. The <code>MultiTaskModel</code> class defines the multitask learning component, combining the frame-level features with task-specific heads to produce the final predictions. Finally, we will run the PanEcho model on a sample from a public dataset, <a href="https://echonet.github.io/pediatric/">EchoNet-Pediatric</a>, to see it in action.</p>
+<p>This post is a code-focused deep dive into an electrocardiographic deep learning model called <a href="https://ai.nejm.org/doi/10.1056/AIdbp2500516">EchoNext-Mini</a>. EchoNext-Mini detects structural heart disease from a 12-lead ECG by combining two inputs: the raw ECG waveforms and a handful of tabular features (age, sex, and a few ECG measurements). It’s a multi-label classifier that outputs 12 disease probabilities per ECG.</p>
+<p>In the rest of this post, we will go through the <a href="https://github.com/howardbaik/IntroECG/tree/master/7-EchoNext%20Minimodel">source code</a>.</p>
 </section>
 <section id="the-frametransformer-class" class="level2">
 <h2 class="anchored" data-anchor-id="the-frametransformer-class">The <code>FrameTransformer</code> class</h2>
@@ -220,7 +212,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Then, we form a full Transformer encoder by stacking <code>num_layers</code> of these <code>transformer_encoder</code> layers. This allows the model to learn complex temporal relationships in the echocardiography video data.</p>
 <p>The model’s classifier is set to <code>torch.nn.Identity()</code>, which means it will simply return the output of the Transformer without applying any additional transformations.</p>
 <p><code>self.time_encoder</code> is initialized as an instance of the <code>PositionalEncoding</code> class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The <code>max_len</code> parameter is set to <code>clip_len</code>, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.</p>
-<div id="901ae1d0" class="cell" data-execution_count="1">
+<div id="aeea19dc" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> FrameTransformer(torch.nn.Module):</span>
@@ -261,7 +253,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>Temporal pooling step is applied by computing the mean along axis 1 (the frame axis), which averages across all 16 frames and removes that dimension. This results in a tensor of shape <code>(batch_size, n_features)</code>, - e.g.&nbsp;<code>(2, 1024)</code> giving us a single feature vector for each video clip.</p></li>
 <li><p>Finally, the output of the Transformer is passed through the classifier (which is an identity function in this case) to produce the final output.</p></li>
 </ol>
-<div id="35e6d790" class="cell" data-execution_count="2">
+<div id="6119a7d4" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
@@ -305,7 +297,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Binary classification or regression: A head that maps <code>encoder_dim</code>-wide feature vector to a single output (1 output). Then, it sets the bias of the head’s final <code>Linear</code> layer to that task’s training-set mean value to account for different scales.</li>
 <li>Multi-class classification: A head that maps <code>encoder_dim</code>-wide feature vector to one output per class. (<code>task.class_names.size</code> outputs)</li>
 </ul>
-<div id="ed7db530" class="cell" data-execution_count="3">
+<div id="e5df43a0" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MultiTaskModel(torch.nn.Module):</span>
@@ -346,7 +338,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="the-forward-method-1" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method-1">The <code>forward()</code> method</h3>
 <p>In the forward method, we run the input through the shared video encoder (<code>FrameTransformer</code> class) to get a feature vector <code>(batch_size, encoder_dim)</code> and then pass that feature vector through each task’s prediction head, then run an activation function to get the output for that task. The outputs for all tasks are collected and returned.</p>
-<div id="a76609dc" class="cell" data-execution_count="4">
+<div id="a7715edf" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
@@ -388,7 +380,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="panecho-on-torch-hub" class="level2">
 <h2 class="anchored" data-anchor-id="panecho-on-torch-hub">PanEcho on Torch Hub</h2>
 <p>The PanEcho repo contains a <code>hubconf.py</code> file that imports the classes built in <code>models.py</code> and provides a ready-to-use model with the <code>PanEcho()</code> function.</p>
-<div id="ead88257" class="cell" data-execution_count="5">
+<div id="9bc69450" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>arch <span class="op">=</span> <span class="st">'convnext_tiny'</span></span>
@@ -399,7 +391,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </details>
 </div>
 <p>First, it initializes the PanEcho architecture with the constructor arguments that <code>FrameTransformer</code> expects. The architecture of the image encoder is set to <code>convnext_tiny</code>, the number of Transformer layers is set to <code>4</code>, the number of attention heads is set to <code>8</code>, the pooling method is set to <code>mean</code>, and the dropout rate for the Transformer is set to <code>0</code> (no dropout).</p>
-<div id="ecddc8cc" class="cell" data-execution_count="6">
+<div id="97a4b243" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load tasks</span></span>
@@ -419,7 +411,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </details>
 </div>
 <p>Then, it loads a file containing the definitions of all the clinical tasks that PanEcho is designed to predict. Each task is represented as an instance of the <code>Task</code> class, which includes the task name, type (e.g., binary classification, multi-class classification, regression), class names (if applicable), and mean value (for regression tasks).</p>
-<div id="9d79ce52" class="cell" data-execution_count="7">
+<div id="207736c0" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>encoder <span class="op">=</span> FrameTransformer(</span>
@@ -432,7 +424,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </details>
 </div>
 <p>Then, it initializes the shared video encoder (<code>FrameTransformer</code> class) with the specified architecture parameters and creates an instance of the <code>MultiTaskModel</code> class, passing in the shared video encoder, its output feature dimension (<code>encoder_dim</code>), the list of tasks, a dropout rate of 0.25 for the fully connected layers in the prediction heads, and whether to apply activation functions to the outputs.</p>
-<div id="b13e2694" class="cell" data-execution_count="8">
+<div id="954dfbe7" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load pretrained weights</span></span>
@@ -454,7 +446,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The PanEcho paper evaluates the model on several large echocardiography datasets, including EchoNet-Dynamic and EchoNet-LVH. For this demo, however, we will use EchoNet-Pediatric, since it is the smallest of these datasets and fits comfortably on a local machine.</p>
 <p>First, we download the EchoNet-Pediatric dataset from the <a href="https://stanfordaimi.azurewebsites.net/datasets/a84b6be6-0d33-41f9-8996-86e5df53b005">Stanford Artificial Intelligence in Medicine and Imaging (AIMI) Center Shared Datasets Portal</a>, which consists of the <code>A4C/</code> and <code>PSAX/</code> view folders. Then, we load the metadata (one row per video) and the task definitions, keeping just EF (ejection fraction). The reason for keeping just EF is that the EchoNet-Pediatric dataset is particularly focused on it. Then, we build the dataset with the <code>EchoNetPediatricDataset</code> class.</p>
 <p>Finally, we load the PanEcho model from Torch Hub and run it on a sample from the EchoNet-Pediatric dataset.</p>
-<div id="1f3db6ff" class="cell" data-execution_count="9">
+<div id="73c42bf7" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Demo for Blog post</span></span>
