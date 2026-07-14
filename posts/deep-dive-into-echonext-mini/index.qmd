@@ -102,9 +102,17 @@ Then, it stores these parameters in `self`:
 - `self.conv1`:The stem convolution that maps the 12 ECG leads to 64 channels.
 - `self.layer1`, `self.layer2`, `self.layer3`, `self.layer4`: The four residual stages
 - `self.adaptiveavgpool` and `self.adaptivemaxpool`:Two adaptive pools that each collapse the entire time axis to a single value per channel. The average pool signifies the "overall level" of each feature and the max pool the "strongest occurrence" of each feature.
-- `self.output`: The final linear layer, where the input width is `8 * filter_Size * expansion * 2 + len_tabular_feature_vector` and the output width is `num_classes` (A single logit for binary classification of structural heart disease).
+- `self.output`: The final linear layer, where the input width is `8 * filter_Size * expansion * 2 + len_tabular_feature_vector` and the output width is `num_classes` (A single logit for binary classification of structural heart disease). 
 
 
+Breaking down the input dimension term by term:
+
+- `8 * filter_size`: The number of channels coming out of `layer4`. The channel count doubles at each ResNet stage (filter_size → 2× → 4× → 8×, see lines 78–81), so with the default filter_size=64 the last stage outputs 512 channels.
+- `* BasicBlock1d.expansion` — expansion is 1 for basic blocks, so this is a no-op here. It's kept for ResNet convention: if you swapped in bottleneck blocks (expansion = 4), the layer would resize automatically.
+- `* 2` - The forward pass pools the feature map two ways, with `adaptiveavgpool` and `adaptivemaxpool` (each producing 512 values), and concatenates them at line 129 (`torch.cat((x1, x2), dim=1)`). That gives 1024 ECG-derived features.
+- `+ len_tabular_feature_vector` — The tabular features (e.g., age, sex, ECG measurements) are concatenated onto that flattened vector.
+
+The output size is `num_classes` (default `1`, i.e., a single logit for binary classification of structural heart disease).
 
 
 ```{python}
@@ -148,176 +156,42 @@ def __init__(
 ```
 
 
+
+
 ### The `forward()` method
 
-
-```{python}
-def forward(self, x):
-    x = self.encoder(x)
-
-    out_dict = {}
-    for task in self.tasks:
-        out = self.get_submodule(task.task_name+'_head')(x)
-
-        if self.activations:
-            if task.task_type == 'binary_classification':
-                # Ensure that output corresponds to "positive" class
-                # for all binary classification tasks
-                inverted_tasks = [
-                    'MVStenosis',
-                    'AVStructure',
-                    'RASize',
-                    'RVSystolicFunction',
-                    'LVWallThickness-increased-modsev',
-                    'LVWallThickness-increased-any',
-                    'pericardial-effusion',
-                ]
-                if task.task_name in inverted_tasks:
-                    out_dict[task.task_name] = 1 - torch.sigmoid(out)
-                else:
-                    out_dict[task.task_name] = torch.sigmoid(out)
-            elif task.task_type == 'multi-class_classification':
-                out_dict[task.task_name] = torch.softmax(out, dim=1)
-            else:
-                out_dict[task.task_name] = out
-        else:
-            out_dict[task.task_name] = out
-
-    return out_dict
-```
-
-## PanEcho on Torch Hub
-
-The PanEcho repo contains a `hubconf.py` file that imports the classes built in `models.py` and provides a ready-to-use model with the `PanEcho()` function.
-
-```{python}
-arch = 'convnext_tiny'
-n_layers = 4
-n_heads = 8
-pooling = 'mean'
-transformer_dropout = 0.
-```
-
-First, it initializes the PanEcho architecture with the constructor arguments that `FrameTransformer` expects. The architecture of the image encoder is set to `convnext_tiny`, the number of Transformer layers is set to `4`, the number of attention heads is set to `8`, the pooling method is set to `mean`, and the dropout rate for the Transformer is set to `0` (no dropout). 
-
-```{python}
-# Load tasks
-task_dict = pd.read_pickle(
-    'https://github.com/CarDS-Yale/PanEcho/blob/main/content/tasks.pkl?raw=true'
-)
-all_tasks = list(task_dict.keys())
-task_list = [
-    Task(
-        t,
-        task_dict[t]['task_type'],
-        task_dict[t]['class_names'],
-        task_dict[t]['mean'],
-    )
-    for t in all_tasks
-]
-```
-
-Then, it loads a file containing the definitions of all the clinical tasks that PanEcho is designed to predict. Each task is represented as an instance of the `Task` class, which includes the task name, type (e.g., binary classification, multi-class classification, regression), class names (if applicable), and mean value (for regression tasks).
+The forward method takes a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from `[BATCH_SIZE, 1, FEATURE_SIZE, 12]` to `[BATCH_SIZE, 12, FEATURE_SIZE]` for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by `_make_layer`. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the `num_classes` logits. 
 
 
 ```{python}
-encoder = FrameTransformer(
-    arch, n_heads, n_layers, transformer_dropout, pooling, clip_len
-)
-encoder_dim = encoder.encoder.n_features
-model = MultiTaskModel(
-    encoder, encoder_dim, task_list, 0.25, activations
-)
+def forward(self, x_and_tabular: Tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+    x, tabular = x_and_tabular
+
+    # Reshape x from [BATCH_SIZE, 1, FEATURE_SIZE, 12]
+    # to [BATCH_SIZE, 12, FEATURE_SIZE] for the 1d convolutions
+    x = torch.transpose(x, 2, 3)
+    x = torch.squeeze(x, 1)
+
+    # Stem
+    x = self.conv1(x)
+    x = self.bn1(x)
+    x = self.relu(x)
+    x = self.maxpool(x)
+
+    # Residual layers
+    x = self.layer1(x)
+    x = self.layer2(x)
+    x = self.layer3(x)
+    x = self.layer4(x)
+
+    # Pool (avg + max), flatten, and concat with tabular features
+    x1 = self.adaptiveavgpool(x)
+    x2 = self.adaptivemaxpool(x)
+    x = torch.cat((x1, x2), dim=1)
+    x = self.dropout(x)
+    x = x.view(x.size(0), -1)
+    x = torch.cat((x, tabular), dim=1)
+
+    out = self.output(x)
+    return torch.squeeze(out, 1)
 ```
-
-Then, it initializes the shared video encoder (`FrameTransformer` class) with the specified architecture parameters and creates an instance of the `MultiTaskModel` class, passing in the shared video encoder, its output feature dimension (`encoder_dim`), the list of tasks, a dropout rate of 0.25 for the fully connected layers in the prediction heads, and whether to apply activation functions to the outputs.
-
-```{python}
-# Load pretrained weights
-if pretrained:
-    weights_url = 'https://github.com/CarDS-Yale/PanEcho/releases/download/v1.0/panecho.pt'
-    weights = torch.hub.load_state_dict_from_url(
-        weights_url, map_location='cpu', progress=False
-    )['weights']
-    # Remove fixed positional encoding to allow variable clip_len
-    del weights['encoder.time_encoder.pe']
-    msg = model.load_state_dict(weights, strict=False)
-```
-
-Finally, it loads the pretrained weights from the PanEcho GitHub repo. The weights are stored in a dictionary, and we extract the 'weights' key to get the actual state dictionary for the model. Then, we remove the fixed positional encoding weights (`encoder.time_encoder.pe`) from the state dictionary to allow for variable clip lengths during inference. Finally, we load the remaining weights into the model using `model.load_state_dict(weights, strict=False)`, which allows for missing keys (like the removed positional encoding) without raising an error.
-
-
-
-## Quick Demo
-
-In the last section of this blog post, we will demonstrate the PanEcho model in action with a sample from the [EchoNet-Pediatric](https://echonet.github.io/pediatric/) dataset. The dataset consists of 3,176 apical-4-chamber echocardiography (A4C) videos and 4,424 parasternal short axis echocardiography (PSAX) videos from individuals who underwent imaging between 2014 and 2021 as part of routine clinical care at Lucile Packard Children’s Hospital at Stanford. 
-
-The PanEcho paper evaluates the model on several large echocardiography datasets, including EchoNet-Dynamic and EchoNet-LVH. For this demo, however, we will use EchoNet-Pediatric, since it is the smallest of these datasets and fits comfortably on a local machine.
-
-First, we download the EchoNet-Pediatric dataset from the [Stanford Artificial Intelligence in Medicine and Imaging (AIMI) Center Shared Datasets Portal](https://stanfordaimi.azurewebsites.net/datasets/a84b6be6-0d33-41f9-8996-86e5df53b005), which consists of the `A4C/` and `PSAX/` view folders. Then, we load the metadata (one row per video) and the task definitions, keeping just EF (ejection fraction). The reason for keeping just EF is that the EchoNet-Pediatric dataset is particularly focused on it. Then, we build the dataset with the `EchoNetPediatricDataset` class.
-
-Finally, we load the PanEcho model from Torch Hub and run it on a sample from the EchoNet-Pediatric dataset.
-
-```{python}
-# Demo for Blog post
-import os
-import torch
-import pandas as pd
-import numpy as np
-from hubconf import Task
-from src.dataset import EchoNetPediatricDataset
-from src.models import PositionalEncoding, ImageEncoder, FrameTransformer,  MultiTaskModel
-
-# Parent dir that contains the A4C/ and PSAX/ view folders.
-# EchoNetPediatricDataset reads videos from <data_dir>/<VIEW>/Videos/<FileName>.
-data_dir = "."
-
-# --- Load + assemble metadata (one row per video), mirroring train_echonetpediatric.py ---
-a4c_df = pd.read_csv(os.path.join(data_dir, "A4C", "FileList.csv"))
-a4c_df["acc_num"] = a4c_df["FileName"].apply(lambda x: x.split("-")[1])
-a4c_df["view"] = "a4c"
-
-psax_df = pd.read_csv(os.path.join(data_dir, "PSAX", "FileList.csv"))
-psax_df["acc_num"] = psax_df["FileName"].apply(lambda x: x.split("-")[1])
-psax_df["view"] = "psax"
-
-data_df = pd.concat([a4c_df, psax_df], axis=0).reset_index(drop=True)
-data_df = data_df.rename(columns={"Split": "fold"})  # 'Split' holds the 0-9 cross-val fold ID
-
-# --- Load task definitions and keep just EF (the pediatric target) ---
-task_list = np.load("content/tasks.npy", allow_pickle=True)
-task_list = [t for t in task_list if t.task_name == "EF"]
-
-# --- Build the dataset for one cross-validation fold/split ---
-train_dataset = EchoNetPediatricDataset(
-    data_dir=data_dir,
-    data_df=data_df,
-    tasks=task_list,
-    split="train",   # 'train' | 'val' | 'test'
-    fold=0,          # which of the 10 folds is held out as test (val = fold+1)
-    clip_len=16,
-    num_clips=4,
-    augment=True,    # train-time augmentations; set False for val/test
-    normalization="",
-)
-
-print(f"Dataset size: {len(train_dataset)}")
-
-# Fetch one sample to verify it works
-sample = train_dataset[0]
-print({k: (v.shape if torch.is_tensor(v) else v) for k, v in sample.items()})
-
-x = sample["x"]
-x = x.unsqueeze(0)
-x
-
-model = torch.hub.load('CarDS-Yale/PanEcho', 'PanEcho', force_reload=True)
-
-model.eval()
-with torch.no_grad():
-    output = model(x)
-
-output 
-```
-
-We get an output of `EF = 45.8655`, meaning that the ejection fraction is predicted to be approximately 45.9%. This shows that the model predicted that ~45.9% of the blood in the left ventricle is ejected per contraction.
