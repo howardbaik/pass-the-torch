@@ -7,26 +7,32 @@ format:
 engine: none
 author: "Howard Baik"
 date: "2026-07-30"
+image: "thumbnail.png"
 eval: false
 categories: [Medical AI]
 ---
 
 ## Introduction
 
-This post is a code-focused deep dive into an electrocardiographic deep learning model called [EchoNext-Mini](https://ai.nejm.org/doi/10.1056/AIdbp2500516). EchoNext-Mini detects structural heart disease from a 12-lead ECG by combining two inputs: the raw ECG waveforms and a handful of tabular features (age, sex, and a few ECG measurements). It's a multi-label classifier that outputs 12 disease probabilities per ECG.
+This post is a code-focused deep dive into an electrocardiographic deep learning model called [EchoNext-Mini](https://ai.nejm.org/doi/10.1056/AIdbp2500516). EchoNext-Mini detects structural heart disease (SHD) from a 12-lead ECG by combining two inputs: the raw ECG waveforms and a handful of tabular features (age, sex, and a few ECG measurements). It's a multi-label classifier that outputs 12 disease probabilities per ECG.
 
+#### Model Architecture
 
-In the rest of this post, we will go through the [source code](https://github.com/howardbaik/IntroECG/tree/master/7-EchoNext%20Minimodel).
+![](model-architecture.png)
+
+The model architecture is a 1-D adaptation of ResNet-34 taking a 12-lead ECG as input with the final layer modified to accept tabular features alongside the learned ECG features. The final layer outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses. The model was trained on the [EchoNext dataset](https://physionet.org/content/echonext/1.1.1/) and outputs a probability between 0 and 1. 
+
+In the rest of this post, we will go through the EchoNext-Mini [source code](https://github.com/howardbaik/IntroECG/tree/master/7-EchoNext%20Minimodel), which is implemented in PyTorch, and explain how the model works. The code is organized into two main classes: `BasicBlock1d` and `ResNet1dWithTabular`.
 
 
 
 ## The `BasicBlock1d` class
 
-TODO: The `BasicBlock1d` class implements the 
+The `BasicBlock1d` class implements the pieces of a residual block that make up the ResNet-34 architecture. 
 
 ### The `__init__()` method
 
-The `BasicBlock1d` class is first initialized with `nn.Conv1d`, which is PyTorch's 1D convolution layer - it slides learnable filters along a single dimension (here, time) instead of over a 2D image. It slides the filters along time with the parameters `stride`, `padding`, and `kernel_size`. Also, it has `nn.BatchNorm1d`, batch normalization, `nn.ReLU`, ReLU, and `nn.Dropout` for Dropout. 
+The `BasicBlock1d` class is first initialized with `nn.Conv1d`, which is PyTorch's 1D convolution layer - it slides learnable filters along a single dimension (here, time) instead of over a 2D image. It slides the filters along time with the parameters `stride`, `padding`, and `kernel_size`. Also, it has `nn.BatchNorm1d` for batch normalization, `nn.ReLU` for ReLU, and `nn.Dropout` for Dropout. 
 
 ```{python}
 class BasicBlock1d(nn.Module):
@@ -195,3 +201,27 @@ def forward(self, x_and_tabular: Tuple[torch.Tensor, torch.Tensor]) -> torch.Ten
     out = self.output(x)
     return torch.squeeze(out, 1)
 ```
+
+
+## Demo
+
+To see the model in action, I grabbed the demo data from PhysioNet's [EchoNext: A Dataset for Detecting Echocardiogram-Confirmed Structural Heart Disease from ECGs](https://physionet.org/content/echonext/1.1.1/). The validation set comes in two files: the ECG waveforms (`EchoNext_val_waveforms.npy`, 1.2 GB) and the accompanying tabular features such as age, sex, and ECG measurements (`EchoNext_val_tabular_features.npy`, 253 KB).
+
+With the data in hand, I ran the inference script to compute, for every ECG in the validation set, the probability of each of the 12 structural heart diseases:
+
+```
+.venv/bin/python -m cradlenet.scripts.inference.ecg_tabular \
+    --features_path physionet/EchoNext_val_waveforms.npy \
+    --tabular_path physionet/EchoNext_val_tabular_features.npy \
+    --legacy echonext \
+    --batch_size 256 --num_workers 0 \
+    --write_outputs --output_dir results/physionet_val/ \
+    --num_classes 12 --len_tabular_feature_vector 7 --filter_size 16 \
+    --binary \
+    --progbar \
+    --checkpoint models/echonext_multilabel_minimodel/weights.pt
+```
+
+The output, `probs.npy` is a numpy array of shape `[NUM_ECGS, 12]` containing the predicted probabilities for each of the 12 structural heart diseases. 
+
+![](probs.png)
