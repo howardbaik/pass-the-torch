@@ -26,18 +26,27 @@
 <p>This post is a code-focused deep dive into an electrocardiographic deep learning model called <a href="https://ai.nejm.org/doi/10.1056/AIdbp2500516">EchoNext-Mini</a>. EchoNext-Mini detects structural heart disease (SHD) from a 12-lead ECG by combining two inputs: the raw ECG waveforms and a handful of tabular features including age, sex, heart rate, PR interval, QRS duration, and corrected QT interval. It outputs 12 disease probabilities per ECG.</p>
 <section id="model-architecture" class="level4">
 <h4 class="anchored" data-anchor-id="model-architecture">Model Architecture</h4>
-<p><img src="https://passthetorch.dev/posts/deep-dive-into-echonext-mini/model-architecture.png" class="img-fluid"></p>
+<div id="fig-architecture" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-architecture-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="https://passthetorch.dev/posts/deep-dive-into-echonext-mini/model-architecture.png" class="img-fluid figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-architecture-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: EchoNext-Mini model architecture
+</figcaption>
+</figure>
+</div>
 <p>The model architecture is a 1D adaptation of ResNet-34 taking a 12-lead ECG as input with the final layer modified to accept tabular features alongside the learned ECG features. The final layer outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses. The model was trained and evaluated on the <a href="https://physionet.org/content/echonext/1.1.1/">EchoNext-Mini dataset</a> and outputs a probability between 0 and 1.</p>
 <p>In the rest of this post, we will go through the EchoNext-Mini <a href="https://github.com/howardbaik/IntroECG/tree/master/7-EchoNext%20Minimodel">source code</a>, which is implemented in PyTorch, and explain how the model works. On a high-level, the code is organized into two main classes: <code>BasicBlock1d</code> and <code>ResNet1dWithTabular</code>.</p>
 </section>
 </section>
 <section id="the-basicblock1d-class" class="level2">
 <h2 class="anchored" data-anchor-id="the-basicblock1d-class">The <code>BasicBlock1d</code> class</h2>
-<p>The <code>BasicBlock1d</code> class implements the pieces of a residual block that make up the ResNet-34 architecture.</p>
+<p>The <code>BasicBlock1d</code> class implements the pieces of a Residual Block (shown in Figure&nbsp;1) that make up the EchoNext-Mini model architecture. It is a 1D adaptation of the original ResNet basic block, which was designed for 2D images. The <code>BasicBlock1d</code> class has two convolutional layers, each followed by batch normalization and ReLU activation. It also includes a “skip connection” that adds the input to the output of the second convolutional layer.</p>
 <section id="the-__init__-method" class="level3">
 <h3 class="anchored" data-anchor-id="the-__init__-method">The <code>__init__()</code> method</h3>
 <p>The <code>BasicBlock1d</code> class is first initialized with <code>nn.Conv1d</code>, which is PyTorch’s 1D convolution layer - it slides learnable filters along a single dimension (time) instead of over a 2D image. It slides the filters with the parameters <code>stride</code>, <code>padding</code>, and <code>kernel_size</code>. Also, it is initialized with <code>nn.BatchNorm1d</code> for batch normalization, <code>nn.ReLU</code> for ReLU, and <code>nn.Dropout</code> for Dropout.</p>
-<div id="7e7d7d74" class="cell" data-execution_count="1">
+<div id="7c26fa27" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
@@ -185,8 +194,8 @@ font-style: inherit;">=</span> downsample</span></code></pre></div></div>
 </section>
 <section id="the-forward-method" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method">The <code>forward()</code> method</h3>
-<p>The <code>forward()</code> method defines how data flows through the <code>BasicBlock1d</code> class. First, its saves the input as <code>residual</code> so it can be added back later (“skip connection”). Then, it goes through the first conv stage - 1-D convolution, batch norm, ReLU, and dropout. Then, the second conv stage involves another 1-D convolution and then batch normalization. The final residual addition only works if the <code>out</code> and <code>x</code> have identical shapes. In the case where the shapes don’t match, <code>self.downsample</code> projects the original input <code>x</code> to the new shape. Note that unlike the first conv stage, there’s no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering.</p>
-<div id="2588a5c6" class="cell" data-execution_count="2">
+<p>The <code>forward()</code> method defines how data flows through the <code>BasicBlock1d</code> class. First, its saves the input as <code>residual</code> so it can be added back later (“skip connection”). Then, it goes through the first convolution stage - 1-D convolution, batch norm, ReLU, and dropout. Then, the second convolution stage involves another 1-D convolution and then batch normalization. The final residual addition only works if the <code>out</code> and <code>x</code> have identical shapes. In the case where the shapes don’t match, <code>self.downsample</code> projects the original input <code>x</code> to the new shape. Note that unlike the first convolution stage, there’s no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering.</p>
+<div id="aa8a2091" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
@@ -267,37 +276,37 @@ font-style: inherit;">return</span> out</span></code></pre></div></div>
 </section>
 <section id="the-resnet1dwithtabular-class" class="level2">
 <h2 class="anchored" data-anchor-id="the-resnet1dwithtabular-class">The <code>ResNet1dWithTabular</code> class</h2>
-<p>The <code>ResNet1dWithTabular</code> class is the top-level class representing a ResNet-34 model adapted to 1D signals (12-lead ECG waveforms). Right before the final classification layer, the model concatenates a vector of tabular features (e.g., patient demographics) alongside the learned ECG features.</p>
+<p>The <code>ResNet1dWithTabular</code> class is the top-level class representing the architecture of the EchoNext-Mini model. It is a ResNet-34 model adapted to 1D signals (12-lead ECG waveforms), and implements the entire model architecture shown in Figure&nbsp;1. The model takes two inputs: a 12-lead ECG and a vector of tabular features (e.g., age, sex, heart rate, PR interval, QRS duration, corrected QT interval). The model outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses.</p>
 <section id="the-__init__-method-1" class="level3">
 <h3 class="anchored" data-anchor-id="the-__init__-method-1">The <code>__init__()</code> method</h3>
-<p>The <code>ResNet1dWithTabular</code> class has the following constructor parameters:</p>
+<p>The <code>ResNet1dWithTabular</code> class contains the following constructor parameters:</p>
 <ul>
 <li><code>len_tabular_feature_vector</code>: Number of tabular features to be appended before the output layer.</li>
-<li><code>filter_size=64</code>: Number of channels after the first conv; each subsequent stage doubles it (64 → 128 → 256 → 512).</li>
+<li><code>filter_size=64</code>: Number of channels after the stem convolution; each subsequent stage doubles it (in Figure&nbsp;1, 64 → 128 → 256 → 512).</li>
 <li><code>input_channels=12</code>: The 12 ECG leads.</li>
 <li><code>dropout_value=0.5</code>: Dropout rate used both inside every residual block and before the final layer.</li>
 <li><code>num_classes=1</code>: A single logit, i.e., binary classification.</li>
 <li><code>conv1_kernel_size=15</code>, <code>conv1_stride=2</code>, <code>padding=7</code>: The convolution parameters: a wide kernel (15 samples) to capture ECG morphology, stride 2 halves the time dimension, and padding 7 = (15−1)/2 keeps “same” length otherwise.</li>
-<li><code>bias=False</code>: Convolutions skip their bias term because the batch norm right after each conv has its own learnable shift, making a conv bias redundant.</li>
+<li><code>bias=False</code>: Convolutions skip their bias term because the batch norm right after each convolution has its own learnable shift, making a convolution bias redundant.</li>
 </ul>
-<p>Then, it stores these parameters in <code>self</code>:</p>
+<p>Then, it stores these parameters:</p>
 <ul>
 <li><code>self.inplanes = filter_size</code>: Current channel count</li>
-<li><code>self.layers = [3, 4, 6, 3]</code>: The number of blocks per stage. This 3-4-6-3 pattern comes from ResNet-34.</li>
+<li><code>self.layers = [3, 4, 6, 3]</code>: The number of residual blocks per stage. This 3-4-6-3 pattern comes from ResNet-34.</li>
 <li><code>self.conv1</code>:The stem convolution that maps the 12 ECG leads to 64 channels.</li>
 <li><code>self.layer1</code>, <code>self.layer2</code>, <code>self.layer3</code>, <code>self.layer4</code>: The four residual stages</li>
 <li><code>self.adaptiveavgpool</code> and <code>self.adaptivemaxpool</code>:Two adaptive pools that each collapse the entire time axis to a single value per channel. The average pool signifies the “overall level” of each feature and the max pool the “strongest occurrence” of each feature.</li>
 <li><code>self.output</code>: The final linear layer, where the input width is <code>8 * filter_Size * expansion * 2 + len_tabular_feature_vector</code> and the output width is <code>num_classes</code> (A single logit for binary classification of structural heart disease).</li>
 </ul>
-<p>Breaking down the input dimension term by term:</p>
+<p>Breaking down the final linear layer (<code>self.output</code>)’s input width:</p>
 <ul>
-<li><code>8 * filter_size</code>: The number of channels coming out of <code>layer4</code>. The channel count doubles at each ResNet stage (filter_size → 2× → 4× → 8×, see lines 78–81), so with the default filter_size=64 the last stage outputs 512 channels.</li>
-<li><code>* BasicBlock1d.expansion</code> — expansion is 1 for basic blocks, so this is a no-op here. It’s kept for ResNet convention: if you swapped in bottleneck blocks (expansion = 4), the layer would resize automatically.</li>
-<li><code>* 2</code> - The forward pass pools the feature map two ways, with <code>adaptiveavgpool</code> and <code>adaptivemaxpool</code> (each producing 512 values), and concatenates them at line 129 (<code>torch.cat((x1, x2), dim=1)</code>). That gives 1024 ECG-derived features.</li>
+<li><code>8 * filter_size</code>: The number of channels coming out of <code>layer4</code>. The channel count doubles at each ResNet stage (<code>filter_size</code> → 2× → 4× → 8×), so with the default <code>filter_size=64</code>, the last stage outputs 512 channels.</li>
+<li><code>* BasicBlock1d.expansion</code> — expansion is 1 for basic blocks, so this is a no-op here. It’s kept for ResNet convention.</li>
+<li><code>* 2</code> - The forward pass pools the feature map two ways, with <code>adaptiveavgpool</code> and <code>adaptivemaxpool</code> (each producing 512 values), and concatenates them (<code>torch.cat((x1, x2), dim=1)</code>). That gives 1024 (512 * 2) ECG-derived features.</li>
 <li><code>+ len_tabular_feature_vector</code> — The tabular features (e.g., age, sex, ECG measurements) are concatenated onto that flattened vector.</li>
 </ul>
 <p>The output size is <code>num_classes</code> (default <code>1</code>, i.e., a single logit for binary classification of structural heart disease).</p>
-<div id="ebcfff14" class="cell" data-execution_count="3">
+<div id="34b5e35b" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="kw" style="color: #003B4F;
@@ -563,8 +572,8 @@ font-style: inherit;">=</span> nn.Dropout(dropout_value)</span></code></pre></di
 </section>
 <section id="the-forward-method-1" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method-1">The <code>forward()</code> method</h3>
-<p>The forward method takes a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from <code>[BATCH_SIZE, 1, FEATURE_SIZE, 12]</code> to <code>[BATCH_SIZE, 12, FEATURE_SIZE]</code> for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by <code>_make_layer</code>. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the <code>num_classes</code> logits.</p>
-<div id="f0c1c6b7" class="cell" data-execution_count="4">
+<p>The forward method takes as input a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from <code>[BATCH_SIZE, 1, FEATURE_SIZE, 12]</code> to <code>[BATCH_SIZE, 12, FEATURE_SIZE]</code> for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by `<code>. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the</code>num_classes` logits.</p>
+<div id="ee66472e" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><span class="kw" style="color: #003B4F;

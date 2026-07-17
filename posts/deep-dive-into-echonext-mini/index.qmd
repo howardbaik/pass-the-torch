@@ -18,7 +18,8 @@ This post is a code-focused deep dive into an electrocardiographic deep learning
 
 #### Model Architecture
 
-![](model-architecture.png)
+![EchoNext-Mini model architecture](model-architecture.png){#fig-architecture}
+
 
 The model architecture is a 1D adaptation of ResNet-34 taking a 12-lead ECG as input with the final layer modified to accept tabular features alongside the learned ECG features. The final layer outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses. The model was trained and evaluated on the [EchoNext-Mini dataset](https://physionet.org/content/echonext/1.1.1/) and outputs a probability between 0 and 1. 
 
@@ -26,7 +27,7 @@ In the rest of this post, we will go through the EchoNext-Mini [source code](htt
 
 ## The `BasicBlock1d` class
 
-The `BasicBlock1d` class implements the pieces of a Residual Block (shown in the model architecture diagram) that make up the EchoNext-Mini model architecture. It is a 1D adaptation of the original ResNet basic block, which was designed for 2D images. The `BasicBlock1d` class has two convolutional layers, each followed by batch normalization and ReLU activation. It also includes a "skip connection" that adds the input to the output of the second convolutional layer. 
+The `BasicBlock1d` class implements the pieces of a Residual Block (shown in @fig-architecture) that make up the EchoNext-Mini model architecture. It is a 1D adaptation of the original ResNet basic block, which was designed for 2D images. The `BasicBlock1d` class has two convolutional layers, each followed by batch normalization and ReLU activation. It also includes a "skip connection" that adds the input to the output of the second convolutional layer. 
 
 ### The `__init__()` method
 
@@ -63,7 +64,7 @@ class BasicBlock1d(nn.Module):
 
 ### The `forward()` method
 
-The `forward()` method defines how data flows through the `BasicBlock1d` class. First, its saves the input as `residual` so it can be added back later ("skip connection"). Then, it goes through the first conv stage - 1-D convolution, batch norm, ReLU, and dropout. Then, the second conv stage involves another 1-D convolution and then batch normalization. The final residual addition only works if the `out` and `x` have identical shapes. In the case where the shapes don't match, `self.downsample` projects the original input `x` to the new shape. Note that unlike the first conv stage, there's no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering. 
+The `forward()` method defines how data flows through the `BasicBlock1d` class. First, its saves the input as `residual` so it can be added back later ("skip connection"). Then, it goes through the first convolution stage - 1-D convolution, batch norm, ReLU, and dropout. Then, the second convolution stage involves another 1-D convolution and then batch normalization. The final residual addition only works if the `out` and `x` have identical shapes. In the case where the shapes don't match, `self.downsample` projects the original input `x` to the new shape. Note that unlike the first convolution stage, there's no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering. 
 
 ```{python}
 def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -84,35 +85,34 @@ def forward(self, x: torch.Tensor) -> torch.Tensor:
 
 ## The `ResNet1dWithTabular` class
 
-The `ResNet1dWithTabular` class is the top-level class representing the architecture of the EchoNext-Mini model. It is a ResNet-34 model adapted to 1D signals (12-lead ECG waveforms), and implements the entire model architecture shown in the diagram above. The model takes two inputs: a 12-lead ECG and a vector of tabular features (e.g., age, sex, heart rate, PR interval, QRS duration, corrected QT interval). The model outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses.
+The `ResNet1dWithTabular` class is the top-level class representing the architecture of the EchoNext-Mini model. It is a ResNet-34 model adapted to 1D signals (12-lead ECG waveforms), and implements the entire model architecture shown in @fig-architecture. The model takes two inputs: a 12-lead ECG and a vector of tabular features (e.g., age, sex, heart rate, PR interval, QRS duration, corrected QT interval). The model outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses.
 
 ### The `__init__()` method
 
-The `ResNet1dWithTabular` class has the following constructor parameters:
+The `ResNet1dWithTabular` class contains the following constructor parameters:
 
 - `len_tabular_feature_vector`: Number of tabular features to be appended before the output layer.
-- `filter_size=64`: Number of channels after the first conv; each subsequent stage doubles it (64 → 128 → 256 → 512).
+- `filter_size=64`: Number of channels after the stem convolution; each subsequent stage doubles it (in @fig-architecture, 64 → 128 → 256 → 512).
 - `input_channels=12`: The 12 ECG leads.
 - `dropout_value=0.5`: Dropout rate used both inside every residual block and before the final layer.
 - `num_classes=1`: A single logit, i.e., binary classification.
 - `conv1_kernel_size=15`, `conv1_stride=2`, `padding=7`: The convolution parameters: a wide kernel (15 samples) to capture ECG morphology, stride 2 halves the time dimension, and padding 7 = (15−1)/2 keeps "same" length otherwise.
-- `bias=False`: Convolutions skip their bias term because the batch norm right after each conv has its own learnable shift, making a conv bias redundant.
+- `bias=False`: Convolutions skip their bias term because the batch norm right after each convolution has its own learnable shift, making a convolution bias redundant.
 
-Then, it stores these parameters in `self`:
+Then, it stores these parameters:
 
 - `self.inplanes = filter_size`: Current channel count
-- `self.layers = [3, 4, 6, 3]`: The number of blocks per stage. This 3-4-6-3 pattern comes from ResNet-34.
+- `self.layers = [3, 4, 6, 3]`: The number of residual blocks per stage. This 3-4-6-3 pattern comes from ResNet-34.
 - `self.conv1`:The stem convolution that maps the 12 ECG leads to 64 channels.
 - `self.layer1`, `self.layer2`, `self.layer3`, `self.layer4`: The four residual stages
 - `self.adaptiveavgpool` and `self.adaptivemaxpool`:Two adaptive pools that each collapse the entire time axis to a single value per channel. The average pool signifies the "overall level" of each feature and the max pool the "strongest occurrence" of each feature.
 - `self.output`: The final linear layer, where the input width is `8 * filter_Size * expansion * 2 + len_tabular_feature_vector` and the output width is `num_classes` (A single logit for binary classification of structural heart disease). 
 
+Breaking down the final linear layer (`self.output`)'s input width:
 
-Breaking down the input dimension term by term:
-
-- `8 * filter_size`: The number of channels coming out of `layer4`. The channel count doubles at each ResNet stage (filter_size → 2× → 4× → 8×, see lines 78–81), so with the default filter_size=64 the last stage outputs 512 channels.
-- `* BasicBlock1d.expansion` — expansion is 1 for basic blocks, so this is a no-op here. It's kept for ResNet convention: if you swapped in bottleneck blocks (expansion = 4), the layer would resize automatically.
-- `* 2` - The forward pass pools the feature map two ways, with `adaptiveavgpool` and `adaptivemaxpool` (each producing 512 values), and concatenates them at line 129 (`torch.cat((x1, x2), dim=1)`). That gives 1024 ECG-derived features.
+- `8 * filter_size`: The number of channels coming out of `layer4`. The channel count doubles at each ResNet stage (`filter_size` → 2× → 4× → 8×), so with the default `filter_size=64`, the last stage outputs 512 channels.
+- `* BasicBlock1d.expansion` — expansion is 1 for basic blocks, so this is a no-op here. It's kept for ResNet convention.
+- `* 2` - The forward pass pools the feature map two ways, with `adaptiveavgpool` and `adaptivemaxpool` (each producing 512 values), and concatenates them (`torch.cat((x1, x2), dim=1)`). That gives 1024 (512 * 2) ECG-derived features.
 - `+ len_tabular_feature_vector` — The tabular features (e.g., age, sex, ECG measurements) are concatenated onto that flattened vector.
 
 The output size is `num_classes` (default `1`, i.e., a single logit for binary classification of structural heart disease).
@@ -163,7 +163,7 @@ def __init__(
 
 ### The `forward()` method
 
-The forward method takes a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from `[BATCH_SIZE, 1, FEATURE_SIZE, 12]` to `[BATCH_SIZE, 12, FEATURE_SIZE]` for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by `_make_layer`. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the `num_classes` logits. 
+The forward method takes as input a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from `[BATCH_SIZE, 1, FEATURE_SIZE, 12]` to `[BATCH_SIZE, 12, FEATURE_SIZE]` for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by `BasicBlock1d`. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the `num_classes` logits. 
 
 
 ```{python}
