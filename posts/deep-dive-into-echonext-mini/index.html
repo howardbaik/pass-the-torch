@@ -205,7 +205,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="the-__init__-method" class="level3">
 <h3 class="anchored" data-anchor-id="the-__init__-method">The <code>__init__()</code> method</h3>
 <p>The <code>BasicBlock1d</code> class is first initialized with <code>nn.Conv1d</code>, which is PyTorch’s 1D convolution layer - it slides learnable filters along a single dimension (time) instead of over a 2D image. It slides the filters with the parameters <code>stride</code>, <code>padding</code>, and <code>kernel_size</code>. Also, it is initialized with <code>nn.BatchNorm1d</code> for batch normalization, <code>nn.ReLU</code> for ReLU, and <code>nn.Dropout</code> for Dropout.</p>
-<div id="7e7d7d74" class="cell" data-execution_count="1">
+<div id="118d264a" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BasicBlock1d(nn.Module):</span>
@@ -240,7 +240,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="the-forward-method" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method">The <code>forward()</code> method</h3>
 <p>The <code>forward()</code> method defines how data flows through the <code>BasicBlock1d</code> class. First, its saves the input as <code>residual</code> so it can be added back later (“skip connection”). Then, it goes through the first conv stage - 1-D convolution, batch norm, ReLU, and dropout. Then, the second conv stage involves another 1-D convolution and then batch normalization. The final residual addition only works if the <code>out</code> and <code>x</code> have identical shapes. In the case where the shapes don’t match, <code>self.downsample</code> projects the original input <code>x</code> to the new shape. Note that unlike the first conv stage, there’s no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering.</p>
-<div id="2588a5c6" class="cell" data-execution_count="2">
+<div id="3925549c" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward(<span class="va">self</span>, x: torch.Tensor) <span class="op">-&gt;</span> torch.Tensor:</span>
@@ -262,7 +262,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="the-resnet1dwithtabular-class" class="level2">
 <h2 class="anchored" data-anchor-id="the-resnet1dwithtabular-class">The <code>ResNet1dWithTabular</code> class</h2>
-<p>The <code>ResNet1dWithTabular</code> class is the top-level class representing a ResNet-34 model adapted to 1D signals (12-lead ECG waveforms). Right before the final classification layer, the model concatenates a vector of tabular features (e.g., patient demographics) alongside the learned ECG features.</p>
+<p>The <code>ResNet1dWithTabular</code> class is the top-level class representing the ResNet-34 model adapted to 1D signals (12-lead ECG waveforms). Right before the final classification layer, the model concatenates a vector of tabular features (e.g., patient demographics) alongside the learned ECG features.</p>
 <section id="the-__init__-method-1" class="level3">
 <h3 class="anchored" data-anchor-id="the-__init__-method-1">The <code>__init__()</code> method</h3>
 <p>The <code>ResNet1dWithTabular</code> class has the following constructor parameters:</p>
@@ -292,7 +292,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><code>+ len_tabular_feature_vector</code> — The tabular features (e.g., age, sex, ECG measurements) are concatenated onto that flattened vector.</li>
 </ul>
 <p>The output size is <code>num_classes</code> (default <code>1</code>, i.e., a single logit for binary classification of structural heart disease).</p>
-<div id="ebcfff14" class="cell" data-execution_count="3">
+<div id="7edb5524" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
@@ -338,7 +338,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="the-forward-method-1" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method-1">The <code>forward()</code> method</h3>
 <p>The forward method takes a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from <code>[BATCH_SIZE, 1, FEATURE_SIZE, 12]</code> to <code>[BATCH_SIZE, 12, FEATURE_SIZE]</code> for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by <code>_make_layer</code>. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the <code>num_classes</code> logits.</p>
-<div id="f0c1c6b7" class="cell" data-execution_count="4">
+<div id="7de6bef9" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward(<span class="va">self</span>, x_and_tabular: Tuple[torch.Tensor, torch.Tensor]) <span class="op">-&gt;</span> torch.Tensor:</span>

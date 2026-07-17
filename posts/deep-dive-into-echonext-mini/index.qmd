@@ -14,30 +14,27 @@ categories: [Medical AI]
 
 ## Introduction
 
-This post is a code-focused deep dive into an electrocardiographic deep learning model called [EchoNext-Mini](https://ai.nejm.org/doi/10.1056/AIdbp2500516). EchoNext-Mini detects structural heart disease (SHD) from a 12-lead ECG by combining two inputs: the raw ECG waveforms and a handful of tabular features (age, sex, and a few ECG measurements). It's a multi-label classifier that outputs 12 disease probabilities per ECG.
+This post is a code-focused deep dive into an electrocardiographic deep learning model called [EchoNext-Mini](https://ai.nejm.org/doi/10.1056/AIdbp2500516). EchoNext-Mini detects structural heart disease (SHD) from a 12-lead ECG by combining two inputs: the raw ECG waveforms and a handful of tabular features including age, sex, heart rate, PR interval, QRS duration, and corrected QT interval. It outputs 12 disease probabilities per ECG.
 
 #### Model Architecture
 
 ![](model-architecture.png)
 
-The model architecture is a 1-D adaptation of ResNet-34 taking a 12-lead ECG as input with the final layer modified to accept tabular features alongside the learned ECG features. The final layer outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses. The model was trained on the [EchoNext dataset](https://physionet.org/content/echonext/1.1.1/) and outputs a probability between 0 and 1. 
+The model architecture is a 1D adaptation of ResNet-34 taking a 12-lead ECG as input with the final layer modified to accept tabular features alongside the learned ECG features. The final layer outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses. The model was trained and evaluated on the [EchoNext-Mini dataset](https://physionet.org/content/echonext/1.1.1/) and outputs a probability between 0 and 1. 
 
-In the rest of this post, we will go through the EchoNext-Mini [source code](https://github.com/howardbaik/IntroECG/tree/master/7-EchoNext%20Minimodel), which is implemented in PyTorch, and explain how the model works. The code is organized into two main classes: `BasicBlock1d` and `ResNet1dWithTabular`.
-
-
+In the rest of this post, we will go through the EchoNext-Mini [source code](https://github.com/howardbaik/IntroECG/tree/master/7-EchoNext%20Minimodel), which is implemented in PyTorch, and explain how the model works. On a high-level, the code is organized into two main classes: `BasicBlock1d` and `ResNet1dWithTabular`.
 
 ## The `BasicBlock1d` class
 
-The `BasicBlock1d` class implements the pieces of a residual block that make up the ResNet-34 architecture. 
+The `BasicBlock1d` class implements the pieces of a Residual Block (shown in the model architecture diagram) that make up the EchoNext-Mini model architecture. It is a 1D adaptation of the original ResNet basic block, which was designed for 2D images. The `BasicBlock1d` class has two convolutional layers, each followed by batch normalization and ReLU activation. It also includes a "skip connection" that adds the input to the output of the second convolutional layer. 
 
 ### The `__init__()` method
 
-The `BasicBlock1d` class is first initialized with `nn.Conv1d`, which is PyTorch's 1D convolution layer - it slides learnable filters along a single dimension (here, time) instead of over a 2D image. It slides the filters along time with the parameters `stride`, `padding`, and `kernel_size`. Also, it has `nn.BatchNorm1d` for batch normalization, `nn.ReLU` for ReLU, and `nn.Dropout` for Dropout. 
+The `BasicBlock1d` class is first initialized with `nn.Conv1d`, which is PyTorch's 1D convolution layer - it slides learnable filters along a single dimension (time) instead of over a 2D image. It slides the filters with the parameters `stride`, `padding`, and `kernel_size`. Also, it is initialized with `nn.BatchNorm1d` for batch normalization, `nn.ReLU` for ReLU, and `nn.Dropout` for Dropout. 
 
 ```{python}
 class BasicBlock1d(nn.Module):
     expansion = 1
-
     def __init__(
         self,
         inplanes: int,
@@ -66,7 +63,7 @@ class BasicBlock1d(nn.Module):
 
 ### The `forward()` method
 
-The `forward()` method defines how data flows through the `BasicBlock1d` class. First, its saves the input as `residual` so it can be added back later ("skip connection"). Then, it goes through the first conv stage - convolution, batch norm, ReLU, and dropout. Then, the second conv stage involves another convolution and then batch normalization. The final residual addition only works if the `out` and `x` have identical shapes. In the case where the shapes don't match, `downsample` projects the original input `x` to the new shape. Note there's no ReLU here yet — the activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering. 
+The `forward()` method defines how data flows through the `BasicBlock1d` class. First, its saves the input as `residual` so it can be added back later ("skip connection"). Then, it goes through the first conv stage - 1-D convolution, batch norm, ReLU, and dropout. Then, the second conv stage involves another 1-D convolution and then batch normalization. The final residual addition only works if the `out` and `x` have identical shapes. In the case where the shapes don't match, `self.downsample` projects the original input `x` to the new shape. Note that unlike the first conv stage, there's no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering. 
 
 ```{python}
 def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -87,7 +84,7 @@ def forward(self, x: torch.Tensor) -> torch.Tensor:
 
 ## The `ResNet1dWithTabular` class
 
-The `ResNet1dWithTabular` class is the top-level class representing a ResNet-34 model adapted to 1D signals (12-lead ECG waveforms). Right before the final classification layer, the model concatenates a vector of tabular features (e.g., patient demographics) alongside the learned ECG features.
+The `ResNet1dWithTabular` class is the top-level class representing the architecture of the EchoNext-Mini model. It is a ResNet-34 model adapted to 1D signals (12-lead ECG waveforms), and implements the entire model architecture shown in the diagram above. The model takes two inputs: a 12-lead ECG and a vector of tabular features (e.g., age, sex, heart rate, PR interval, QRS duration, corrected QT interval). The model outputs 12 logits, with 1 detecting composite SHD and the other 11 detecting individual structural heart disease (SHD) subdiagnoses.
 
 ### The `__init__()` method
 
