@@ -202,7 +202,7 @@ def forward(self, x_and_tabular: Tuple[torch.Tensor, torch.Tensor]) -> torch.Ten
 
 ## Demo
 
-To see the model in action, I grabbed the demo data from PhysioNet's [EchoNext: A Dataset for Detecting Echocardiogram-Confirmed Structural Heart Disease from ECGs](https://physionet.org/content/echonext/1.1.1/). The validation set comes in two files: the ECG waveforms (`EchoNext_val_waveforms.npy`, 1.2 GB) and the accompanying tabular features such as age, sex, and ECG measurements (`EchoNext_val_tabular_features.npy`, 253 KB).
+To see the model in action, I grabbed demo data from PhysioNet's [EchoNext: A Dataset for Detecting Echocardiogram-Confirmed Structural Heart Disease from ECGs](https://physionet.org/content/echonext/1.1.1/). The validation set comes in two files: the ECG waveforms (`EchoNext_val_waveforms.npy`, 1.2 GB) and the accompanying tabular features such as age, sex, and ECG measurements (`EchoNext_val_tabular_features.npy`, 253 KB).
 
 With the data in hand, I ran the inference script to compute, for every ECG in the validation set, the probability of each of the 12 structural heart diseases:
 
@@ -218,6 +218,8 @@ With the data in hand, I ran the inference script to compute, for every ECG in t
     --progbar \
     --checkpoint models/echonext_multilabel_minimodel/weights.pt
 ```
+
+TODO: GT Table of the Column names
 
 The output, `probs.npy` is a numpy array of shape `[NUM_ECGS, 12]` containing the predicted probabilities for each of the 12 structural heart diseases. 
 

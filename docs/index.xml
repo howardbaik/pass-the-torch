@@ -46,7 +46,7 @@ Figure&nbsp;1: EchoNext-Mini model architecture
 <section id="the-__init__-method" class="level3">
 <h3 class="anchored" data-anchor-id="the-__init__-method">The <code>__init__()</code> method</h3>
 <p>The <code>BasicBlock1d</code> class is first initialized with <code>nn.Conv1d</code>, which is PyTorch’s 1D convolution layer - it slides learnable filters along a single dimension (time) instead of over a 2D image. It slides the filters with the parameters <code>stride</code>, <code>padding</code>, and <code>kernel_size</code>. Also, it is initialized with <code>nn.BatchNorm1d</code> for batch normalization, <code>nn.ReLU</code> for ReLU, and <code>nn.Dropout</code> for Dropout.</p>
-<div id="7c26fa27" class="cell" data-execution_count="1">
+<div id="3dae63b2" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
@@ -195,7 +195,7 @@ font-style: inherit;">=</span> downsample</span></code></pre></div></div>
 <section id="the-forward-method" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method">The <code>forward()</code> method</h3>
 <p>The <code>forward()</code> method defines how data flows through the <code>BasicBlock1d</code> class. First, its saves the input as <code>residual</code> so it can be added back later (“skip connection”). Then, it goes through the first convolution stage - 1-D convolution, batch norm, ReLU, and dropout. Then, the second convolution stage involves another 1-D convolution and then batch normalization. The final residual addition only works if the <code>out</code> and <code>x</code> have identical shapes. In the case where the shapes don’t match, <code>self.downsample</code> projects the original input <code>x</code> to the new shape. Note that unlike the first convolution stage, there’s no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering.</p>
-<div id="aa8a2091" class="cell" data-execution_count="2">
+<div id="0aa49057" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
@@ -306,7 +306,7 @@ font-style: inherit;">return</span> out</span></code></pre></div></div>
 <li><code>+ len_tabular_feature_vector</code> — The tabular features (e.g., age, sex, ECG measurements) are concatenated onto that flattened vector.</li>
 </ul>
 <p>The output size is <code>num_classes</code> (default <code>1</code>, i.e., a single logit for binary classification of structural heart disease).</p>
-<div id="34b5e35b" class="cell" data-execution_count="3">
+<div id="8647a797" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="kw" style="color: #003B4F;
@@ -572,8 +572,8 @@ font-style: inherit;">=</span> nn.Dropout(dropout_value)</span></code></pre></di
 </section>
 <section id="the-forward-method-1" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method-1">The <code>forward()</code> method</h3>
-<p>The forward method takes as input a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from <code>[BATCH_SIZE, 1, FEATURE_SIZE, 12]</code> to <code>[BATCH_SIZE, 12, FEATURE_SIZE]</code> for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by `<code>. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the</code>num_classes` logits.</p>
-<div id="ee66472e" class="cell" data-execution_count="4">
+<p>The forward method takes as input a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from <code>[BATCH_SIZE, 1, FEATURE_SIZE, 12]</code> to <code>[BATCH_SIZE, 12, FEATURE_SIZE]</code> for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by <code>BasicBlock1d</code>. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the <code>num_classes</code> logits.</p>
+<div id="8ac5b44e" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><span class="kw" style="color: #003B4F;
@@ -714,7 +714,7 @@ font-style: inherit;">1</span>)</span></code></pre></div></div>
 </section>
 <section id="demo" class="level2">
 <h2 class="anchored" data-anchor-id="demo">Demo</h2>
-<p>To see the model in action, I grabbed the demo data from PhysioNet’s <a href="https://physionet.org/content/echonext/1.1.1/">EchoNext: A Dataset for Detecting Echocardiogram-Confirmed Structural Heart Disease from ECGs</a>. The validation set comes in two files: the ECG waveforms (<code>EchoNext_val_waveforms.npy</code>, 1.2 GB) and the accompanying tabular features such as age, sex, and ECG measurements (<code>EchoNext_val_tabular_features.npy</code>, 253 KB).</p>
+<p>To see the model in action, I grabbed demo data from PhysioNet’s <a href="https://physionet.org/content/echonext/1.1.1/">EchoNext: A Dataset for Detecting Echocardiogram-Confirmed Structural Heart Disease from ECGs</a>. The validation set comes in two files: the ECG waveforms (<code>EchoNext_val_waveforms.npy</code>, 1.2 GB) and the accompanying tabular features such as age, sex, and ECG measurements (<code>EchoNext_val_tabular_features.npy</code>, 253 KB).</p>
 <p>With the data in hand, I ran the inference script to compute, for every ECG in the validation set, the probability of each of the 12 structural heart diseases:</p>
 <pre><code>.venv/bin/python -m cradlenet.scripts.inference.ecg_tabular \
     --features_path physionet/EchoNext_val_waveforms.npy \
@@ -726,6 +726,7 @@ font-style: inherit;">1</span>)</span></code></pre></div></div>
     --binary \
     --progbar \
     --checkpoint models/echonext_multilabel_minimodel/weights.pt</code></pre>
+<p>TODO: GT Table of the Column names</p>
 <p>The output, <code>probs.npy</code> is a numpy array of shape <code>[NUM_ECGS, 12]</code> containing the predicted probabilities for each of the 12 structural heart diseases.</p>
 <p><img src="https://passthetorch.dev/posts/deep-dive-into-echonext-mini/probs.png" class="img-fluid"></p>
 
