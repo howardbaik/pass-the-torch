@@ -6,7 +6,7 @@ format:
     code-summary: "Show code"
 engine: none
 author: "Howard Baik"
-date: "2026-07-30"
+date: "2026-07-20"
 image: "thumbnail.png"
 eval: false
 categories: [Medical AI]
@@ -15,8 +15,6 @@ categories: [Medical AI]
 ## Introduction
 
 This post is a code-focused deep dive into an electrocardiographic deep learning model called [EchoNext-Mini](https://ai.nejm.org/doi/10.1056/AIdbp2500516). EchoNext-Mini detects structural heart disease (SHD) from a 12-lead ECG by combining two inputs: the raw ECG waveforms and a handful of tabular features including age, sex, heart rate, PR interval, QRS duration, and corrected QT interval. It outputs 12 disease probabilities per ECG.
-
-#### Model Architecture
 
 ![EchoNext-Mini model architecture](model-architecture.png){#fig-architecture}
 
@@ -64,7 +62,7 @@ class BasicBlock1d(nn.Module):
 
 ### The `forward()` method
 
-The `forward()` method defines how data flows through the `BasicBlock1d` class. First, its saves the input as `residual` so it can be added back later ("skip connection"). Then, it goes through the first convolution stage - 1-D convolution, batch norm, ReLU, and dropout. Then, the second convolution stage involves another 1-D convolution and then batch normalization. The final residual addition only works if the `out` and `x` have identical shapes. In the case where the shapes don't match, `self.downsample` projects the original input `x` to the new shape. Note that unlike the first convolution stage, there's no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering. 
+The `forward()` method defines how data flows through the `BasicBlock1d` class. First, its saves the input as `residual` so it can be added back later ("skip connection"). Then, it goes through the first convolution stage: 1D convolution, batch norm, ReLU, and dropout. Then, the second convolution stage involves another 1D convolution and then batch normalization. The final residual addition only works if the `out` and `x` have identical shapes. In the case where the shapes don't match, `self.downsample` projects the original input `x` to the new shape. Note that unlike the first convolution stage, there's no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering. 
 
 ```{python}
 def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -96,7 +94,7 @@ The `ResNet1dWithTabular` class contains the following constructor parameters:
 - `input_channels=12`: The 12 ECG leads.
 - `dropout_value=0.5`: Dropout rate used both inside every residual block and before the final layer.
 - `num_classes=1`: A single logit, i.e., binary classification.
-- `conv1_kernel_size=15`, `conv1_stride=2`, `padding=7`: The convolution parameters: a wide kernel (15 samples) to capture ECG morphology, stride 2 halves the time dimension, and padding 7 = (15−1)/2 keeps "same" length otherwise.
+- `conv1_kernel_size=15`, `conv1_stride=2`, `padding=7`: Stem convolution settings. The wide 15-sample kernel captures ECG morphology, a stride of 2 halves the time dimension, and padding of 7 preserves the "same" length.
 - `bias=False`: Convolutions skip their bias term because the batch norm right after each convolution has its own learnable shift, making a convolution bias redundant.
 
 Then, it stores these parameters:
@@ -106,16 +104,16 @@ Then, it stores these parameters:
 - `self.conv1`:The stem convolution that maps the 12 ECG leads to 64 channels.
 - `self.layer1`, `self.layer2`, `self.layer3`, `self.layer4`: The four residual stages
 - `self.adaptiveavgpool` and `self.adaptivemaxpool`:Two adaptive pools that each collapse the entire time axis to a single value per channel. The average pool signifies the "overall level" of each feature and the max pool the "strongest occurrence" of each feature.
-- `self.output`: The final linear layer, where the input width is `8 * filter_Size * expansion * 2 + len_tabular_feature_vector` and the output width is `num_classes` (A single logit for binary classification of structural heart disease). 
+- `self.output`: The final linear layer, where the input width is `8 * filter_size * expansion * 2 + len_tabular_feature_vector` and the output width is `num_classes` (A single logit for binary classification of structural heart disease). 
 
-Breaking down the final linear layer (`self.output`)'s input width:
+Breaking down the final linear layer (`self.output`)'s input width to `nn.Linear`:
 
-- `8 * filter_size`: The number of channels coming out of `layer4`. The channel count doubles at each ResNet stage (`filter_size` → 2× → 4× → 8×), so with the default `filter_size=64`, the last stage outputs 512 channels.
+- `8 * filter_size`: The number of channels coming out of `layer4`. The channel count doubles at each ResNet stage (`filter_size` → ×2 → ×4 → ×8), so with the default `filter_size=64`, the last stage outputs 512 channels.
 - `* BasicBlock1d.expansion` — expansion is 1 for basic blocks, so this is a no-op here. It's kept for ResNet convention.
-- `* 2` - The forward pass pools the feature map two ways, with `adaptiveavgpool` and `adaptivemaxpool` (each producing 512 values), and concatenates them (`torch.cat((x1, x2), dim=1)`). That gives 1024 (512 * 2) ECG-derived features.
+- `* 2` - The forward pass pools the feature map two ways, with `adaptiveavgpool` and `adaptivemaxpool` (each producing 512 values), and concatenates them (`torch.cat((x1, x2), dim=1)`). As a result, this gives 1024 (512 * 2) ECG-derived features.
 - `+ len_tabular_feature_vector` — The tabular features (e.g., age, sex, ECG measurements) are concatenated onto that flattened vector.
 
-The output size is `num_classes` (default `1`, i.e., a single logit for binary classification of structural heart disease).
+The second argument to `nn.Linear` is the output width, `num_classes` (default `1`, i.e., a single logit for binary classification of structural heart disease).
 
 
 ```{python}
@@ -163,7 +161,7 @@ def __init__(
 
 ### The `forward()` method
 
-The forward method takes as input a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements) as input. The ECG is first reshaped from `[BATCH_SIZE, 1, FEATURE_SIZE, 12]` to `[BATCH_SIZE, 12, FEATURE_SIZE]` for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by `BasicBlock1d`. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the `num_classes` logits. 
+The forward method takes as input a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements). The ECG is first reshaped from `[BATCH_SIZE, 1, FEATURE_SIZE, 12]` to `[BATCH_SIZE, 12, FEATURE_SIZE]` for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by `BasicBlock1d`. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the `num_classes` logits. 
 
 
 ```{python}
@@ -202,11 +200,23 @@ def forward(self, x_and_tabular: Tuple[torch.Tensor, torch.Tensor]) -> torch.Ten
 
 ## Demo
 
-To see the model in action, I grabbed demo data from PhysioNet's [EchoNext: A Dataset for Detecting Echocardiogram-Confirmed Structural Heart Disease from ECGs](https://physionet.org/content/echonext/1.1.1/). The validation set comes in two files: the ECG waveforms (`EchoNext_val_waveforms.npy`, 1.2 GB) and the accompanying tabular features such as age, sex, and ECG measurements (`EchoNext_val_tabular_features.npy`, 253 KB).
+To see the model in action, I grabbed demo data from [PhysioNet](https://physionet.org/content/echonext/1.1.1/). The validation set comes in two files: the ECG waveforms (`EchoNext_val_waveforms.npy`) and the accompanying tabular features such as age, sex, and ECG measurements (`EchoNext_val_tabular_features.npy`). 
+
+See below for the columns in the tabular features file:
+
+- `sex`: Binary indicator of patient sex. Encoded as `0` for female and `1` for male.
+- `ventricular_rate`: Preprocessed ventricular rate.
+- `atrial_rate`: Preprocessed atrial rate.
+- `pr_interval`: Preprocessed PR interval.
+- `qrs_duration`: Preprocessed QRS duration.
+- `qt_corrected`: Preprocessed QT interval.
+- `age_at_ecg`: Preprocessed patient age at time of ECG.
+
+Preprocessing Notes: The continuous features were standardized. Missing values were imputed using the median, except for `atrial_rate` and `pr_interval`, which were imputed with `0`. The categorical feature `sex` was binarized.
 
 With the data in hand, I ran the inference script to compute, for every ECG in the validation set, the probability of each of the 12 structural heart diseases:
 
-```
+```bash
 .venv/bin/python -m cradlenet.scripts.inference.ecg_tabular \
     --features_path physionet/EchoNext_val_waveforms.npy \
     --tabular_path physionet/EchoNext_val_tabular_features.npy \
@@ -219,8 +229,21 @@ With the data in hand, I ran the inference script to compute, for every ECG in t
     --checkpoint models/echonext_multilabel_minimodel/weights.pt
 ```
 
-TODO: GT Table of the Column names
+The output, `probs.npy` is a numpy array of shape `[NUM_ECGS, 12]` containing the predicted probabilities for each of the 12 structural heart diseases:
 
-The output, `probs.npy` is a numpy array of shape `[NUM_ECGS, 12]` containing the predicted probabilities for each of the 12 structural heart diseases. 
+- `lvef_lte_45_prob`: Indicates whether the left ventricular ejection fraction (LVEF) is less than or equal to 45%, suggesting moderately reduced systolic function.
+- `lvwt_gte_13_prob`: Indicates whether the maximum of the interventricular septum (IVS) or posterior wall (LVPW) thickness is greater than or equal to 1.3 cm, suggesting moderate left ventricular hypertrophy.
+- `aortic_stenosis_moderate_or_greater_prob`: Indicates moderate or severe aortic stenosis, based on categorical grading in the echocardiogram report.
+- `aortic_regurgitation_moderate_or_greater_prob`: Indicates moderate or severe aortic regurgitation.
+- `mitral_regurgitation_moderate_or_greater_prob`: Indicates moderate or severe mitral regurgitation.
+- `tricuspid_regurgitation_moderate_or_greater_prob`: Indicates moderate or severe tricuspid regurgitation.
+- `pulmonary_regurgitation_moderate_or_greater_prob`: Indicates moderate or severe pulmonary regurgitation.
+- `rv_systolic_dysfunction_moderate_or_greater_prob`: Indicates moderate or severe right ventricular systolic dysfunction.
+- `pericardial_effusion_moderate_large_prob`: Indicates presence of a moderate or large pericardial effusion.
+- `pasp_gte_45_prob`: Indicates whether pulmonary artery systolic pressure (PASP) is greater than or equal to 45 mmHg, suggesting pulmonary hypertension.
+- `tr_max_gte_32_prob`: Indicates whether tricuspid regurgitation maximum velocity is greater than or equal to 3.2 m/s (32 cm/s), a surrogate for elevated pulmonary pressures.
+- `shd_moderate_or_greater_prob`: Indicates the presence of moderate or greater structural heart disease, defined as meeting the threshold for one or more of the above conditions.
 
-![](probs.png)
+![](predicted_probabilities_1.png)
+![](predicted_probabilities_2.png)
+![](predicted_probabilities_3.png)
