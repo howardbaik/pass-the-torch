@@ -4572,7 +4572,11 @@ font-style: inherit;">"-inf"</span>)</span></code></pre></div></div>
 <section id="cardiology" class="level3">
 <h3 class="anchored" data-anchor-id="cardiology">Cardiology</h3>
 <ul>
-<li><a href="https://arxiv.org/abs/2410.09704">EchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation</a> - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on <a href="https://github.com/echonet/EchoPrime">GitHub</a>.</li>
+<li><p><a href="https://arxiv.org/abs/2410.09704">EchoPrime: A Multi-Video View-Informed Vision-Language Model for Comprehensive Echocardiography Interpretation</a> - A research paper on a vision-language model for echocardiography interpretation. The code is implemented in PyTorch and available on <a href="https://github.com/echonet/EchoPrime">GitHub</a>.</p></li>
+<li><p><a href="https://www.nature.com/articles/s41591-024-02959-y">EchoCLIP: Vision–language foundation model for echocardiogram interpretation</a> - A research paper on a vision–language foundation model for echocardiography. The code is implemented in PyTorch and available on <a href="https://github.com/echonet/echo_CLIP">GitHub</a>.</p></li>
+<li><p><a href="https://www.nature.com/articles/s41586-026-10181-8">Merlin: a computed tomography vision–language foundation model and dataset</a> - A research paper on a 3D VLM that learns from volumetric CT scans, electronic health record data and radiology reports. The code is implemented in PyTorch and available on <a href="https://github.com/StanfordMIMI/Merlin">GitHub</a>.</p></li>
+<li><p><a href="https://www.medrxiv.org/content/10.1101/2024.11.16.24317431v2">PanEcho: Complete AI-enabled echocardiography interpretation with multi-task deep learning</a> - A research paper on a multi-task deep learning model for echocardiography interpretation. The code is implemented in PyTorch and available on <a href="https://github.com/CarDS-Yale/PanEcho">GitHub</a>.</p></li>
+<li><p><a href="https://ai.nejm.org/doi/10.1056/AIdbp2500516">EchoNext-Mini: A Dataset and Baseline AI Model for Detecting Structural Heart Disease from Electrocardiograms</a> - A research paper on a dataset and baseline AI model for detecting structural heart disease from electrocardiograms. The code is implemented in PyTorch and available on <a href="https://github.com/howardbaik/IntroECG/tree/master/7-EchoNext%20Minimodel">GitHub</a>.</p></li>
 </ul>
 </section>
 <section id="opthalmology" class="level3">
