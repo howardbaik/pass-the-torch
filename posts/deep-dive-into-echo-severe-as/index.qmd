@@ -8,10 +8,100 @@ engine: none
 author: "Howard Baik"
 date: "2026-09-30"
 image: "model.jpeg"
+draft: true
 eval: false
 categories: [Medical AI]
 ---
 
 ## Introduction
 
-TODO
+
+
+## Model Architecture
+
+### SimCLR class
+
+Self-supervised learning model that contains a 3D ResNet-18 backbone as its encoder. In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (`Identity()`) so the encoder just outputs the features without any final projection. Then, there is a reordering head (`self.reordering_head`) that projects the `n_features` into 24 features (24-way classification). This is based on the 4! = 24 possible permutations of the 4 input video frames The reordering head is for the frame re-ordering "pretext" task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Last, there is a projection MLP (`self.projector`) that projects the `n_features` into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features.
+
+In the forward pass, the method takes two video clips from the same study (patient) as input: `x_i` and `x_j`. Each clip is passed through the encoder to obtain feature representations. The reordering head predicts the order of the frames for each clip,  and the projection MLP projects the features into a lower-dimensional space. The model returns the projected features and the predicted order of frames for both clips. 
+
+### Sample Data
+
+
+
+
+
+### Runpod
+
+UV_PROJECT_ENVIRONMENT is an environment variable that uv reads, and nobody has set it on your pod. When I checked the pod's environment earlier, UV_CACHE_DIR was the only UV_ variable. Without it, uv falls back to the default .venv next to pyproject.toml, which is how the venv ended up at /workspace/.venv.
+
+To create it, add it in Runpod the same way UV_CACHE_DIR must have been added:
+
+In the Runpod console, open your pod and click Edit Pod. If the pod was started from a template you made, you can edit the template instead.
+Find the Environment Variables section. You should see UV_CACHE_DIR there already.
+Add UV_PROJECT_ENVIRONMENT with the value /root/.venvs/workspace.
+Change UV_CACHE_DIR to /root/.cache/uv.
+Save. The pod restarts, and every shell and process in it will have these variables from then on.
+To check it worked after the restart:
+
+
+echo $UV_PROJECT_ENVIRONMENT   # should print /root/.venvs/workspace
+uv sync will then build the venv there instead of in /workspace.
+
+For a quick test before changing the pod, you can run export UV_PROJECT_ENVIRONMENT=/root/.venvs/workspace in a terminal. That only lasts for that terminal session.
+
+
+
+
+The cache archive is saved at /workspace/.uv-cache.tar.zst (3.2 GB), and the full restart path works. I unpacked it into a temporary folder and built a new venv from it with the network switched off. GPU torch installed and could see the GPU.
+
+After a restart, the same command as before now takes about 2 minutes instead of about 40:
+
+
+bash /workspace/setup_env.sh
+Almost all of that time is unpacking the archive from the S3 mount; the install itself took 2 seconds.
+
+setup_env.sh now does this:
+
+On a fresh pod, it unpacks the archive into /root/.cache/uv and installs from there, so nothing is downloaded.
+If the archive is missing, it installs normally, downloading as needed, and then saves a new archive.
+If you change requirements.in, anything new is downloaded, but the archive isn't updated automatically. Delete /workspace/.uv-cache.tar.zst and rerun the script to rebuild it with the new packages.
+
+
+### EchoNet-LVH: Paired Video
+
+Each training example is now a video paired with a slightly changed copy of the same video. Loading one pair gives the expected shapes, and a 4-step training run on the GPU produced finite losses. I didn't run a full `main.py` epoch.
+
+**How a pair is made.** EchoNet-LVH has exactly one video per patient, so the old "two different videos from the same study" pairing had nothing to pair. The new `EchoNetLVHDataset` class in [dataset.py](echo-severe-as/ssl_pretraining/dataset.py) builds each pair from one `.avi`:
+1. It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass `--same_clip` if you want both views to use the same frames and differ only by the edits below.
+2. It shrinks each frame to 112×112 (`--frame_size`). The raw 1024×768 frames are too big to train on.
+3. It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.
+
+The original `EchoDataset` class is unchanged. [main.py](echo-severe-as/ssl_pretraining/main.py) now uses the EchoNet-LVH data by default (`--dataset lvh`, `--data_dir /workspace/data/EchoNet-LVH`); `--dataset yale` switches back to the original setup. The training loop and loss code didn't change.
+
+**Checks:**
+- **One pair:** both views come out as `(3, 4, 112, 112)`, scaled to [0, 1], and they differ, with a mean pixel difference of about 0.09.
+- **Preview image:** saved to `scratchpad/pair.png`. The two rows are clearly the same heart; the second is flipped and slightly rotated.
+- **Training run:** 4 steps on the RTX 3090 through `SimCLR`, `NT_Xent` and the frame-order loss, with losses between 5.3 and 8.3.
+
+**Things to know:**
+- Only 5,416 of the 10,490 training videos listed in `MeasurementsList.csv` are in `Batch1`/`Batch2`. The dataset skips the missing ones and prints the count at startup.
+- The horizontal flip swaps the left–right layout of the heart. It still looks like the same patient, but if that feels like too big a change, you could turn it off for this dataset.
+- `load_video` reads every frame of the video at full size, about 450MB for a 200-frame clip. With `num_workers=12` that uses a lot of RAM. If memory becomes a problem, the fix is to read only the frames each clip needs.
+
+
+
+
+
+### Notes from Paper/Supplement
+
+*Importance of the pretraining step*: This pretraining step critically enables the model to learn
+representations of echocardiograms that are robust to standard variations in video acquisition,
+thus better generalizing when later fine-tuned on a specific downstream task. 
+
+*Video clip for self-supervised pretraining*: Self-supervised pretraining
+was performed on randomly sampled video clips of 4 consecutive frames from each of the training set echocardiogram videos for 300 epochs.
+
+*GPU used*: The SSL model was trained on two NVIDIA RTX 3090 GPUs.
+
+*LVH Classification*: Call LVH present if IVSd or LVPWd is at least 1.1 cm, which is a common sex-agnostic convention.

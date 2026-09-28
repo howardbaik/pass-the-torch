@@ -350,24 +350,10 @@
     "text": "Model Architecture Walkthrough\n\n\n\n\n\nBased on Table 2 in the paper (above), here is a walkthrough of the MViT architecture:\n\n\\(\\text{cube}_1\\) stage:\nThe raw input data is provided as dense space-time cubes of shape \\(c_T \\times c_H \\times c_W\\) and \\(D\\) channels. Then, downsampling is applied to reduce the spatial-temporal resolution with \\(\\text { stride } s_T \\times 4 \\times 4\\). This results in an output of shape \\(D \\times \\frac{T}{s_T} \\times \\frac{H}{4} \\times \\frac{W}{4}\\).\n\n\n\\(\\text{scale}_i\\) stages:\nThen, the subsequent scale stages down-sample the spatial resolution (sequence length \\(L\\)) through multiple (\\(N\\)) transformer blocks with Multi Head Pooling Attention (MHPA) and increase the channel dimension \\(D\\) through MLP at stage transitions.\nFor more details, see:\n\nMeta AI Blogpost: Multiscale Vision Transformers: A hierarchical architecture for representing image and video information\nConference Talk: Multiscale Vision Transformers (MViT) ICCV 2021"
   },
   {
-    "objectID": "posts/deep-dive-into-echo-severe-as/index.html",
-    "href": "posts/deep-dive-into-echo-severe-as/index.html",
-    "title": "Deep Dive into Echo Severe AS",
-    "section": "",
-    "text": "TODO"
-  },
-  {
-    "objectID": "posts/deep-dive-into-echo-severe-as/index.html#introduction",
-    "href": "posts/deep-dive-into-echo-severe-as/index.html#introduction",
-    "title": "Deep Dive into Echo Severe AS",
-    "section": "",
-    "text": "TODO"
-  },
-  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "Pass The Torch",
     "section": "",
-    "text": "Deep Dive into Echo Severe AS\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nSep 30, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoNext-Mini\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nJul 20, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into PanEcho\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nJun 30, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into Merlin\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMay 21, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nFinetuning with TRL - Transformers Reinforcement Learning\n\n\n\nHugging Face\n\n\n\n\n\n\n\n\n\nApr 13, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoCLIP\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMar 6, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoPrime\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nFeb 27, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViTv2)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nJan 29, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
+    "text": "Deep Dive into EchoNext-Mini\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nJul 20, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into PanEcho\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nJun 30, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into Merlin\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMay 21, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nFinetuning with TRL - Transformers Reinforcement Learning\n\n\n\nHugging Face\n\n\n\n\n\n\n\n\n\nApr 13, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoCLIP\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMar 6, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoPrime\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nFeb 27, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViTv2)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nJan 29, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
   }
 ]

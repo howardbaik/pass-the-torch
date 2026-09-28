@@ -10,30 +10,7 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.8.24</generator>
-<lastBuildDate>Wed, 30 Sep 2026 04:00:00 GMT</lastBuildDate>
-<item>
-  <title>Deep Dive into Echo Severe AS</title>
-  <dc:creator>Howard Baik</dc:creator>
-  <link>https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/</link>
-  <description><![CDATA[ 
-
-
-
-
-
-<section id="introduction" class="level2">
-<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
-<p>TODO</p>
-
-
-</section>
-
- ]]></description>
-  <category>Medical AI</category>
-  <guid>https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/</guid>
-  <pubDate>Wed, 30 Sep 2026 04:00:00 GMT</pubDate>
-  <media:content url="https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/model.jpeg" medium="image" type="image/jpeg"/>
-</item>
+<lastBuildDate>Mon, 20 Jul 2026 04:00:00 GMT</lastBuildDate>
 <item>
   <title>Deep Dive into EchoNext-Mini</title>
   <dc:creator>Howard Baik</dc:creator>
