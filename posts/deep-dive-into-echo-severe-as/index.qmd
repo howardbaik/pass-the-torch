@@ -6,7 +6,7 @@ format:
     code-summary: "Show code"
 engine: none
 author: "Howard Baik"
-date: "2026-09-30"
+date: "2026-10-12"
 image: "model.jpeg"
 draft: true
 eval: false
@@ -15,58 +15,15 @@ categories: [Medical AI]
 
 ## Introduction
 
+TODO
 
-
-## Model Architecture
+## SSL Model Architecture
 
 ### SimCLR class
 
 Self-supervised learning model that contains a 3D ResNet-18 backbone as its encoder. In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (`Identity()`) so the encoder just outputs the features without any final projection. Then, there is a reordering head (`self.reordering_head`) that projects the `n_features` into 24 features (24-way classification). This is based on the 4! = 24 possible permutations of the 4 input video frames The reordering head is for the frame re-ordering "pretext" task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Last, there is a projection MLP (`self.projector`) that projects the `n_features` into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features.
 
 In the forward pass, the method takes two video clips from the same study (patient) as input: `x_i` and `x_j`. Each clip is passed through the encoder to obtain feature representations. The reordering head predicts the order of the frames for each clip,  and the projection MLP projects the features into a lower-dimensional space. The model returns the projected features and the predicted order of frames for both clips. 
-
-### Sample Data
-
-
-
-
-
-### Runpod
-
-UV_PROJECT_ENVIRONMENT is an environment variable that uv reads, and nobody has set it on your pod. When I checked the pod's environment earlier, UV_CACHE_DIR was the only UV_ variable. Without it, uv falls back to the default .venv next to pyproject.toml, which is how the venv ended up at /workspace/.venv.
-
-To create it, add it in Runpod the same way UV_CACHE_DIR must have been added:
-
-In the Runpod console, open your pod and click Edit Pod. If the pod was started from a template you made, you can edit the template instead.
-Find the Environment Variables section. You should see UV_CACHE_DIR there already.
-Add UV_PROJECT_ENVIRONMENT with the value /root/.venvs/workspace.
-Change UV_CACHE_DIR to /root/.cache/uv.
-Save. The pod restarts, and every shell and process in it will have these variables from then on.
-To check it worked after the restart:
-
-
-echo $UV_PROJECT_ENVIRONMENT   # should print /root/.venvs/workspace
-uv sync will then build the venv there instead of in /workspace.
-
-For a quick test before changing the pod, you can run export UV_PROJECT_ENVIRONMENT=/root/.venvs/workspace in a terminal. That only lasts for that terminal session.
-
-
-
-
-The cache archive is saved at /workspace/.uv-cache.tar.zst (3.2 GB), and the full restart path works. I unpacked it into a temporary folder and built a new venv from it with the network switched off. GPU torch installed and could see the GPU.
-
-After a restart, the same command as before now takes about 2 minutes instead of about 40:
-
-
-bash /workspace/setup_env.sh
-Almost all of that time is unpacking the archive from the S3 mount; the install itself took 2 seconds.
-
-setup_env.sh now does this:
-
-On a fresh pod, it unpacks the archive into /root/.cache/uv and installs from there, so nothing is downloaded.
-If the archive is missing, it installs normally, downloading as needed, and then saves a new archive.
-If you change requirements.in, anything new is downloaded, but the archive isn't updated automatically. Delete /workspace/.uv-cache.tar.zst and rerun the script to rebuild it with the new packages.
-
 
 ### EchoNet-LVH: Paired Video
 
@@ -105,3 +62,8 @@ was performed on randomly sampled video clips of 4 consecutive frames from each 
 *GPU used*: The SSL model was trained on two NVIDIA RTX 3090 GPUs.
 
 *LVH Classification*: Call LVH present if IVSd or LVPWd is at least 1.1 cm, which is a common sex-agnostic convention.
+
+
+
+## Finetuning Model Architecture
+
