@@ -67,7 +67,7 @@ def forward(self, x_i, x_j):
 In the forward pass, the method takes two video clips from the same study (patient) as input: `x_i` and `x_j`. Each clip is passed through the encoder to obtain feature representations (`h_i` and `h_j`). The reordering head predicts the order of the frames for each clip (`t_i` and `t_j`),  and the projection MLP projects the features into a lower-dimensional space (`z_i` and `z_j`). The model returns the feature representations, the projected features, and the predicted order of frames for both clips. 
 
 
-### Training 
+### Training Loop
 
 ```{python}
 train_dataset = EchoDataset(
@@ -160,9 +160,15 @@ for epoch in range(1, args.num_epochs + 1):
 The training loop takes two different echo views of the same patient, `x_i` and `x_j`, and passes them through the model (`model.forward(x_i, x_j)`) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (`loss_fxn`) is computed using the projected features, and the classification loss (`cls_loss_fxn`) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses.
 
 
+## Finetuning
 
 
 
+
+
+
+
+## Demo with EchoNet-LVH
 
 ### EchoNet-LVH: Paired Video
 
