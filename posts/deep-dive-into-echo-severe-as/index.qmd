@@ -6,24 +6,163 @@ format:
     code-summary: "Show code"
 engine: none
 author: "Howard Baik"
-date: "2026-10-12"
+date: "2026-11-01"
 image: "model.jpeg"
-draft: true
 eval: false
 categories: [Medical AI]
 ---
 
 ## Introduction
 
-TODO
+Investigate the the self-supervised learning (SSL) model architecture used for pretraining. The SSL model is based on a 3D ResNet-18 backbone and is designed to learn robust representations of echocardiogram videos through a frame reordering pretext task. The model is then fine-tuned for the downstream task of LVH classification. 
 
-## SSL Model Architecture
+Adapted from Echo Severe AS
+
+
+## Self-Supervised Learning (SSL) Pretraining
 
 ### SimCLR class
 
-Self-supervised learning model that contains a 3D ResNet-18 backbone as its encoder. In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (`Identity()`) so the encoder just outputs the features without any final projection. Then, there is a reordering head (`self.reordering_head`) that projects the `n_features` into 24 features (24-way classification). This is based on the 4! = 24 possible permutations of the 4 input video frames The reordering head is for the frame re-ordering "pretext" task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Last, there is a projection MLP (`self.projector`) that projects the `n_features` into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features.
+SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder. The encoder maps each video clip to a 512-dimensional feature vector. 
 
-In the forward pass, the method takes two video clips from the same study (patient) as input: `x_i` and `x_j`. Each clip is passed through the encoder to obtain feature representations. The reordering head predicts the order of the frames for each clip,  and the projection MLP projects the features into a lower-dimensional space. The model returns the projected features and the predicted order of frames for both clips. 
+```{python}
+class SimCLR(torch.nn.Module):
+    def __init__(self, encoder, projection_dim, n_features):
+        super(SimCLR, self).__init__()
+
+        self.encoder = encoder
+        self.n_features = n_features
+
+        # Replace the fc layer with an Identity function
+        self.encoder.fc = torch.nn.Identity()
+
+        # Classification head for frame re-ordering classification (after permuting video frames, predict original order)
+        self.reordering_head = torch.nn.Linear(self.n_features, 24)
+
+        # We use a MLP with one hidden layer to obtain z_i = g(h_i) = W(2)σ(W(1)h_i) where σ is a ReLU non-linearity.
+        self.projector = torch.nn.Sequential(
+            torch.nn.Linear(self.n_features, self.n_features // 2, bias=False),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.n_features // 2, projection_dim, bias=False),
+        )
+```
+
+
+In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (`torch.nn.Identity()`) so the encoder just outputs the features without any final projection. Then, there is a reordering head (`self.reordering_head`) that projects the `n_features` into 24 features. This is based on the 24 (4!) possible permutations of the 4 input video frames. The reordering head is for the frame re-ordering "pretext" task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Lastly, there is a projection MLP (`self.projector`) that projects the `n_features` into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features (`projection_dim`).
+
+```{python}
+def forward(self, x_i, x_j):
+    h_i = self.encoder(x_i)
+    h_j = self.encoder(x_j)
+
+    t_i = self.reordering_head(h_i)
+    t_j = self.reordering_head(h_j)
+
+    z_i = self.projector(h_i)
+    z_j = self.projector(h_j)
+
+    return h_i, h_j, z_i, z_j, t_i, t_j
+```
+
+In the forward pass, the method takes two video clips from the same study (patient) as input: `x_i` and `x_j`. Each clip is passed through the encoder to obtain feature representations (`h_i` and `h_j`). The reordering head predicts the order of the frames for each clip (`t_i` and `t_j`),  and the projection MLP projects the features into a lower-dimensional space (`z_i` and `z_j`). The model returns the feature representations, the projected features, and the predicted order of frames for both clips. 
+
+
+### Training 
+
+```{python}
+train_dataset = EchoDataset(
+    data_dir=args.data_dir,
+    split="100122_train_2016-2020",
+    clip_len=args.clip_len,
+    sampling_rate=args.sampling_rate,
+)
+train_loader = torch.utils.data.DataLoader(
+    train_dataset,
+    batch_size=args.n_gpu * args.batch_size,
+    shuffle=True,
+    num_workers=12,
+    worker_init_fn=seed_worker,
+    drop_last=True,
+)
+```
+
+The training starts off with loading the dataset using the `EchoDataset` class. The dataset (`train_dataset`) is initialized with the data directory, the split for training, the clip length, and the sampling rate. A `DataLoader` is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The `drop_last=True` argument ensures that any incomplete batch at the end of an epoch is dropped.
+
+```{python}
+encoder = torchvision.models.video.r3d_18(pretrained=False)
+model = SimCLR(
+    encoder=encoder,
+    projection_dim=args.projection_dim,
+    n_features=encoder.fc.in_features,
+)
+```
+
+Then, the encoder is initialized using a 3D ResNet-18 model from the `torchvision` library. The `SimCLR` model is then instantiated with the encoder, the projection dimension, and the number of features from the encoder's fully connected layer.
+
+```{python}
+optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+loss_fxn = NT_Xent(args.batch_size, args.temperature, world_size=args.n_gpu)
+cls_loss_fxn = torch.nn.CrossEntropyLoss()
+```
+
+Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: `NT_Xent` for contrastive learning and `CrossEntropyLoss` for the frame reordering classification task.
+
+
+```{python}
+for epoch in range(1, args.num_epochs + 1):
+    running_loss = 0.0
+    pbar = tqdm.tqdm(
+        enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}"
+    )
+
+    for i, batch in pbar:
+        x_i, x_j, t_i, t_j = batch
+        x_i = x_i.to(device)
+        x_j = x_j.to(device)
+        t_i = t_i.to(device)
+        t_j = t_j.to(device)
+
+        h_i, h_j, z_i, z_j, t_hat_i, t_hat_j = model.forward(x_i, x_j)
+
+        loss = loss_fxn(z_i, z_j) + cls_loss_fxn(
+            torch.cat([t_hat_i, t_hat_j]), torch.cat([t_i, t_j])
+        )
+
+        # Backward pass
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+
+        pbar.set_postfix({"loss": running_loss / (i + 1)})
+
+    current_metrics = pd.DataFrame(
+        {"epoch": [epoch], "loss": [running_loss / (i + 1)]}
+    )
+    current_metrics.to_csv(
+        os.path.join(model_dir, "history.csv"), mode="a", header=False, index=False
+    )
+
+    if epoch % args.save_freq == 0:
+        torch.save(
+            {
+                "weights": model.module.state_dict()
+                if isinstance(model, torch.nn.DataParallel)
+                else model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+            },
+            os.path.join(model_dir, f"chkpt_epoch-{epoch}.pt"),
+        )
+```
+
+The training loop takes two different echo views of the same patient, `x_i` and `x_j`, and passes them through the model (`model.forward(x_i, x_j)`) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (`loss_fxn`) is computed using the projected features, and the classification loss (`cls_loss_fxn`) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses.
+
+
+
+
+
 
 ### EchoNet-LVH: Paired Video
 
@@ -48,22 +187,31 @@ The original `EchoDataset` class is unchanged. [main.py](echo-severe-as/ssl_pret
 
 
 
+## LVH FineTuning
+
+Finetuned on NVIDIA RTX 4090 GPUs from Runpod
+
+
+## Model Architecture
+
+
+
+
 
 
 ### Notes from Paper/Supplement
 
-*Importance of the pretraining step*: This pretraining step critically enables the model to learn
-representations of echocardiograms that are robust to standard variations in video acquisition,
-thus better generalizing when later fine-tuned on a specific downstream task. 
+*Importance of the pretraining step*: This pretraining step critically enables the model to learn representations of echocardiograms that are robust to standard variations in video acquisition, thus better generalizing when later fine-tuned on a specific downstream task. 
 
 *Video clip for self-supervised pretraining*: Self-supervised pretraining
 was performed on randomly sampled video clips of 4 consecutive frames from each of the training set echocardiogram videos for 300 epochs.
 
+*Model Architecture*: More specifically, self-supervised representation learning was performed on the training set videos with a novel combination of (i) a multi-instance contrastive learning task and (ii) a frame re-ordering pretext task
+
+In brief, we adopted the *SimCLR* framework for contrastive learning, which traditionally generates two “views” of an image by sending two copies of the input through a pipeline of random image augmentations, producing view 𝑥̃𝑖 and 𝑥̃𝑗.
+
+
 *GPU used*: The SSL model was trained on two NVIDIA RTX 3090 GPUs.
 
 *LVH Classification*: Call LVH present if IVSd or LVPWd is at least 1.1 cm, which is a common sex-agnostic convention.
-
-
-
-## Finetuning Model Architecture
 

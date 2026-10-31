@@ -354,6 +354,41 @@
     "href": "index.html",
     "title": "Pass The Torch",
     "section": "",
-    "text": "Deep Dive into EchoNext-Mini\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nJul 20, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into PanEcho\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nJun 30, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into Merlin\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMay 21, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nFinetuning with TRL - Transformers Reinforcement Learning\n\n\n\nHugging Face\n\n\n\n\n\n\n\n\n\nApr 13, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoCLIP\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMar 6, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoPrime\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nFeb 27, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViTv2)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nJan 29, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
+    "text": "Deep Dive into Echo Severe AS\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nNov 1, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoNext-Mini\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nJul 20, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into PanEcho\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nJun 30, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into Merlin\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMay 21, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nFinetuning with TRL - Transformers Reinforcement Learning\n\n\n\nHugging Face\n\n\n\n\n\n\n\n\n\nApr 13, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoCLIP\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nMar 6, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nDeep Dive into EchoPrime\n\n\n\nMedical AI\n\n\n\n\n\n\n\n\n\nFeb 27, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViTv2)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nJan 29, 2026\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nMultiscale Vision Transformers (MViT)\n\n\n\nComputer Vision\n\n\n\n\n\n\n\n\n\nDec 22, 2025\n\n\nHoward Baik\n\n\n\n\n\n\n\n\n\n\n\n\nLearning Journey\n\n\n\nLearn\n\n\n\n\n\n\n\n\n\nNov 25, 2025\n\n\nHoward Baik\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "posts/deep-dive-into-echo-severe-as/index.html",
+    "href": "posts/deep-dive-into-echo-severe-as/index.html",
+    "title": "Deep Dive into Echo Severe AS",
+    "section": "",
+    "text": "TODO"
+  },
+  {
+    "objectID": "posts/deep-dive-into-echo-severe-as/index.html#introduction",
+    "href": "posts/deep-dive-into-echo-severe-as/index.html#introduction",
+    "title": "Deep Dive into Echo Severe AS",
+    "section": "",
+    "text": "TODO"
+  },
+  {
+    "objectID": "posts/deep-dive-into-echo-severe-as/index.html#ssl-model-architecture",
+    "href": "posts/deep-dive-into-echo-severe-as/index.html#ssl-model-architecture",
+    "title": "Deep Dive into Echo Severe AS",
+    "section": "SSL Model Architecture",
+    "text": "SSL Model Architecture\n\nSimCLR class\nSelf-supervised learning model that contains a 3D ResNet-18 backbone as its encoder. In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (Identity()) so the encoder just outputs the features without any final projection. Then, there is a reordering head (self.reordering_head) that projects the n_features into 24 features (24-way classification). This is based on the 4! = 24 possible permutations of the 4 input video frames The reordering head is for the frame re-ordering “pretext” task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Last, there is a projection MLP (self.projector) that projects the n_features into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features.\nIn the forward pass, the method takes two video clips from the same study (patient) as input: x_i and x_j. Each clip is passed through the encoder to obtain feature representations. The reordering head predicts the order of the frames for each clip, and the projection MLP projects the features into a lower-dimensional space. The model returns the projected features and the predicted order of frames for both clips.\n\n\nEchoNet-LVH: Paired Video\nEach training example is now a video paired with a slightly changed copy of the same video. Loading one pair gives the expected shapes, and a 4-step training run on the GPU produced finite losses. I didn’t run a full main.py epoch.\nHow a pair is made. EchoNet-LVH has exactly one video per patient, so the old “two different videos from the same study” pairing had nothing to pair. The new EchoNetLVHDataset class in dataset.py builds each pair from one .avi: 1. It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass --same_clip if you want both views to use the same frames and differ only by the edits below. 2. It shrinks each frame to 112×112 (--frame_size). The raw 1024×768 frames are too big to train on. 3. It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.\nThe original EchoDataset class is unchanged. main.py now uses the EchoNet-LVH data by default (--dataset lvh, --data_dir /workspace/data/EchoNet-LVH); --dataset yale switches back to the original setup. The training loop and loss code didn’t change.\nChecks: - One pair: both views come out as (3, 4, 112, 112), scaled to [0, 1], and they differ, with a mean pixel difference of about 0.09. - Preview image: saved to scratchpad/pair.png. The two rows are clearly the same heart; the second is flipped and slightly rotated. - Training run: 4 steps on the RTX 3090 through SimCLR, NT_Xent and the frame-order loss, with losses between 5.3 and 8.3.\nThings to know: - Only 5,416 of the 10,490 training videos listed in MeasurementsList.csv are in Batch1/Batch2. The dataset skips the missing ones and prints the count at startup. - The horizontal flip swaps the left–right layout of the heart. It still looks like the same patient, but if that feels like too big a change, you could turn it off for this dataset. - load_video reads every frame of the video at full size, about 450MB for a 200-frame clip. With num_workers=12 that uses a lot of RAM. If memory becomes a problem, the fix is to read only the frames each clip needs."
+  },
+  {
+    "objectID": "posts/deep-dive-into-echo-severe-as/index.html#lvh-finetuning",
+    "href": "posts/deep-dive-into-echo-severe-as/index.html#lvh-finetuning",
+    "title": "Deep Dive into Echo Severe AS",
+    "section": "LVH FineTuning",
+    "text": "LVH FineTuning\nFinetuned on NVIDIA RTX 4090 GPUs from Runpod\n\nNotes from Paper/Supplement\nImportance of the pretraining step: This pretraining step critically enables the model to learn representations of echocardiograms that are robust to standard variations in video acquisition, thus better generalizing when later fine-tuned on a specific downstream task.\nVideo clip for self-supervised pretraining: Self-supervised pretraining was performed on randomly sampled video clips of 4 consecutive frames from each of the training set echocardiogram videos for 300 epochs.\nGPU used: The SSL model was trained on two NVIDIA RTX 3090 GPUs.\nLVH Classification: Call LVH present if IVSd or LVPWd is at least 1.1 cm, which is a common sex-agnostic convention."
+  },
+  {
+    "objectID": "posts/deep-dive-into-echo-severe-as/index.html#finetuning-model-architecture",
+    "href": "posts/deep-dive-into-echo-severe-as/index.html#finetuning-model-architecture",
+    "title": "Deep Dive into Echo Severe AS",
+    "section": "Finetuning Model Architecture",
+    "text": "Finetuning Model Architecture"
   }
 ]

@@ -3,5 +3,8 @@
     "edit": {
       "*.qmd": "allow"
     }
+  },
+  "sandbox": {
+    "enabled": false
   }
 }
