@@ -9,7 +9,7 @@ format:
           section[role="doc-endnotes"],
           #footnotes { display: none; }
         </style>
-engine: none
+engine: jupyter
 author: "Howard Baik"
 date: "2026-05-21"
 image: "thumbnail.png"

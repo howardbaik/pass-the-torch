@@ -31,7 +31,7 @@
 <section id="simclr-class" class="level3">
 <h3 class="anchored" data-anchor-id="simclr-class">SimCLR class</h3>
 <p>SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder. The encoder maps each video clip to a 512-dimensional feature vector.</p>
-<div id="1031ca1d" class="cell" data-execution_count="1">
+<div id="c860bc6e" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
@@ -124,7 +124,7 @@ font-style: inherit;">False</span>),</span>
 </details>
 </div>
 <p>In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (<code>torch.nn.Identity()</code>) so the encoder just outputs the features without any final projection. Then, there is a reordering head (<code>self.reordering_head</code>) that projects the <code>n_features</code> into 24 features. This is based on the 24 (4!) possible permutations of the 4 input video frames. The reordering head is for the frame re-ordering “pretext” task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Lastly, there is a projection MLP (<code>self.projector</code>) that projects the <code>n_features</code> into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features (<code>projection_dim</code>).</p>
-<div id="006bffb6" class="cell" data-execution_count="2">
+<div id="4f503b6b" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
@@ -176,7 +176,7 @@ font-style: inherit;">return</span> h_i, h_j, z_i, z_j, t_i, t_j</span></code></
 </section>
 <section id="training-loop" class="level3">
 <h3 class="anchored" data-anchor-id="training-loop">Training Loop</h3>
-<div id="0c0d7c82" class="cell" data-execution_count="3">
+<div id="b2f7c6bf" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">train_dataset <span class="op" style="color: #5E5E5E;
@@ -228,7 +228,7 @@ font-style: inherit;">True</span>,</span>
 </details>
 </div>
 <p>The training starts off with loading the dataset using the <code>EchoDataset</code> class. The dataset (<code>train_dataset</code>) is initialized with the data directory, the split for training, the clip length, and the sampling rate. A <code>DataLoader</code> is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The <code>drop_last=True</code> argument ensures that any incomplete batch at the end of an epoch is dropped.</p>
-<div id="54a17af5" class="cell" data-execution_count="4">
+<div id="7e3b8ab2" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">encoder <span class="op" style="color: #5E5E5E;
@@ -254,7 +254,7 @@ font-style: inherit;">=</span>encoder.fc.in_features,</span>
 </details>
 </div>
 <p>Then, the encoder is initialized using a 3D ResNet-18 model from the <code>torchvision</code> library. The <code>SimCLR</code> model is then instantiated with the encoder, the projection dimension, and the number of features from the encoder’s fully connected layer.</p>
-<div id="6663514d" class="cell" data-execution_count="5">
+<div id="3a2d033e" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">optimizer <span class="op" style="color: #5E5E5E;
@@ -274,7 +274,7 @@ font-style: inherit;">=</span> torch.nn.CrossEntropyLoss()</span></code></pre></
 </details>
 </div>
 <p>Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: <code>NT_Xent</code> for contrastive learning and <code>CrossEntropyLoss</code> for the frame reordering classification task.</p>
-<div id="226b6af5" class="cell" data-execution_count="6">
+<div id="0cfa71f6" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="cf" style="color: #003B4F;
@@ -531,7 +531,7 @@ Figure&nbsp;1: EchoNext-Mini model architecture
 <section id="the-__init__-method" class="level3">
 <h3 class="anchored" data-anchor-id="the-__init__-method">The <code>__init__()</code> method</h3>
 <p>The <code>BasicBlock1d</code> class is first initialized with <code>nn.Conv1d</code>, which is PyTorch’s 1D convolution layer - it slides learnable filters along a single dimension (time) instead of over a 2D image. It slides the filters with the parameters <code>stride</code>, <code>padding</code>, and <code>kernel_size</code>. Also, it is initialized with <code>nn.BatchNorm1d</code> for batch normalization, <code>nn.ReLU</code> for ReLU, and <code>nn.Dropout</code> for Dropout.</p>
-<div id="f8fcb261" class="cell" data-execution_count="1">
+<div id="816e206f" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
@@ -680,7 +680,7 @@ font-style: inherit;">=</span> downsample</span></code></pre></div></div>
 <section id="the-forward-method" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method">The <code>forward()</code> method</h3>
 <p>The <code>forward()</code> method defines how data flows through the <code>BasicBlock1d</code> class. First, its saves the input as <code>residual</code> so it can be added back later (“skip connection”). Then, it goes through the first convolution stage: 1D convolution, batch norm, ReLU, and dropout. Then, the second convolution stage involves another 1D convolution and then batch normalization. The final residual addition only works if the <code>out</code> and <code>x</code> have identical shapes. In the case where the shapes don’t match, <code>self.downsample</code> projects the original input <code>x</code> to the new shape. Note that unlike the first convolution stage, there’s no ReLU activation right after the batch norm. The ReLU activation is deliberately deferred until after the residual addition, which is the classic ResNet ordering.</p>
-<div id="3f6b6350" class="cell" data-execution_count="2">
+<div id="50e2d2c5" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
@@ -791,7 +791,7 @@ font-style: inherit;">return</span> out</span></code></pre></div></div>
 <li><code>+ len_tabular_feature_vector</code> — The tabular features (e.g., age, sex, ECG measurements) are concatenated onto that flattened vector.</li>
 </ul>
 <p>The second argument to <code>nn.Linear</code> is the output width, <code>num_classes</code> (default <code>1</code>, i.e., a single logit for binary classification of structural heart disease).</p>
-<div id="b7819c01" class="cell" data-execution_count="3">
+<div id="445c0985" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="kw" style="color: #003B4F;
@@ -1058,7 +1058,7 @@ font-style: inherit;">=</span> nn.Dropout(dropout_value)</span></code></pre></di
 <section id="the-forward-method-1" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method-1">The <code>forward()</code> method</h3>
 <p>The forward method takes as input a 12-lead ECG and a vector of tabular features (e.g., age, sex, ECG measurements). The ECG is first reshaped from <code>[BATCH_SIZE, 1, FEATURE_SIZE, 12]</code> to <code>[BATCH_SIZE, 12, FEATURE_SIZE]</code> for the 1D convolutions. Then, it goes through the stem convolution and the four residual layers that are built by <code>BasicBlock1d</code>. Each stage doubles the number of channels and halves the time dimension. After the last residual layer, the feature map is pooled in two ways (average and max), flattened, and concatenated with the tabular features. Finally, it goes through a linear layer to produce the <code>num_classes</code> logits.</p>
-<div id="81c1a975" class="cell" data-execution_count="4">
+<div id="99bef054" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><span class="kw" style="color: #003B4F;
@@ -1337,7 +1337,7 @@ font-style: inherit;">--checkpoint</span> models/echonext_multilabel_minimodel/w
 <p>Then, we form a full Transformer encoder by stacking <code>num_layers</code> of these <code>transformer_encoder</code> layers. This allows the model to learn complex temporal relationships in the echocardiography video data.</p>
 <p>The model’s classifier is set to <code>torch.nn.Identity()</code>, which means it will simply return the output of the Transformer without applying any additional transformations.</p>
 <p><code>self.time_encoder</code> is initialized as an instance of the <code>PositionalEncoding</code> class, which will be used to add positional information to the feature vectors before they are passed through the Transformer. The <code>max_len</code> parameter is set to <code>clip_len</code>, which indicates the maximum length of the input sequence (number of frames in the video clip) that the model can handle. This allows the model to learn temporal relationships between frames in the echocardiography video.</p>
-<div id="901ae1d0" class="cell" data-execution_count="1">
+<div id="62ec7aeb" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
@@ -1456,7 +1456,7 @@ font-style: inherit;">=</span>clip_len</span>
 <li><p>Temporal pooling step is applied by computing the mean along axis 1 (the frame axis), which averages across all 16 frames and removes that dimension. This results in a tensor of shape <code>(batch_size, n_features)</code>, - e.g.&nbsp;<code>(2, 1024)</code> giving us a single feature vector for each video clip.</p></li>
 <li><p>Finally, the output of the Transformer is passed through the classifier (which is an identity function in this case) to produce the final output.</p></li>
 </ol>
-<div id="35e6d790" class="cell" data-execution_count="2">
+<div id="a5999a30" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
@@ -1587,7 +1587,7 @@ font-style: inherit;">return</span> out</span></code></pre></div></div>
 <li>Binary classification or regression: A head that maps <code>encoder_dim</code>-wide feature vector to a single output (1 output). Then, it sets the bias of the head’s final <code>Linear</code> layer to that task’s training-set mean value to account for different scales.</li>
 <li>Multi-class classification: A head that maps <code>encoder_dim</code>-wide feature vector to one output per class. (<code>task.class_names.size</code> outputs)</li>
 </ul>
-<div id="ed7db530" class="cell" data-execution_count="3">
+<div id="fce6b9d4" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="kw" style="color: #003B4F;
@@ -1724,7 +1724,7 @@ font-style: inherit;">=</span> task.mean</span></code></pre></div></div>
 <section id="the-forward-method-1" class="level3">
 <h3 class="anchored" data-anchor-id="the-forward-method-1">The <code>forward()</code> method</h3>
 <p>In the forward method, we run the input through the shared video encoder (<code>FrameTransformer</code> class) to get a feature vector <code>(batch_size, encoder_dim)</code> and then pass that feature vector through each task’s prediction head, then run an activation function to get the output for that task. The outputs for all tasks are collected and returned.</p>
-<div id="a76609dc" class="cell" data-execution_count="4">
+<div id="ce5887ae" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><span class="kw" style="color: #003B4F;
@@ -1868,7 +1868,7 @@ font-style: inherit;">return</span> out_dict</span></code></pre></div></div>
 <section id="panecho-on-torch-hub" class="level2">
 <h2 class="anchored" data-anchor-id="panecho-on-torch-hub">PanEcho on Torch Hub</h2>
 <p>The PanEcho repo contains a <code>hubconf.py</code> file that imports the classes built in <code>models.py</code> and provides a ready-to-use model with the <code>PanEcho()</code> function.</p>
-<div id="ead88257" class="cell" data-execution_count="5">
+<div id="499a4e9e" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">arch <span class="op" style="color: #5E5E5E;
@@ -1899,7 +1899,7 @@ font-style: inherit;">0.</span></span></code></pre></div></div>
 </details>
 </div>
 <p>First, it initializes the PanEcho architecture with the constructor arguments that <code>FrameTransformer</code> expects. The architecture of the image encoder is set to <code>convnext_tiny</code>, the number of Transformer layers is set to <code>4</code>, the number of attention heads is set to <code>8</code>, the pooling method is set to <code>mean</code>, and the dropout rate for the Transformer is set to <code>0</code> (no dropout).</p>
-<div id="ecddc8cc" class="cell" data-execution_count="6">
+<div id="1f5a9af9" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="co" style="color: #5E5E5E;
@@ -1943,7 +1943,7 @@ font-style: inherit;">in</span> all_tasks</span>
 </details>
 </div>
 <p>Then, it loads a file containing the definitions of all the clinical tasks that PanEcho is designed to predict. Each task is represented as an instance of the <code>Task</code> class, which includes the task name, type (e.g., binary classification, multi-class classification, regression), class names (if applicable), and mean value (for regression tasks).</p>
-<div id="9d79ce52" class="cell" data-execution_count="7">
+<div id="e3383ebd" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">encoder <span class="op" style="color: #5E5E5E;
@@ -1964,7 +1964,7 @@ font-style: inherit;">0.25</span>, activations</span>
 </details>
 </div>
 <p>Then, it initializes the shared video encoder (<code>FrameTransformer</code> class) with the specified architecture parameters and creates an instance of the <code>MultiTaskModel</code> class, passing in the shared video encoder, its output feature dimension (<code>encoder_dim</code>), the list of tasks, a dropout rate of 0.25 for the fully connected layers in the prediction heads, and whether to apply activation functions to the outputs.</p>
-<div id="b13e2694" class="cell" data-execution_count="8">
+<div id="5b21c2c5" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="co" style="color: #5E5E5E;
@@ -2020,7 +2020,7 @@ font-style: inherit;">False</span>)</span></code></pre></div></div>
 <p>The PanEcho paper evaluates the model on several large echocardiography datasets, including EchoNet-Dynamic and EchoNet-LVH. For this demo, however, we will use EchoNet-Pediatric, since it is the smallest of these datasets and fits comfortably on a local machine.</p>
 <p>First, we download the EchoNet-Pediatric dataset from the <a href="https://stanfordaimi.azurewebsites.net/datasets/a84b6be6-0d33-41f9-8996-86e5df53b005">Stanford Artificial Intelligence in Medicine and Imaging (AIMI) Center Shared Datasets Portal</a>, which consists of the <code>A4C/</code> and <code>PSAX/</code> view folders. Then, we load the metadata (one row per video) and the task definitions, keeping just EF (ejection fraction). The reason for keeping just EF is that the EchoNet-Pediatric dataset is particularly focused on it. Then, we build the dataset with the <code>EchoNetPediatricDataset</code> class.</p>
 <p>Finally, we load the PanEcho model from Torch Hub and run it on a sample from the EchoNet-Pediatric dataset.</p>
-<div id="1f3db6ff" class="cell" data-execution_count="9">
+<div id="df93598e" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="co" style="color: #5E5E5E;
@@ -2352,7 +2352,7 @@ font-style: inherit;">=</span> model(x)</span>
 <p>We dive into the <a href="https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/build.py">source code</a> for the <code>MerlinArchitecture</code> class, which is the core architecture of the Merlin model. The <code>MerlinArchitecture</code> class uses two sub-classes, TextEncoder and ImageEncoder:</p>
 <section id="text-encoder" class="level4">
 <h4 class="anchored" data-anchor-id="text-encoder">Text Encoder</h4>
-<div id="80f857c8" class="cell" data-execution_count="1">
+<div id="dd74eb9c" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -2473,7 +2473,7 @@ font-style: inherit;">return</span> text_embeddings</span></code></pre></div></d
 </section>
 <section id="imageencoder" class="level4">
 <h4 class="anchored" data-anchor-id="imageencoder">ImageEncoder</h4>
-<div id="abc3a143" class="cell" data-execution_count="2">
+<div id="2b86275b" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -2602,7 +2602,7 @@ font-style: inherit;">return</span> contrastive_features, ehr_features</span></c
 </section>
 <section id="merlinarchitecture-1" class="level4">
 <h4 class="anchored" data-anchor-id="merlinarchitecture-1">MerlinArchitecture</h4>
-<div id="40a687a9" class="cell" data-execution_count="3">
+<div id="c7be1c93" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -2833,7 +2833,7 @@ Musculoskeletal:      Degenerative change of the spine.</code></pre>
 </section>
 <section id="default-contrastive-embeddings-phenotype-predictions" class="level3">
 <h3 class="anchored" data-anchor-id="default-contrastive-embeddings-phenotype-predictions">Default: Contrastive Embeddings + Phenotype Predictions</h3>
-<div id="825e3bdf" class="cell" data-execution_count="4">
+<div id="152c0b43" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">model <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> Merlin()</span>
@@ -2843,7 +2843,7 @@ font-style: inherit;">eval</span>()</span>
 <span id="cb5-3">model.cuda()</span></code></pre></div></div>
 </div>
 <p>The <a href="https://github.com/StanfordMIMI/Merlin/blob/main/merlin/models/load.py#L32"><code>Merlin</code> class</a> is a wrapper around the <code>MerlinArchitecture</code> that we defined earlier. It provides a convenient interface for loading the appropriate model configuration based on the task and for performing inference with the model. The model configurations are listed in <code>MODEL_CONFIGS</code><sup>1</sup>, where the default configuration uses the <code>MerlinArchitecture</code> with the checkpoint for the default task, the <code>report_generation</code> configuration uses the <code>Clip3DForTextGeneration</code> architecture with its corresponding checkpoint, and the <code>five_year_disease_prediction</code> configuration uses the <code>MerlinArchitecture</code> with a different checkpoint specific to that task. The appropriate model is loaded based on the flags set for the task.</p>
-<div id="6fd99e8d" class="cell" data-execution_count="5">
+<div id="fdf64b92" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="cf" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -2921,7 +2921,7 @@ Contrastive text embeddings shape:  torch.Size([1, 512])</code></pre>
 </section>
 <section id="image-embeddings" class="level3">
 <h3 class="anchored" data-anchor-id="image-embeddings">Image Embeddings</h3>
-<div id="cc1bdfd7" class="cell" data-execution_count="6">
+<div id="5f66ecc7" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1">model <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> Merlin(ImageEmbedding<span class="op" style="color: #5E5E5E;
@@ -3923,7 +3923,7 @@ Remember, finding effective ways to handle work-related stress is a process that
 </section>
 <section id="initialization-of-echoclip" class="level2">
 <h2 class="anchored" data-anchor-id="initialization-of-echoclip">Initialization of EchoCLIP</h2>
-<div id="e91308db" class="cell" data-execution_count="1">
+<div id="d081d926" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1">echo_clip, _, preprocess_val <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> create_model_and_transforms(</span>
@@ -3944,7 +3944,7 @@ font-style: inherit;">"cpu"</span></span>
 </section>
 <section id="video-embedding" class="level2">
 <h2 class="anchored" data-anchor-id="video-embedding">Video Embedding</h2>
-<div id="4b9aa2ac" class="cell" data-execution_count="2">
+<div id="4f574a9b" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1">test_video <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> read_avi(</span>
@@ -3987,7 +3987,7 @@ background-color: null;
 font-style: inherit;">2</span>]</span></code></pre></div></div>
 </div>
 <p>The code above reads an example echocardiogram video, preprocesses each frame using the validation transformations defined in <code>preprocess_val</code>, and selects every other frame up to a maximum of 40 frames. The resulting <code>test_video</code> tensor has shape <code>(20, 3, 224, 224)</code>, where 20 is the number of frames, 3 is the number of color channels (RGB), and 224x224 is the spatial resolution of each frame.</p>
-<div id="f8226470" class="cell" data-execution_count="3">
+<div id="f077b590" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">test_video_embedding <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> F.normalize(echo_clip.encode_image(test_video), dim<span class="op" style="color: #5E5E5E;
@@ -4001,7 +4001,7 @@ font-style: inherit;">1</span>)</span></code></pre></div></div>
 </section>
 <section id="text-embedding" class="level2">
 <h2 class="anchored" data-anchor-id="text-embedding">Text Embedding</h2>
-<div id="7242bf88" class="cell" data-execution_count="4">
+<div id="3ea8b3bf" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">pacemaker_prompts <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> tokenize(pacemaker_prompts).cpu()</span></code></pre></div></div>
@@ -4010,7 +4010,7 @@ font-style: inherit;">=</span> tokenize(pacemaker_prompts).cpu()</span></code></
 <pre><code>['ECHO DENSITY IN RIGHT VENTRICLE SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ',
  'ECHO DENSITY IN RIGHT ATRIUM SUGGESTIVE OF CATHETER, PACER LEAD, OR ICD LEAD. ']</code></pre>
 <p>and then move the tokenized prompts to the CPU for later use in calculating similarity with the video embedding.</p>
-<div id="7e63d9e3" class="cell" data-execution_count="5">
+<div id="2149e5db" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1">pacemaker_prompt_embeddings <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> F.normalize(</span>
@@ -4022,7 +4022,7 @@ font-style: inherit;">1</span></span>
 <span id="cb6-3">)</span></code></pre></div></div>
 </div>
 <p>We then encode the tokenized pacemaker prompts using the CLIP text encoder and normalize the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
-<div id="55e9fe88" class="cell" data-execution_count="6">
+<div id="cba1d7be" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1">pacemaker_predictions <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> compute_binary_metric(</span>
@@ -4030,7 +4030,7 @@ font-style: inherit;">=</span> compute_binary_metric(</span>
 <span id="cb7-3">)</span></code></pre></div></div>
 </div>
 <p>We compute the binary metric for pacemaker presence by calculating the cosine similarity between the video embedding and the pacemaker prompt embeddings. The <code>compute_binary_metric</code> function is defined as follows:</p>
-<div id="c7de1c1f" class="cell" data-execution_count="7">
+<div id="fee1e3e7" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;
@@ -4067,7 +4067,7 @@ font-style: inherit;">return</span> predictions</span></code></pre></div></div>
 </section>
 <section id="predicting-continuous-values" class="level2">
 <h2 class="anchored" data-anchor-id="predicting-continuous-values">Predicting Continuous Values</h2>
-<div id="4e3c753e" class="cell" data-execution_count="8">
+<div id="601c9de3" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1">ejection_fraction_prompts <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> zero_shot_prompts[<span class="st" style="color: #20794D;
@@ -4077,7 +4077,7 @@ font-style: inherit;">"ejection_fraction"</span>]</span></code></pre></div></div
 <pre><code>['THE LEFT VENTRICULAR EJECTION FRACTION IS ESTIMATED TO BE &lt;#&gt;% ',
  'LV EJECTION FRACTION IS &lt;#&gt;%. ']</code></pre>
 <p>Ejection fraction can range from 0% to 100%, so we make 100 versions of each prompt, replacing <code>&lt;#&gt;</code> with each integer from 0 to 100.</p>
-<div id="c287f9b1" class="cell" data-execution_count="9">
+<div id="faf7c9eb" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1">ejection_fraction_prompts <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> tokenize(ejection_fraction_prompts).cpu()</span>
@@ -4092,7 +4092,7 @@ font-style: inherit;">1</span></span>
 <span id="cb11-4">)</span></code></pre></div></div>
 </div>
 <p>Once again, we tokenize the ejection fraction prompts and encode them using the CLIP text encoder, normalizing the resulting embeddings for later use in calculating cosine similarity with the video embedding.</p>
-<div id="5cae361a" class="cell" data-execution_count="10">
+<div id="9ddd1e35" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1">ejection_fraction_predictions <span class="op" style="color: #5E5E5E;
 background-color: null;
 font-style: inherit;">=</span> compute_regression_metric(</span>
@@ -4100,7 +4100,7 @@ font-style: inherit;">=</span> compute_regression_metric(</span>
 <span id="cb12-3">)</span></code></pre></div></div>
 </div>
 <p>The <code>compute_regression_metric</code> function is defined as follows:</p>
-<div id="35ebfdd2" class="cell" data-execution_count="11">
+<div id="4c1779ee" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><span class="kw" style="color: #003B4F;
 background-color: null;
 font-weight: bold;

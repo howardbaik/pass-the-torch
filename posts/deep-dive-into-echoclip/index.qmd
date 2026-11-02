@@ -1,7 +1,7 @@
 ---
 title: "Deep Dive into EchoCLIP"
 format: html
-engine: none
+engine: jupyter
 author: "Howard Baik"
 date: "2026-03-06"
 image: "thumbnail.png"
