@@ -4,7 +4,7 @@ format:
   html:
     code-fold: true
     code-summary: "Show code"
-engine: markdown
+engine: none
 author: "Howard Baik"
 date: "2026-11-01"
 image: "model.jpeg"

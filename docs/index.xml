@@ -31,111 +31,426 @@
 <section id="simclr-class" class="level3">
 <h3 class="anchored" data-anchor-id="simclr-class">SimCLR class</h3>
 <p>SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder. The encoder maps each video clip to a 512-dimensional feature vector.</p>
-<pre class="{python}"><code>class SimCLR(torch.nn.Module):
-    def __init__(self, encoder, projection_dim, n_features):
-        super(SimCLR, self).__init__()
-
-        self.encoder = encoder
-        self.n_features = n_features
-
-        # Replace the fc layer with an Identity function
-        self.encoder.fc = torch.nn.Identity()
-
-        # Classification head for frame re-ordering classification (after permuting video frames, predict original order)
-        self.reordering_head = torch.nn.Linear(self.n_features, 24)
-
-        # We use a MLP with one hidden layer to obtain z_i = g(h_i) = W(2)σ(W(1)h_i) where σ is a ReLU non-linearity.
-        self.projector = torch.nn.Sequential(
-            torch.nn.Linear(self.n_features, self.n_features // 2, bias=False),
-            torch.nn.ReLU(),
-            torch.nn.Linear(self.n_features // 2, projection_dim, bias=False),
-        )</code></pre>
+<div id="1031ca1d" class="cell" data-execution_count="1">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">class</span> SimCLR(torch.nn.Module):</span>
+<span id="cb1-2">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">__init__</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>, encoder, projection_dim, n_features):</span>
+<span id="cb1-3">        <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">super</span>(SimCLR, <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>).<span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">__init__</span>()</span>
+<span id="cb1-4"></span>
+<span id="cb1-5">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.encoder <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> encoder</span>
+<span id="cb1-6">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.n_features <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> n_features</span>
+<span id="cb1-7"></span>
+<span id="cb1-8">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Replace the fc layer with an Identity function</span></span>
+<span id="cb1-9">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.encoder.fc <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Identity()</span>
+<span id="cb1-10"></span>
+<span id="cb1-11">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Classification head for frame re-ordering classification (after permuting video frames, predict original order)</span></span>
+<span id="cb1-12">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.reordering_head <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.n_features, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">24</span>)</span>
+<span id="cb1-13"></span>
+<span id="cb1-14">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># We use a MLP with one hidden layer to obtain z_i = g(h_i) = W(2)σ(W(1)h_i) where σ is a ReLU non-linearity.</span></span>
+<span id="cb1-15">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.projector <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Sequential(</span>
+<span id="cb1-16">            torch.nn.Linear(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.n_features, <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.n_features <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">//</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>, bias<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>),</span>
+<span id="cb1-17">            torch.nn.ReLU(),</span>
+<span id="cb1-18">            torch.nn.Linear(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.n_features <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">//</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>, projection_dim, bias<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>),</span>
+<span id="cb1-19">        )</span></code></pre></div></div>
+</details>
+</div>
 <p>In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (<code>torch.nn.Identity()</code>) so the encoder just outputs the features without any final projection. Then, there is a reordering head (<code>self.reordering_head</code>) that projects the <code>n_features</code> into 24 features. This is based on the 24 (4!) possible permutations of the 4 input video frames. The reordering head is for the frame re-ordering “pretext” task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Lastly, there is a projection MLP (<code>self.projector</code>) that projects the <code>n_features</code> into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features (<code>projection_dim</code>).</p>
-<pre class="{python}"><code>def forward(self, x_i, x_j):
-    h_i = self.encoder(x_i)
-    h_j = self.encoder(x_j)
-
-    t_i = self.reordering_head(h_i)
-    t_j = self.reordering_head(h_j)
-
-    z_i = self.projector(h_i)
-    z_j = self.projector(h_j)
-
-    return h_i, h_j, z_i, z_j, t_i, t_j</code></pre>
+<div id="006bffb6" class="cell" data-execution_count="2">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> forward(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>, x_i, x_j):</span>
+<span id="cb2-2">    h_i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.encoder(x_i)</span>
+<span id="cb2-3">    h_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.encoder(x_j)</span>
+<span id="cb2-4"></span>
+<span id="cb2-5">    t_i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.reordering_head(h_i)</span>
+<span id="cb2-6">    t_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.reordering_head(h_j)</span>
+<span id="cb2-7"></span>
+<span id="cb2-8">    z_i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.projector(h_i)</span>
+<span id="cb2-9">    z_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.projector(h_j)</span>
+<span id="cb2-10"></span>
+<span id="cb2-11">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> h_i, h_j, z_i, z_j, t_i, t_j</span></code></pre></div></div>
+</details>
+</div>
 <p>In the forward pass, the method takes two video clips from the same study (patient) as input: <code>x_i</code> and <code>x_j</code>. Each clip is passed through the encoder to obtain feature representations (<code>h_i</code> and <code>h_j</code>). The reordering head predicts the order of the frames for each clip (<code>t_i</code> and <code>t_j</code>), and the projection MLP projects the features into a lower-dimensional space (<code>z_i</code> and <code>z_j</code>). The model returns the feature representations, the projected features, and the predicted order of frames for both clips.</p>
 </section>
 <section id="training-loop" class="level3">
 <h3 class="anchored" data-anchor-id="training-loop">Training Loop</h3>
-<pre class="{python}"><code>train_dataset = EchoDataset(
-    data_dir=args.data_dir,
-    split="100122_train_2016-2020",
-    clip_len=args.clip_len,
-    sampling_rate=args.sampling_rate,
-)
-train_loader = torch.utils.data.DataLoader(
-    train_dataset,
-    batch_size=args.n_gpu * args.batch_size,
-    shuffle=True,
-    num_workers=12,
-    worker_init_fn=seed_worker,
-    drop_last=True,
-)</code></pre>
+<div id="0c0d7c82" class="cell" data-execution_count="3">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">train_dataset <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> EchoDataset(</span>
+<span id="cb3-2">    data_dir<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>args.data_dir,</span>
+<span id="cb3-3">    split<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"100122_train_2016-2020"</span>,</span>
+<span id="cb3-4">    clip_len<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>args.clip_len,</span>
+<span id="cb3-5">    sampling_rate<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>args.sampling_rate,</span>
+<span id="cb3-6">)</span>
+<span id="cb3-7">train_loader <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.utils.data.DataLoader(</span>
+<span id="cb3-8">    train_dataset,</span>
+<span id="cb3-9">    batch_size<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>args.n_gpu <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> args.batch_size,</span>
+<span id="cb3-10">    shuffle<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb3-11">    num_workers<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">12</span>,</span>
+<span id="cb3-12">    worker_init_fn<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>seed_worker,</span>
+<span id="cb3-13">    drop_last<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>,</span>
+<span id="cb3-14">)</span></code></pre></div></div>
+</details>
+</div>
 <p>The training starts off with loading the dataset using the <code>EchoDataset</code> class. The dataset (<code>train_dataset</code>) is initialized with the data directory, the split for training, the clip length, and the sampling rate. A <code>DataLoader</code> is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The <code>drop_last=True</code> argument ensures that any incomplete batch at the end of an epoch is dropped.</p>
-<pre class="{python}"><code>encoder = torchvision.models.video.r3d_18(pretrained=False)
-model = SimCLR(
-    encoder=encoder,
-    projection_dim=args.projection_dim,
-    n_features=encoder.fc.in_features,
-)</code></pre>
+<div id="54a17af5" class="cell" data-execution_count="4">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">encoder <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.video.r3d_18(pretrained<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>)</span>
+<span id="cb4-2">model <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> SimCLR(</span>
+<span id="cb4-3">    encoder<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>encoder,</span>
+<span id="cb4-4">    projection_dim<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>args.projection_dim,</span>
+<span id="cb4-5">    n_features<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>encoder.fc.in_features,</span>
+<span id="cb4-6">)</span></code></pre></div></div>
+</details>
+</div>
 <p>Then, the encoder is initialized using a 3D ResNet-18 model from the <code>torchvision</code> library. The <code>SimCLR</code> model is then instantiated with the encoder, the projection dimension, and the number of features from the encoder’s fully connected layer.</p>
-<pre class="{python}"><code>optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-loss_fxn = NT_Xent(args.batch_size, args.temperature, world_size=args.n_gpu)
-cls_loss_fxn = torch.nn.CrossEntropyLoss()</code></pre>
+<div id="6663514d" class="cell" data-execution_count="5">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">optimizer <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.optim.Adam(model.parameters(), lr<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>args.lr)</span>
+<span id="cb5-2"></span>
+<span id="cb5-3">loss_fxn <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> NT_Xent(args.batch_size, args.temperature, world_size<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>args.n_gpu)</span>
+<span id="cb5-4">cls_loss_fxn <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.CrossEntropyLoss()</span></code></pre></div></div>
+</details>
+</div>
 <p>Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: <code>NT_Xent</code> for contrastive learning and <code>CrossEntropyLoss</code> for the frame reordering classification task.</p>
-<pre class="{python}"><code>for epoch in range(1, args.num_epochs + 1):
-    running_loss = 0.0
-    pbar = tqdm.tqdm(
-        enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}"
-    )
-
-    for i, batch in pbar:
-        x_i, x_j, t_i, t_j = batch
-        x_i = x_i.to(device)
-        x_j = x_j.to(device)
-        t_i = t_i.to(device)
-        t_j = t_j.to(device)
-
-        h_i, h_j, z_i, z_j, t_hat_i, t_hat_j = model.forward(x_i, x_j)
-
-        loss = loss_fxn(z_i, z_j) + cls_loss_fxn(
-            torch.cat([t_hat_i, t_hat_j]), torch.cat([t_i, t_j])
-        )
-
-        # Backward pass
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
-
-        running_loss += loss.item()
-
-        pbar.set_postfix({"loss": running_loss / (i + 1)})
-
-    current_metrics = pd.DataFrame({"epoch": [epoch], "loss": [running_loss / (i + 1)]})
-    current_metrics.to_csv(
-        os.path.join(model_dir, "history.csv"), mode="a", header=False, index=False
-    )
-
-    if epoch % args.save_freq == 0:
-        torch.save(
-            {
-                "weights": model.module.state_dict()
-                if isinstance(model, torch.nn.DataParallel)
-                else model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-            },
-            os.path.join(model_dir, f"chkpt_epoch-{epoch}.pt"),
-        )</code></pre>
+<div id="226b6af5" class="cell" data-execution_count="6">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> epoch <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">range</span>(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, args.num_epochs <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>):</span>
+<span id="cb6-2">    running_loss <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.0</span></span>
+<span id="cb6-3">    pbar <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> tqdm.tqdm(</span>
+<span id="cb6-4">        <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">enumerate</span>(train_loader), total<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(train_loader), desc<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"Epoch </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>epoch<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"</span></span>
+<span id="cb6-5">    )</span>
+<span id="cb6-6"></span>
+<span id="cb6-7">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> i, batch <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> pbar:</span>
+<span id="cb6-8">        x_i, x_j, t_i, t_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> batch</span>
+<span id="cb6-9">        x_i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> x_i.to(device)</span>
+<span id="cb6-10">        x_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> x_j.to(device)</span>
+<span id="cb6-11">        t_i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> t_i.to(device)</span>
+<span id="cb6-12">        t_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> t_j.to(device)</span>
+<span id="cb6-13"></span>
+<span id="cb6-14">        h_i, h_j, z_i, z_j, t_hat_i, t_hat_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> model.forward(x_i, x_j)</span>
+<span id="cb6-15"></span>
+<span id="cb6-16">        loss <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> loss_fxn(z_i, z_j) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> cls_loss_fxn(</span>
+<span id="cb6-17">            torch.cat([t_hat_i, t_hat_j]), torch.cat([t_i, t_j])</span>
+<span id="cb6-18">        )</span>
+<span id="cb6-19"></span>
+<span id="cb6-20">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Backward pass</span></span>
+<span id="cb6-21">        optimizer.zero_grad(set_to_none<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">True</span>)</span>
+<span id="cb6-22">        loss.backward()</span>
+<span id="cb6-23">        optimizer.step()</span>
+<span id="cb6-24"></span>
+<span id="cb6-25">        running_loss <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+=</span> loss.item()</span>
+<span id="cb6-26"></span>
+<span id="cb6-27">        pbar.set_postfix({<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"loss"</span>: running_loss <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> (i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)})</span>
+<span id="cb6-28"></span>
+<span id="cb6-29">    current_metrics <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.DataFrame({<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"epoch"</span>: [epoch], <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"loss"</span>: [running_loss <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> (i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)]})</span>
+<span id="cb6-30">    current_metrics.to_csv(</span>
+<span id="cb6-31">        os.path.join(model_dir, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"history.csv"</span>), mode<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"a"</span>, header<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>, index<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span></span>
+<span id="cb6-32">    )</span>
+<span id="cb6-33"></span>
+<span id="cb6-34">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> epoch <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">%</span> args.save_freq <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>:</span>
+<span id="cb6-35">        torch.save(</span>
+<span id="cb6-36">            {</span>
+<span id="cb6-37">                <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"weights"</span>: model.module.state_dict()</span>
+<span id="cb6-38">                <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">isinstance</span>(model, torch.nn.DataParallel)</span>
+<span id="cb6-39">                <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> model.state_dict(),</span>
+<span id="cb6-40">                <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"optimizer"</span>: optimizer.state_dict(),</span>
+<span id="cb6-41">            },</span>
+<span id="cb6-42">            os.path.join(model_dir, <span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"chkpt_epoch-</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span>epoch<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">.pt"</span>),</span>
+<span id="cb6-43">        )</span></code></pre></div></div>
+</details>
+</div>
 <p>The training loop takes two different echo views of the same patient, <code>x_i</code> and <code>x_j</code>, and passes them through the model (<code>model.forward(x_i, x_j)</code>) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (<code>loss_fxn</code>) is computed using the projected features, and the classification loss (<code>cls_loss_fxn</code>) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses. The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar.</p>
 <p>Finally, the model checkpoint is saved every <code>save_freq</code> epochs. The model weights and optimizer state are saved to a file for later use.</p>
 </section>
