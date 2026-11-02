@@ -12,6 +12,8 @@ eval: false
 categories: [Medical AI]
 ---
 
+# UNDER CONSTRUCTION
+
 ## Introduction
 
 Investigate the the self-supervised learning (SSL) model architecture used for pretraining. The SSL model is based on a 3D ResNet-18 backbone and is designed to learn robust representations of echocardiogram videos through a frame reordering pretext task. The model is then fine-tuned for the downstream task of LVH classification. 
@@ -160,19 +162,7 @@ The training loop takes two different echo views of the same patient, `x_i` and 
 Finally, the model checkpoint is saved every `save_freq` epochs. The model weights and optimizer state are saved to a file for later use.
 
 
-
-## Finetuning
-
-
-
-
-
-
-
-
 ## Demo with EchoNet-LVH
-
-### EchoNet-LVH: Paired Video
 
 Each training example is now a video paired with a slightly changed copy of the same video. Loading one pair gives the expected shapes, and a 4-step training run on the GPU produced finite losses. I didn't run a full `main.py` epoch.
 
@@ -194,14 +184,14 @@ The original `EchoDataset` class is unchanged. main.py now uses the EchoNet-LVH 
 - The horizontal flip swaps the left–right layout of the heart. It still looks like the same patient, but if that feels like too big a change, you could turn it off for this dataset.
 - `load_video` reads every frame of the video at full size, about 450MB for a 200-frame clip. With `num_workers=12` that uses a lot of RAM. If memory becomes a problem, the fix is to read only the frames each clip needs.
 
+### SSL Pretraining
 
-
-## LVH FineTuning
+### LVH FineTuning
 
 Finetuned on NVIDIA RTX 4090 GPUs from Runpod
 
 
-## Model Architecture
+### Model Architecture
 
 
 
