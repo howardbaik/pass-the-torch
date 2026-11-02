@@ -9,7 +9,7 @@
 <link>https://passthetorch.dev/</link>
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
-<generator>quarto-1.8.24</generator>
+<generator>quarto-1.10.18</generator>
 <lastBuildDate>Sun, 01 Nov 2026 04:00:00 GMT</lastBuildDate>
 <item>
   <title>Deep Dive into Echo Severe AS</title>
@@ -23,20 +23,138 @@
 
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
-<p>TODO</p>
+<p>Investigate the the self-supervised learning (SSL) model architecture used for pretraining. The SSL model is based on a 3D ResNet-18 backbone and is designed to learn robust representations of echocardiogram videos through a frame reordering pretext task. The model is then fine-tuned for the downstream task of LVH classification.</p>
+<p>Adapted from Echo Severe AS</p>
 </section>
-<section id="ssl-model-architecture" class="level2">
-<h2 class="anchored" data-anchor-id="ssl-model-architecture">SSL Model Architecture</h2>
+<section id="self-supervised-learning-ssl-pretraining" class="level2">
+<h2 class="anchored" data-anchor-id="self-supervised-learning-ssl-pretraining">Self-Supervised Learning (SSL) Pretraining</h2>
 <section id="simclr-class" class="level3">
 <h3 class="anchored" data-anchor-id="simclr-class">SimCLR class</h3>
-<p>Self-supervised learning model that contains a 3D ResNet-18 backbone as its encoder. In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (<code>Identity()</code>) so the encoder just outputs the features without any final projection. Then, there is a reordering head (<code>self.reordering_head</code>) that projects the <code>n_features</code> into 24 features (24-way classification). This is based on the 4! = 24 possible permutations of the 4 input video frames The reordering head is for the frame re-ordering “pretext” task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Last, there is a projection MLP (<code>self.projector</code>) that projects the <code>n_features</code> into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features.</p>
-<p>In the forward pass, the method takes two video clips from the same study (patient) as input: <code>x_i</code> and <code>x_j</code>. Each clip is passed through the encoder to obtain feature representations. The reordering head predicts the order of the frames for each clip, and the projection MLP projects the features into a lower-dimensional space. The model returns the projected features and the predicted order of frames for both clips.</p>
+<p>SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder. The encoder maps each video clip to a 512-dimensional feature vector.</p>
+<pre class="{python}"><code>class SimCLR(torch.nn.Module):
+    def __init__(self, encoder, projection_dim, n_features):
+        super(SimCLR, self).__init__()
+
+        self.encoder = encoder
+        self.n_features = n_features
+
+        # Replace the fc layer with an Identity function
+        self.encoder.fc = torch.nn.Identity()
+
+        # Classification head for frame re-ordering classification (after permuting video frames, predict original order)
+        self.reordering_head = torch.nn.Linear(self.n_features, 24)
+
+        # We use a MLP with one hidden layer to obtain z_i = g(h_i) = W(2)σ(W(1)h_i) where σ is a ReLU non-linearity.
+        self.projector = torch.nn.Sequential(
+            torch.nn.Linear(self.n_features, self.n_features // 2, bias=False),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.n_features // 2, projection_dim, bias=False),
+        )</code></pre>
+<p>In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (<code>torch.nn.Identity()</code>) so the encoder just outputs the features without any final projection. Then, there is a reordering head (<code>self.reordering_head</code>) that projects the <code>n_features</code> into 24 features. This is based on the 24 (4!) possible permutations of the 4 input video frames. The reordering head is for the frame re-ordering “pretext” task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Lastly, there is a projection MLP (<code>self.projector</code>) that projects the <code>n_features</code> into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features (<code>projection_dim</code>).</p>
+<pre class="{python}"><code>def forward(self, x_i, x_j):
+    h_i = self.encoder(x_i)
+    h_j = self.encoder(x_j)
+
+    t_i = self.reordering_head(h_i)
+    t_j = self.reordering_head(h_j)
+
+    z_i = self.projector(h_i)
+    z_j = self.projector(h_j)
+
+    return h_i, h_j, z_i, z_j, t_i, t_j</code></pre>
+<p>In the forward pass, the method takes two video clips from the same study (patient) as input: <code>x_i</code> and <code>x_j</code>. Each clip is passed through the encoder to obtain feature representations (<code>h_i</code> and <code>h_j</code>). The reordering head predicts the order of the frames for each clip (<code>t_i</code> and <code>t_j</code>), and the projection MLP projects the features into a lower-dimensional space (<code>z_i</code> and <code>z_j</code>). The model returns the feature representations, the projected features, and the predicted order of frames for both clips.</p>
 </section>
+<section id="training-loop" class="level3">
+<h3 class="anchored" data-anchor-id="training-loop">Training Loop</h3>
+<pre class="{python}"><code>train_dataset = EchoDataset(
+    data_dir=args.data_dir,
+    split="100122_train_2016-2020",
+    clip_len=args.clip_len,
+    sampling_rate=args.sampling_rate,
+)
+train_loader = torch.utils.data.DataLoader(
+    train_dataset,
+    batch_size=args.n_gpu * args.batch_size,
+    shuffle=True,
+    num_workers=12,
+    worker_init_fn=seed_worker,
+    drop_last=True,
+)</code></pre>
+<p>The training starts off with loading the dataset using the <code>EchoDataset</code> class. The dataset (<code>train_dataset</code>) is initialized with the data directory, the split for training, the clip length, and the sampling rate. A <code>DataLoader</code> is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The <code>drop_last=True</code> argument ensures that any incomplete batch at the end of an epoch is dropped.</p>
+<pre class="{python}"><code>encoder = torchvision.models.video.r3d_18(pretrained=False)
+model = SimCLR(
+    encoder=encoder,
+    projection_dim=args.projection_dim,
+    n_features=encoder.fc.in_features,
+)</code></pre>
+<p>Then, the encoder is initialized using a 3D ResNet-18 model from the <code>torchvision</code> library. The <code>SimCLR</code> model is then instantiated with the encoder, the projection dimension, and the number of features from the encoder’s fully connected layer.</p>
+<pre class="{python}"><code>optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+loss_fxn = NT_Xent(args.batch_size, args.temperature, world_size=args.n_gpu)
+cls_loss_fxn = torch.nn.CrossEntropyLoss()</code></pre>
+<p>Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: <code>NT_Xent</code> for contrastive learning and <code>CrossEntropyLoss</code> for the frame reordering classification task.</p>
+<pre class="{python}"><code>for epoch in range(1, args.num_epochs + 1):
+    running_loss = 0.0
+    pbar = tqdm.tqdm(
+        enumerate(train_loader), total=len(train_loader), desc=f"Epoch {epoch}"
+    )
+
+    for i, batch in pbar:
+        x_i, x_j, t_i, t_j = batch
+        x_i = x_i.to(device)
+        x_j = x_j.to(device)
+        t_i = t_i.to(device)
+        t_j = t_j.to(device)
+
+        h_i, h_j, z_i, z_j, t_hat_i, t_hat_j = model.forward(x_i, x_j)
+
+        loss = loss_fxn(z_i, z_j) + cls_loss_fxn(
+            torch.cat([t_hat_i, t_hat_j]), torch.cat([t_i, t_j])
+        )
+
+        # Backward pass
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+
+        pbar.set_postfix({"loss": running_loss / (i + 1)})
+
+    current_metrics = pd.DataFrame({"epoch": [epoch], "loss": [running_loss / (i + 1)]})
+    current_metrics.to_csv(
+        os.path.join(model_dir, "history.csv"), mode="a", header=False, index=False
+    )
+
+    if epoch % args.save_freq == 0:
+        torch.save(
+            {
+                "weights": model.module.state_dict()
+                if isinstance(model, torch.nn.DataParallel)
+                else model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+            },
+            os.path.join(model_dir, f"chkpt_epoch-{epoch}.pt"),
+        )</code></pre>
+<p>The training loop takes two different echo views of the same patient, <code>x_i</code> and <code>x_j</code>, and passes them through the model (<code>model.forward(x_i, x_j)</code>) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (<code>loss_fxn</code>) is computed using the projected features, and the classification loss (<code>cls_loss_fxn</code>) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses. The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar.</p>
+<p>Finally, the model checkpoint is saved every <code>save_freq</code> epochs. The model weights and optimizer state are saved to a file for later use.</p>
+</section>
+</section>
+<section id="finetuning" class="level2">
+<h2 class="anchored" data-anchor-id="finetuning">Finetuning</h2>
+</section>
+<section id="demo-with-echonet-lvh" class="level2">
+<h2 class="anchored" data-anchor-id="demo-with-echonet-lvh">Demo with EchoNet-LVH</h2>
 <section id="echonet-lvh-paired-video" class="level3">
 <h3 class="anchored" data-anchor-id="echonet-lvh-paired-video">EchoNet-LVH: Paired Video</h3>
 <p>Each training example is now a video paired with a slightly changed copy of the same video. Loading one pair gives the expected shapes, and a 4-step training run on the GPU produced finite losses. I didn’t run a full <code>main.py</code> epoch.</p>
-<p><strong>How a pair is made.</strong> EchoNet-LVH has exactly one video per patient, so the old “two different videos from the same study” pairing had nothing to pair. The new <code>EchoNetLVHDataset</code> class in <a href="echo-severe-as/ssl_pretraining/dataset.py">dataset.py</a> builds each pair from one <code>.avi</code>: 1. It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass <code>--same_clip</code> if you want both views to use the same frames and differ only by the edits below. 2. It shrinks each frame to 112×112 (<code>--frame_size</code>). The raw 1024×768 frames are too big to train on. 3. It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.</p>
-<p>The original <code>EchoDataset</code> class is unchanged. <a href="echo-severe-as/ssl_pretraining/main.py">main.py</a> now uses the EchoNet-LVH data by default (<code>--dataset lvh</code>, <code>--data_dir /workspace/data/EchoNet-LVH</code>); <code>--dataset yale</code> switches back to the original setup. The training loop and loss code didn’t change.</p>
+<p><strong>How a pair is made.</strong> EchoNet-LVH has exactly one video per patient, so the old “two different videos from the same study” pairing had nothing to pair. The new <code>EchoNetLVHDataset</code> class in dataset.py builds each pair from one <code>.avi</code>:</p>
+<ol type="1">
+<li>It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass <code>--same_clip</code> if you want both views to use the same frames and differ only by the edits below.</li>
+<li>It shrinks each frame to 112×112 (<code>--frame_size</code>). The raw 1024×768 frames are too big to train on.</li>
+<li>It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.</li>
+</ol>
+<p>The original <code>EchoDataset</code> class is unchanged. main.py now uses the EchoNet-LVH data by default (<code>--dataset lvh</code>, <code>--data_dir /workspace/data/EchoNet-LVH</code>); <code>--dataset yale</code> switches back to the original setup. The training loop and loss code didn’t change.</p>
 <p><strong>Checks:</strong> - <strong>One pair:</strong> both views come out as <code>(3, 4, 112, 112)</code>, scaled to [0, 1], and they differ, with a mean pixel difference of about 0.09. - <strong>Preview image:</strong> saved to <code>scratchpad/pair.png</code>. The two rows are clearly the same heart; the second is flipped and slightly rotated. - <strong>Training run:</strong> 4 steps on the RTX 3090 through <code>SimCLR</code>, <code>NT_Xent</code> and the frame-order loss, with losses between 5.3 and 8.3.</p>
 <p><strong>Things to know:</strong> - Only 5,416 of the 10,490 training videos listed in <code>MeasurementsList.csv</code> are in <code>Batch1</code>/<code>Batch2</code>. The dataset skips the missing ones and prints the count at startup. - The horizontal flip swaps the left–right layout of the heart. It still looks like the same patient, but if that feels like too big a change, you could turn it off for this dataset. - <code>load_video</code> reads every frame of the video at full size, about 450MB for a 200-frame clip. With <code>num_workers=12</code> that uses a lot of RAM. If memory becomes a problem, the fix is to read only the frames each clip needs.</p>
 </section>
@@ -44,18 +162,20 @@
 <section id="lvh-finetuning" class="level2">
 <h2 class="anchored" data-anchor-id="lvh-finetuning">LVH FineTuning</h2>
 <p>Finetuned on NVIDIA RTX 4090 GPUs from Runpod</p>
+</section>
+<section id="model-architecture" class="level2">
+<h2 class="anchored" data-anchor-id="model-architecture">Model Architecture</h2>
 <section id="notes-from-papersupplement" class="level3">
 <h3 class="anchored" data-anchor-id="notes-from-papersupplement">Notes from Paper/Supplement</h3>
 <p><em>Importance of the pretraining step</em>: This pretraining step critically enables the model to learn representations of echocardiograms that are robust to standard variations in video acquisition, thus better generalizing when later fine-tuned on a specific downstream task.</p>
 <p><em>Video clip for self-supervised pretraining</em>: Self-supervised pretraining was performed on randomly sampled video clips of 4 consecutive frames from each of the training set echocardiogram videos for 300 epochs.</p>
+<p><em>Model Architecture</em>: More specifically, self-supervised representation learning was performed on the training set videos with a novel combination of (i) a multi-instance contrastive learning task and (ii) a frame re-ordering pretext task</p>
+<p>In brief, we adopted the <em>SimCLR</em> framework for contrastive learning, which traditionally generates two “views” of an image by sending two copies of the input through a pipeline of random image augmentations, producing view 𝑥̃𝑖 and 𝑥̃𝑗.</p>
 <p><em>GPU used</em>: The SSL model was trained on two NVIDIA RTX 3090 GPUs.</p>
 <p><em>LVH Classification</em>: Call LVH present if IVSd or LVPWd is at least 1.1 cm, which is a common sex-agnostic convention.</p>
-</section>
-</section>
-<section id="finetuning-model-architecture" class="level2">
-<h2 class="anchored" data-anchor-id="finetuning-model-architecture">Finetuning Model Architecture</h2>
 
 
+</section>
 </section>
 
  ]]></description>

@@ -4,7 +4,7 @@ format:
   html:
     code-fold: true
     code-summary: "Show code"
-engine: none
+engine: markdown
 author: "Howard Baik"
 date: "2026-11-01"
 image: "model.jpeg"
@@ -106,7 +106,7 @@ loss_fxn = NT_Xent(args.batch_size, args.temperature, world_size=args.n_gpu)
 cls_loss_fxn = torch.nn.CrossEntropyLoss()
 ```
 
-Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: `NT_Xent` for contrastive learning and `CrossEntropyLoss` for the frame reordering classification task.
+Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: `NT_Xent` for contrastive learning and `CrossEntropyLoss` for the frame reordering classification task. 
 
 
 ```{python}
@@ -138,9 +138,7 @@ for epoch in range(1, args.num_epochs + 1):
 
         pbar.set_postfix({"loss": running_loss / (i + 1)})
 
-    current_metrics = pd.DataFrame(
-        {"epoch": [epoch], "loss": [running_loss / (i + 1)]}
-    )
+    current_metrics = pd.DataFrame({"epoch": [epoch], "loss": [running_loss / (i + 1)]})
     current_metrics.to_csv(
         os.path.join(model_dir, "history.csv"), mode="a", header=False, index=False
     )
@@ -157,10 +155,14 @@ for epoch in range(1, args.num_epochs + 1):
         )
 ```
 
-The training loop takes two different echo views of the same patient, `x_i` and `x_j`, and passes them through the model (`model.forward(x_i, x_j)`) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (`loss_fxn`) is computed using the projected features, and the classification loss (`cls_loss_fxn`) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses.
+The training loop takes two different echo views of the same patient, `x_i` and `x_j`, and passes them through the model (`model.forward(x_i, x_j)`) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (`loss_fxn`) is computed using the projected features, and the classification loss (`cls_loss_fxn`) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses. The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar. 
+
+Finally, the model checkpoint is saved every `save_freq` epochs. The model weights and optimizer state are saved to a file for later use.
+
 
 
 ## Finetuning
+
 
 
 
@@ -174,12 +176,13 @@ The training loop takes two different echo views of the same patient, `x_i` and 
 
 Each training example is now a video paired with a slightly changed copy of the same video. Loading one pair gives the expected shapes, and a 4-step training run on the GPU produced finite losses. I didn't run a full `main.py` epoch.
 
-**How a pair is made.** EchoNet-LVH has exactly one video per patient, so the old "two different videos from the same study" pairing had nothing to pair. The new `EchoNetLVHDataset` class in [dataset.py](echo-severe-as/ssl_pretraining/dataset.py) builds each pair from one `.avi`:
+**How a pair is made.** EchoNet-LVH has exactly one video per patient, so the old "two different videos from the same study" pairing had nothing to pair. The new `EchoNetLVHDataset` class in dataset.py builds each pair from one `.avi`:
+
 1. It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass `--same_clip` if you want both views to use the same frames and differ only by the edits below.
 2. It shrinks each frame to 112×112 (`--frame_size`). The raw 1024×768 frames are too big to train on.
 3. It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.
 
-The original `EchoDataset` class is unchanged. [main.py](echo-severe-as/ssl_pretraining/main.py) now uses the EchoNet-LVH data by default (`--dataset lvh`, `--data_dir /workspace/data/EchoNet-LVH`); `--dataset yale` switches back to the original setup. The training loop and loss code didn't change.
+The original `EchoDataset` class is unchanged. main.py now uses the EchoNet-LVH data by default (`--dataset lvh`, `--data_dir /workspace/data/EchoNet-LVH`); `--dataset yale` switches back to the original setup. The training loop and loss code didn't change.
 
 **Checks:**
 - **One pair:** both views come out as `(3, 4, 112, 112)`, scaled to [0, 1], and they differ, with a mean pixel difference of about 0.09.
