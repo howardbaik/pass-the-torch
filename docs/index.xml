@@ -10,7 +10,7 @@
 <atom:link href="https://passthetorch.dev/index.xml" rel="self" type="application/rss+xml"/>
 <description>A Quarto blog for PyTorch.</description>
 <generator>quarto-1.10.18</generator>
-<lastBuildDate>Sun, 01 Nov 2026 04:00:00 GMT</lastBuildDate>
+<lastBuildDate>Fri, 06 Nov 2026 05:00:00 GMT</lastBuildDate>
 <item>
   <title>Deep Dive into Echo Severe AS</title>
   <dc:creator>Howard Baik</dc:creator>
@@ -22,7 +22,7 @@
 
 
 <section id="under-construction" class="level1">
-<h1>UNDER CONSTRUCTION</h1>
+<h1>UNDER CONSTRUCTION!!!</h1>
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
 <p>Investigate the the self-supervised learning (SSL) model architecture used for pretraining. The SSL model is based on a 3D ResNet-18 backbone and is designed to learn robust representations of echocardiogram videos through a frame reordering pretext task. The model is then fine-tuned for the downstream task of LVH classification.</p>
@@ -34,7 +34,7 @@
 <h3 class="anchored" data-anchor-id="simclr-class">SimCLR class</h3>
 <p>SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder. The encoder maps each video clip to a 512-dimensional feature vector.</p>
 <p>In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (<code>torch.nn.Identity()</code>) so the encoder just outputs the features without any final projection. Then, there is a reordering head (<code>self.reordering_head</code>) that projects the <code>n_features</code> into 24 features. This is based on the 24 (4!) possible permutations of the 4 input video frames. The reordering head is for the frame re-ordering “pretext” task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Lastly, there is a projection MLP (<code>self.projector</code>) that projects the <code>n_features</code> into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features (<code>projection_dim</code>).</p>
-<div id="7e1d5b0c" class="cell" data-execution_count="1">
+<div id="46f5fa60" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
@@ -127,7 +127,7 @@ font-style: inherit;">False</span>),</span>
 </details>
 </div>
 <p>In the forward pass, the method takes two video clips from the same study (patient) as input: <code>x_i</code> and <code>x_j</code>. Each clip is passed through the encoder to obtain feature representations (<code>h_i</code> and <code>h_j</code>). The reordering head predicts the order of the frames for each clip (<code>t_i</code> and <code>t_j</code>), and the projection MLP projects the features into a lower-dimensional space (<code>z_i</code> and <code>z_j</code>). The model returns the feature representations, the projected features, and the predicted order of frames for both clips.</p>
-<div id="a67216d2" class="cell" data-execution_count="2">
+<div id="8845afcd" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
@@ -179,7 +179,7 @@ font-style: inherit;">return</span> h_i, h_j, z_i, z_j, t_i, t_j</span></code></
 <section id="training-loop" class="level3">
 <h3 class="anchored" data-anchor-id="training-loop">Training Loop</h3>
 <p>The training starts off with loading the dataset using the <code>EchoDataset</code> class. The dataset (<code>train_dataset</code>) is initialized with the data directory, the split for training, the clip length, and the sampling rate. A <code>DataLoader</code> is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The <code>drop_last=True</code> argument ensures that any incomplete batch at the end of an epoch is dropped.</p>
-<div id="f8d5aa88" class="cell" data-execution_count="3">
+<div id="36288a71" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">train_dataset <span class="op" style="color: #5E5E5E;
@@ -231,7 +231,7 @@ font-style: inherit;">True</span>,</span>
 </details>
 </div>
 <p>Then, the encoder is initialized using a 3D ResNet-18 model from the <code>torchvision</code> library. The <code>SimCLR</code> model is then instantiated with the encoder, the projection dimension, and the number of features from the encoder’s fully connected layer.</p>
-<div id="b571dbcd" class="cell" data-execution_count="4">
+<div id="9ee2c8ba" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">encoder <span class="op" style="color: #5E5E5E;
@@ -257,7 +257,7 @@ font-style: inherit;">=</span>encoder.fc.in_features,</span>
 </details>
 </div>
 <p>Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: <code>NT_Xent</code> for contrastive learning and <code>CrossEntropyLoss</code> for the frame reordering classification task.</p>
-<div id="cef22cac" class="cell" data-execution_count="5">
+<div id="c2d708f1" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">optimizer <span class="op" style="color: #5E5E5E;
@@ -278,7 +278,7 @@ font-style: inherit;">=</span> torch.nn.CrossEntropyLoss()</span></code></pre></
 </div>
 <p>The training loop takes two different echo views of the same patient, <code>x_i</code> and <code>x_j</code>, and passes them through the model (<code>model.forward(x_i, x_j)</code>) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (<code>loss_fxn</code>) is computed using the projected features, and the classification loss (<code>cls_loss_fxn</code>) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses. The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar.</p>
 <p>Finally, the model checkpoint is saved every <code>save_freq</code> epochs. The model weights and optimizer state are saved to a file for later use.</p>
-<div id="320c3a71" class="cell" data-execution_count="6">
+<div id="cd03f219" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="cf" style="color: #003B4F;
@@ -459,34 +459,837 @@ font-style: inherit;">.pt"</span>),</span>
 </section>
 <section id="demo-with-echonet-lvh" class="level2">
 <h2 class="anchored" data-anchor-id="demo-with-echonet-lvh">Demo with EchoNet-LVH</h2>
-<p>Each training example is now a video paired with a slightly changed copy of the same video. Loading one pair gives the expected shapes, and a 4-step training run on the GPU produced finite losses. I didn’t run a full <code>main.py</code> epoch.</p>
-<p><strong>How a pair is made.</strong> EchoNet-LVH has exactly one video per patient, so the old “two different videos from the same study” pairing had nothing to pair. The new <code>EchoNetLVHDataset</code> class in dataset.py builds each pair from one <code>.avi</code>:</p>
+<p>In the rest of this blog post, we will be using the <a href="https://echonet.github.io/lvh/">EchoNet-LVH dataset</a> to apply the self-supervised learning (SSL) model architecture for pretraining. Also, we will be finetuning the same model architecture to classify left ventricular hypertrophy (LVH) from echocardiogram videos. This two-step approach of SSL pretraining and finetuning on the SSL initialized model, using the learned weights of the encoder, follows the approach used in the original Echo Severe AS paper.</p>
+<p><strong>Background:</strong> The EchoNet-LVH dataset contains 12,000 PLAX echocardiogram videos of patients who underwent imaging as part of routine clinical care at Stanford Medicine. For each video, EchoNet-LVH provides a table of measurements, including IVSd and LVPWd, which are used to determine the presence of LVH. For the purposes of this demo, we classify LVH as present in each video if the values of IVSd or LVPWd are at least 1.1 cm, following the ASE/EACVI 2015 chamber quantification guidelines. The 2015 ASE/EACVI guidelines state that the upper reference limit for both the interventricular septum at end-diastole (IVSd) and the left ventricular posterior wall thickness at end-diastole (LVPWd) is 1.0 cm (10 mm) for women and men.</p>
+<p><strong>How a pair is made:</strong> EchoNet-LVH has exactly one video per patient, so the original paper’s approach of “two different videos from the same study” does not apply to this dataset. The new <code>EchoNetLVHDataset</code> class (subclass of <code>EchoNetDataset</code>) builds each pair from one <code>.avi</code>:</p>
 <ol type="1">
 <li>It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass <code>--same_clip</code> if you want both views to use the same frames and differ only by the edits below.</li>
 <li>It shrinks each frame to 112×112 (<code>--frame_size</code>). The raw 1024×768 frames are too big to train on.</li>
 <li>It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.</li>
+<li>The resulting pairs are used for training the SSL model.</li>
 </ol>
-<p>The original <code>EchoDataset</code> class is unchanged. main.py now uses the EchoNet-LVH data by default (<code>--dataset lvh</code>, <code>--data_dir /workspace/data/EchoNet-LVH</code>); <code>--dataset yale</code> switches back to the original setup. The training loop and loss code didn’t change.</p>
-<p><strong>Checks:</strong> - <strong>One pair:</strong> both views come out as <code>(3, 4, 112, 112)</code>, scaled to [0, 1], and they differ, with a mean pixel difference of about 0.09. - <strong>Preview image:</strong> saved to <code>scratchpad/pair.png</code>. The two rows are clearly the same heart; the second is flipped and slightly rotated. - <strong>Training run:</strong> 4 steps on the RTX 3090 through <code>SimCLR</code>, <code>NT_Xent</code> and the frame-order loss, with losses between 5.3 and 8.3.</p>
-<p><strong>Things to know:</strong> - Only 5,416 of the 10,490 training videos listed in <code>MeasurementsList.csv</code> are in <code>Batch1</code>/<code>Batch2</code>. The dataset skips the missing ones and prints the count at startup. - The horizontal flip swaps the left–right layout of the heart. It still looks like the same patient, but if that feels like too big a change, you could turn it off for this dataset. - <code>load_video</code> reads every frame of the video at full size, about 450MB for a 200-frame clip. With <code>num_workers=12</code> that uses a lot of RAM. If memory becomes a problem, the fix is to read only the frames each clip needs.</p>
+<div id="2960b3fd" class="cell" data-execution_count="7">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">class</span> EchoNetLVHDataset(EchoDataset):</span>
+<span id="cb7-2">    <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">"""</span></span>
+<span id="cb7-3"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    Variant of EchoDataset for EchoNet-LVH, which has exactly one video per patient. Instead of pairing two different videos from the same study,</span></span>
+<span id="cb7-4"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    each positive pair is formed from the *same* video: two clips are subsampled (from independent random start frames by default), resized,</span></span>
+<span id="cb7-5"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    and independently augmented with the same light spatial augmentation + frame re-ordering as EchoDataset.</span></span>
+<span id="cb7-6"></span>
+<span id="cb7-7"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    Attributes</span></span>
+<span id="cb7-8"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    ----------</span></span>
+<span id="cb7-9"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    split: str</span></span>
+<span id="cb7-10"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">        Data split used to select videos (one of ["train", "val", "test"], matching the "split" column of MeasurementsList.csv)</span></span>
+<span id="cb7-11"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    clip_len : int</span></span>
+<span id="cb7-12"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">        Number of frames to form video clips for training (clip length)</span></span>
+<span id="cb7-13"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    sampling_rate : int</span></span>
+<span id="cb7-14"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">        Temporal "stride" when sampling frames to form clips</span></span>
+<span id="cb7-15"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    frame_size : int</span></span>
+<span id="cb7-16"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">        Side length (pixels) that each frame is resized to</span></span>
+<span id="cb7-17"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    same_clip : bool</span></span>
+<span id="cb7-18"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">        If True, both views use the same clip and differ only by augmentation; otherwise each view samples its own clip</span></span>
+<span id="cb7-19"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    fnames : list[str]</span></span>
+<span id="cb7-20"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">        List of full paths to videos found on disk for this split</span></span>
+<span id="cb7-21"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    temporal_orderings : list[tuple]</span></span>
+<span id="cb7-22"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">        List of all permutations of frame indices (target classes for frame re-ordering task)</span></span>
+<span id="cb7-23"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">    """</span></span>
+<span id="cb7-24"></span>
+<span id="cb7-25">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">__init__</span>(</span>
+<span id="cb7-26">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>,</span>
+<span id="cb7-27">        data_dir,</span>
+<span id="cb7-28">        split<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"train"</span>,</span>
+<span id="cb7-29">        clip_len<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">4</span>,</span>
+<span id="cb7-30">        sampling_rate<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>,</span>
+<span id="cb7-31">        frame_size<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">112</span>,</span>
+<span id="cb7-32">        same_clip<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>,</span>
+<span id="cb7-33">        n<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">None</span>,</span>
+<span id="cb7-34">    ):</span>
+<span id="cb7-35">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.split <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> split</span>
+<span id="cb7-36">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.clip_len <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> clip_len</span>
+<span id="cb7-37">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.sampling_rate <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> sampling_rate</span>
+<span id="cb7-38">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.frame_size <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> frame_size</span>
+<span id="cb7-39">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.same_clip <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> same_clip</span>
+<span id="cb7-40"></span>
+<span id="cb7-41">        label_df <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> pd.read_csv(os.path.join(data_dir, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"MeasurementsList.csv"</span>))</span>
+<span id="cb7-42">        names <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.sort(</span>
+<span id="cb7-43">            label_df.loc[label_df[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"split"</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.split, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"HashedFileName"</span>].unique()</span>
+<span id="cb7-44">        )</span>
+<span id="cb7-45"></span>
+<span id="cb7-46">        batch_dirs <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">sorted</span>(</span>
+<span id="cb7-47">            d</span>
+<span id="cb7-48">            <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> d <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(data_dir)</span>
+<span id="cb7-49">            <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> d.startswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Batch"</span>) <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">and</span> os.path.isdir(os.path.join(data_dir, d))</span>
+<span id="cb7-50">        )</span>
+<span id="cb7-51">        available <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {}</span>
+<span id="cb7-52">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> batch_dir <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> batch_dirs:</span>
+<span id="cb7-53">            <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> fname <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(os.path.join(data_dir, batch_dir)):</span>
+<span id="cb7-54">                <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> fname.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">".avi"</span>):</span>
+<span id="cb7-55">                    available.setdefault(</span>
+<span id="cb7-56">                        fname[:<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">4</span>], os.path.join(data_dir, batch_dir, fname)</span>
+<span id="cb7-57">                    )</span>
+<span id="cb7-58"></span>
+<span id="cb7-59">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.fnames <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [available[name] <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> names <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> name <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> available]</span>
+<span id="cb7-60">        <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">print</span>(</span>
+<span id="cb7-61">            <span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">f"</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span>split<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;">: found </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.fnames)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> of </span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(names)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> videos (</span><span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">{</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(names) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.fnames)<span class="sc" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">}</span><span class="ss" style="color: #20794D;
+background-color: null;
+font-style: inherit;"> missing on disk)"</span></span>
+<span id="cb7-62">        )</span>
+<span id="cb7-63"></span>
+<span id="cb7-64">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> n <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">is</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">not</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">None</span>:</span>
+<span id="cb7-65">            <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.fnames <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.fnames[:n]</span>
+<span id="cb7-66"></span>
+<span id="cb7-67">        <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.temporal_orderings <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [</span>
+<span id="cb7-68">            _ <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> _ <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> itertools.permutations(np.arange(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.clip_len))</span>
+<span id="cb7-69">        ]</span>
+<span id="cb7-70"></span>
+<span id="cb7-71">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> _resize(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>, x):</span>
+<span id="cb7-72">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> np.stack(</span>
+<span id="cb7-73">            [</span>
+<span id="cb7-74">                cv2.resize(</span>
+<span id="cb7-75">                    frame,</span>
+<span id="cb7-76">                    (<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.frame_size, <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.frame_size),</span>
+<span id="cb7-77">                    interpolation<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>cv2.INTER_AREA,</span>
+<span id="cb7-78">                )</span>
+<span id="cb7-79">                <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> frame <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> x</span>
+<span id="cb7-80">            ],</span>
+<span id="cb7-81">            axis<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>,</span>
+<span id="cb7-82">        )</span>
+<span id="cb7-83"></span>
+<span id="cb7-84">    <span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">@staticmethod</span></span>
+<span id="cb7-85">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> _normalize(x):</span>
+<span id="cb7-86">        x <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> x.astype(np.float32)</span>
+<span id="cb7-87">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> (x <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> x.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">min</span>()) <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">max</span>(x.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">max</span>() <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">-</span> x.<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">min</span>(), <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1e-8</span>)</span>
+<span id="cb7-88"></span>
+<span id="cb7-89">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">__len__</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>):</span>
+<span id="cb7-90">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">len</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.fnames)</span>
+<span id="cb7-91"></span>
+<span id="cb7-92">    <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">def</span> <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">__getitem__</span>(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>, idx):</span>
+<span id="cb7-93">        x <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> load_video(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.fnames[idx])</span>
+<span id="cb7-94"></span>
+<span id="cb7-95">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Sample two clips from the same video (same clip if same_clip=True)</span></span>
+<span id="cb7-96">        x_i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>._resize(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>._sample_frames(x))</span>
+<span id="cb7-97">        x_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> x_i.copy() <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>.same_clip <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>._resize(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>._sample_frames(x))</span>
+<span id="cb7-98"></span>
+<span id="cb7-99">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Independently augment each view and obtain frame ordering label</span></span>
+<span id="cb7-100">        x_i, reordering_i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>._augment(x_i)</span>
+<span id="cb7-101">        x_j, reordering_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>._augment(x_j)</span>
+<span id="cb7-102"></span>
+<span id="cb7-103">        <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Min-max normalize and swap axes for PyTorch</span></span>
+<span id="cb7-104">        x_i <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.transpose(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>._normalize(x_i), (<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">3</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>))</span>
+<span id="cb7-105">        x_j <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.transpose(<span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">self</span>._normalize(x_j), (<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">3</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">2</span>))</span>
+<span id="cb7-106"></span>
+<span id="cb7-107">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> (</span>
+<span id="cb7-108">            torch.from_numpy(x_i).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>(),</span>
+<span id="cb7-109">            torch.from_numpy(x_j).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">float</span>(),</span>
+<span id="cb7-110">            torch.tensor(reordering_i).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">long</span>(),</span>
+<span id="cb7-111">            torch.tensor(reordering_j).<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">long</span>(),</span>
+<span id="cb7-112">        )</span></code></pre></div></div>
+</details>
+</div>
 <section id="ssl-pretraining" class="level3">
 <h3 class="anchored" data-anchor-id="ssl-pretraining">SSL Pretraining</h3>
+<p>The training step is performed on the EchoNet-LVH dataset using the <code>EchoNetLVHDataset</code> class and is identical to the training loop described in the previous section. It was trained on 1 NVIDIA RTX 4090 GPU from <a href="https://www.runpod.io/">Runpod</a> for 120 epochs. Below is a graph of the number of epochs versus the training loss. The training loss decreases over time, indicating that the model is learning. Future work could include increasing the number of epochs to improve the model’s performance.</p>
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/training-loss.png" class="img-fluid"></p>
 </section>
 <section id="lvh-finetuning" class="level3">
 <h3 class="anchored" data-anchor-id="lvh-finetuning">LVH FineTuning</h3>
-<p>Finetuned on NVIDIA RTX 4090 GPUs from Runpod</p>
-</section>
-<section id="model-architecture" class="level3">
-<h3 class="anchored" data-anchor-id="model-architecture">Model Architecture</h3>
-</section>
-<section id="notes-from-papersupplement" class="level3">
-<h3 class="anchored" data-anchor-id="notes-from-papersupplement">Notes from Paper/Supplement</h3>
-<p><em>Importance of the pretraining step</em>: This pretraining step critically enables the model to learn representations of echocardiograms that are robust to standard variations in video acquisition, thus better generalizing when later fine-tuned on a specific downstream task.</p>
-<p><em>Video clip for self-supervised pretraining</em>: Self-supervised pretraining was performed on randomly sampled video clips of 4 consecutive frames from each of the training set echocardiogram videos for 300 epochs.</p>
-<p><em>Model Architecture</em>: More specifically, self-supervised representation learning was performed on the training set videos with a novel combination of (i) a multi-instance contrastive learning task and (ii) a frame re-ordering pretext task</p>
-<p>In brief, we adopted the <em>SimCLR</em> framework for contrastive learning, which traditionally generates two “views” of an image by sending two copies of the input through a pipeline of random image augmentations, producing view 𝑥̃𝑖 and 𝑥̃𝑗.</p>
-<p><em>GPU used</em>: The SSL model was trained on two NVIDIA RTX 3090 GPUs.</p>
-<p><em>LVH Classification</em>: Call LVH present if IVSd or LVPWd is at least 1.1 cm, which is a common sex-agnostic convention.</p>
+<p>Then, using the learned encoder weights from the SSL pretraining step, we fine-tune the same model architecture (3D ResNet-18) for the downstream task of LVH classification. First, we initialize the model weights with the learned encoder weights from the SSL pretraining step. Then, we replace the last fully connected layer of the model with a new linear layer that outputs a single value for binary classification (LVH present or not).</p>
+<div id="085af2b6" class="cell" data-execution_count="8">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Create model</span></span>
+<span id="cb8-2"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> model_name <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">==</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"3dresnet18"</span>:</span>
+<span id="cb8-3">    weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.video.R3D_18_Weights.DEFAULT <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">not</span> rand_init <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span> <span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">None</span></span>
+<span id="cb8-4">    model <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torchvision.models.video.r3d_18(weights<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>weights)</span>
+<span id="cb8-5"></span>
+<span id="cb8-6">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> dropout_fc:</span>
+<span id="cb8-7">        model.fc <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Sequential(  <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># type: ignore</span></span>
+<span id="cb8-8">            torch.nn.Linear(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>), torch.nn.Dropout(<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.25</span>)</span>
+<span id="cb8-9">        )</span>
+<span id="cb8-10"></span>
+<span id="cb8-11">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> lpft <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">""</span>:</span>
+<span id="cb8-12">            <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Linear probing fine-tuning (LPFT) weights are stored in a dict under the key "weights"</span></span>
+<span id="cb8-13">            weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">dict</span>(torch.load(lpft, map_location<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cpu"</span>)[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"weights"</span>])</span>
+<span id="cb8-14"></span>
+<span id="cb8-15">            model.fc[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].weight.data <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> weights[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"fc.0.weight"</span>]</span>
+<span id="cb8-16">            model.fc[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].bias.data <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> weights[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"fc.0.bias"</span>]</span>
+<span id="cb8-17"></span>
+<span id="cb8-18">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">else</span>:</span>
+<span id="cb8-19">        model.fc <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">512</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>)</span>
+<span id="cb8-20">        <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> lpft <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">""</span>:</span>
+<span id="cb8-21">            <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># Linear probing fine-tuning (LPFT) weights are stored in a dict under the key "weights"</span></span>
+<span id="cb8-22">            weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">dict</span>(torch.load(lpft, map_location<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cpu"</span>)[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"weights"</span>])</span>
+<span id="cb8-23"></span>
+<span id="cb8-24">            model.fc.weight.data <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> weights[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"fc.weight"</span>]</span>
+<span id="cb8-25">            model.fc.bias.data <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> weights[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"fc.bias"</span>]</span>
+<span id="cb8-26"></span>
+<span id="cb8-27">    <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> ssl <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">!=</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">""</span>:</span>
+<span id="cb8-28">        checkpoints <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> [f <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> f <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> os.listdir(ssl) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> f.endswith(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">".pt"</span>)]</span>
+<span id="cb8-29">        idx <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> np.argmax([<span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">int</span>(f.split(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"."</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span>].split(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"-"</span>)[<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span>]) <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> f <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> checkpoints])</span>
+<span id="cb8-30">        weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.load(os.path.join(ssl, checkpoints[idx]), map_location<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"cpu"</span>)[</span>
+<span id="cb8-31">            <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"weights"</span></span>
+<span id="cb8-32">        ]</span>
+<span id="cb8-33">        weights <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> {</span>
+<span id="cb8-34">            k.replace(<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"encoder."</span>, <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">""</span>): v <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> k, v <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> weights.items() <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">if</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"encoder"</span> <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">in</span> k</span>
+<span id="cb8-35">        }</span>
+<span id="cb8-36"></span>
+<span id="cb8-37">        model.load_state_dict(weights, strict<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="va" style="color: #111111;
+background-color: null;
+font-style: inherit;">False</span>)</span></code></pre></div></div>
+</details>
+</div>
+<p>Then, for a maximum of 10 epochs, we train the model on the training set of the EchoNet-LVH dataset using the Adam optimization algorithm with a specified learning rate. The binary cross-entropy loss function is used to compute the loss between the predicted and true labels. The model is evaluated on the validation set after each epoch, and the best model (with the lowest validation loss) is saved for later use.</p>
+<div id="fe605452" class="cell" data-execution_count="9">
+<details class="code-fold">
+<summary>Show code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">while</span> epoch <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&lt;=</span> max_epochs <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">and</span> early_stopping_dict[<span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"epochs_no_improve"</span>] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&lt;</span> patience:</span>
+<span id="cb9-2">    history <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> train(</span>
+<span id="cb9-3">        model<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>model,</span>
+<span id="cb9-4">        device<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>device,</span>
+<span id="cb9-5">        loss_fxn<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>loss_fxn,</span>
+<span id="cb9-6">        optimizer<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>optimizer,</span>
+<span id="cb9-7">        data_loader<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>train_loader,</span>
+<span id="cb9-8">        history<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>history,</span>
+<span id="cb9-9">        epoch<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>epoch,</span>
+<span id="cb9-10">        model_dir<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>model_dir,</span>
+<span id="cb9-11">    )</span>
+<span id="cb9-12">    history, early_stopping_dict, best_model_wts <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> validate(</span>
+<span id="cb9-13">        model<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>model,</span>
+<span id="cb9-14">        device<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>device,</span>
+<span id="cb9-15">        loss_fxn<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>eval_loss_fxn,</span>
+<span id="cb9-16">        optimizer<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>optimizer,</span>
+<span id="cb9-17">        data_loader<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>val_loader,</span>
+<span id="cb9-18">        history<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>history,</span>
+<span id="cb9-19">        epoch<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>epoch,</span>
+<span id="cb9-20">        model_dir<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>model_dir,</span>
+<span id="cb9-21">        early_stopping_dict<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>early_stopping_dict,</span>
+<span id="cb9-22">        best_model_wts<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span>best_model_wts,</span>
+<span id="cb9-23">    )</span>
+<span id="cb9-24"></span>
+<span id="cb9-25">    epoch <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1</span></span></code></pre></div></div>
+</details>
+</div>
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/loss-history.png" height="392"></p>
+<p>We see the training loss and validation loss decrease over time, indicating that the model is learning.</p>
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/auroc-history.png" height="392"></p>
+<p>We see that the AUROC increases over time for both the training and validation sets, indicating that the model is improving its ability to distinguish between the two classes (LVH present or not). The model weights are only saved when the validation AUROC improves, so the best model is the one with the highest validation AUROC.</p>
+<p><img src="https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/test-roc.png" height="392"></p>
+<p>The final model output is the test-set ROC curve, which shows an AUC of 0.789.</p>
 
 
 </section>
@@ -496,7 +1299,7 @@ font-style: inherit;">.pt"</span>),</span>
  ]]></description>
   <category>Medical AI</category>
   <guid>https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/</guid>
-  <pubDate>Sun, 01 Nov 2026 04:00:00 GMT</pubDate>
+  <pubDate>Fri, 06 Nov 2026 05:00:00 GMT</pubDate>
   <media:content url="https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/model.jpeg" medium="image" type="image/jpeg"/>
 </item>
 <item>

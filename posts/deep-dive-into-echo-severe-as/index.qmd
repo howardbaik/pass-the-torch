@@ -6,13 +6,13 @@ format:
     code-summary: "Show code"
 engine: jupyter
 author: "Howard Baik"
-date: "2026-11-01"
+date: "2026-11-06"
 image: "model.jpeg"
 eval: false
 categories: [Medical AI]
 ---
 
-# UNDER CONSTRUCTION
+# UNDER CONSTRUCTION!!!
 
 ## Introduction
 
@@ -170,46 +170,228 @@ for epoch in range(1, args.num_epochs + 1):
 
 ## Demo with EchoNet-LVH
 
-In the rest of this blog post, we will be using the EchoNet-LVH dataset[https://echonet.github.io/lvh/] to apply the self-supervised learning (SSL) model architecture for pretraining. Also, we will be finetuning the same model architecture to classify left ventricular hypertrophy (LVH) from echocardiogram videos. This two-step approach of SSL pretraining and finetuning on the SSL initialized model, using the learned weights of the encoder, follows the approach used in the original Echo Severe AS paper.
+In the rest of this blog post, we will be using the [EchoNet-LVH dataset](https://echonet.github.io/lvh/) to apply the self-supervised learning (SSL) model architecture for pretraining. Also, we will be finetuning the same model architecture to classify left ventricular hypertrophy (LVH) from echocardiogram videos. This two-step approach of SSL pretraining and finetuning on the SSL initialized model, using the learned weights of the encoder, follows the approach used in the original Echo Severe AS paper.
 
-The EchoNet-LVH dataset contains 12,000 PLAX echocardiogram videos of patients who underwent imaging as part of routine clinical care at Stanford Medicine. For each video, EchoNet-LVH provides a table of measurements, including IVSd and LVPWd, which are used to determine the presence of LVH. For the purposes of this demo, we classify LVH as present in each video if the values of IVSd or LVPWd are at least 1.1 cm, following the ASE/EACVI 2015 chamber quantification guidelines.
+**Background:** The EchoNet-LVH dataset contains 12,000 PLAX echocardiogram videos of patients who underwent imaging as part of routine clinical care at Stanford Medicine. For each video, EchoNet-LVH provides a table of measurements, including IVSd and LVPWd, which are used to determine the presence of LVH. For the purposes of this demo, we classify LVH as present in each video if the values of IVSd or LVPWd are at least 1.1 cm, following the ASE/EACVI 2015 chamber quantification guidelines. The 2015 ASE/EACVI guidelines state that the upper reference limit for both the interventricular septum at end-diastole (IVSd) and the left ventricular posterior wall thickness at end-diastole (LVPWd) is 1.0 cm (10 mm) for women and men.
 
-**How a pair is made.** EchoNet-LVH has exactly one video per patient, so the original paper's approach of "two different videos from the same study" does not apply to this dataset. The new `EchoNetLVHDataset` class in dataset.py builds each pair from one `.avi`:
+**How a pair is made:** EchoNet-LVH has exactly one video per patient, so the original paper's approach of "two different videos from the same study" does not apply to this dataset. The new `EchoNetLVHDataset` class (subclass of `EchoNetDataset`) builds each pair from one `.avi`:
 
 1. It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass `--same_clip` if you want both views to use the same frames and differ only by the edits below.
 2. It shrinks each frame to 112×112 (`--frame_size`). The raw 1024×768 frames are too big to train on.
 3. It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.
 4. The resulting pairs are used for training the SSL model.
 
-Each training example is now a video paired with a slightly changed copy of the same video. Loading one pair gives the expected shapes, and a 4-step training run on the GPU produced finite losses. I didn't run a full `main.py` epoch.
+```{python}
+class EchoNetLVHDataset(EchoDataset):
+    """
+    Variant of EchoDataset for EchoNet-LVH, which has exactly one video per patient. Instead of pairing two different videos from the same study,
+    each positive pair is formed from the *same* video: two clips are subsampled (from independent random start frames by default), resized,
+    and independently augmented with the same light spatial augmentation + frame re-ordering as EchoDataset.
+
+    Attributes
+    ----------
+    split: str
+        Data split used to select videos (one of ["train", "val", "test"], matching the "split" column of MeasurementsList.csv)
+    clip_len : int
+        Number of frames to form video clips for training (clip length)
+    sampling_rate : int
+        Temporal "stride" when sampling frames to form clips
+    frame_size : int
+        Side length (pixels) that each frame is resized to
+    same_clip : bool
+        If True, both views use the same clip and differ only by augmentation; otherwise each view samples its own clip
+    fnames : list[str]
+        List of full paths to videos found on disk for this split
+    temporal_orderings : list[tuple]
+        List of all permutations of frame indices (target classes for frame re-ordering task)
+    """
+
+    def __init__(
+        self,
+        data_dir,
+        split="train",
+        clip_len=4,
+        sampling_rate=1,
+        frame_size=112,
+        same_clip=False,
+        n=None,
+    ):
+        self.split = split
+        self.clip_len = clip_len
+        self.sampling_rate = sampling_rate
+        self.frame_size = frame_size
+        self.same_clip = same_clip
+
+        label_df = pd.read_csv(os.path.join(data_dir, "MeasurementsList.csv"))
+        names = np.sort(
+            label_df.loc[label_df["split"] == self.split, "HashedFileName"].unique()
+        )
+
+        batch_dirs = sorted(
+            d
+            for d in os.listdir(data_dir)
+            if d.startswith("Batch") and os.path.isdir(os.path.join(data_dir, d))
+        )
+        available = {}
+        for batch_dir in batch_dirs:
+            for fname in os.listdir(os.path.join(data_dir, batch_dir)):
+                if fname.endswith(".avi"):
+                    available.setdefault(
+                        fname[:-4], os.path.join(data_dir, batch_dir, fname)
+                    )
+
+        self.fnames = [available[name] for name in names if name in available]
+        print(
+            f"{self.split}: found {len(self.fnames)} of {len(names)} videos ({len(names) - len(self.fnames)} missing on disk)"
+        )
+
+        if n is not None:
+            self.fnames = self.fnames[:n]
+
+        self.temporal_orderings = [
+            _ for _ in itertools.permutations(np.arange(self.clip_len))
+        ]
+
+    def _resize(self, x):
+        return np.stack(
+            [
+                cv2.resize(
+                    frame,
+                    (self.frame_size, self.frame_size),
+                    interpolation=cv2.INTER_AREA,
+                )
+                for frame in x
+            ],
+            axis=0,
+        )
+
+    @staticmethod
+    def _normalize(x):
+        x = x.astype(np.float32)
+        return (x - x.min()) / max(x.max() - x.min(), 1e-8)
+
+    def __len__(self):
+        return len(self.fnames)
+
+    def __getitem__(self, idx):
+        x = load_video(self.fnames[idx])
+
+        # Sample two clips from the same video (same clip if same_clip=True)
+        x_i = self._resize(self._sample_frames(x))
+        x_j = x_i.copy() if self.same_clip else self._resize(self._sample_frames(x))
+
+        # Independently augment each view and obtain frame ordering label
+        x_i, reordering_i = self._augment(x_i)
+        x_j, reordering_j = self._augment(x_j)
+
+        # Min-max normalize and swap axes for PyTorch
+        x_i = np.transpose(self._normalize(x_i), (3, 0, 1, 2))
+        x_j = np.transpose(self._normalize(x_j), (3, 0, 1, 2))
+
+        return (
+            torch.from_numpy(x_i).float(),
+            torch.from_numpy(x_j).float(),
+            torch.tensor(reordering_i).long(),
+            torch.tensor(reordering_j).long(),
+        )
+```
+
 
 ### SSL Pretraining
 
+The training step is performed on the EchoNet-LVH dataset using the `EchoNetLVHDataset` class and is identical to the training loop described in the previous section. It was trained on 1 NVIDIA RTX 4090 GPU from [Runpod](https://www.runpod.io/) for 120 epochs. Below is a graph of the number of epochs versus the training loss. The training loss decreases over time, indicating that the model is learning. Future work could include increasing the number of epochs to improve the model's performance.
+
+
+
+
+![](training-loss.png)
+
+
+
 ### LVH FineTuning
 
-Finetuned on NVIDIA RTX 4090 GPUs from Runpod
-
-
-### Model Architecture
+Then, using the learned encoder weights from the SSL pretraining step, we fine-tune the same model architecture (3D ResNet-18) for the downstream task of LVH classification. First, we initialize the model weights with the learned encoder weights from the SSL pretraining step. Then, we replace the last fully connected layer of the model with a new linear layer that outputs a single value for binary classification (LVH present or not). 
 
 
 
+```{python}
+# Create model
+if model_name == "3dresnet18":
+    weights = torchvision.models.video.R3D_18_Weights.DEFAULT if not rand_init else None
+    model = torchvision.models.video.r3d_18(weights=weights)
 
+    if dropout_fc:
+        model.fc = torch.nn.Sequential(  # type: ignore
+            torch.nn.Linear(512, 1), torch.nn.Dropout(0.25)
+        )
 
+        if lpft != "":
+            # Linear probing fine-tuning (LPFT) weights are stored in a dict under the key "weights"
+            weights = dict(torch.load(lpft, map_location="cpu")["weights"])
 
-### Notes from Paper/Supplement
+            model.fc[0].weight.data = weights["fc.0.weight"]
+            model.fc[0].bias.data = weights["fc.0.bias"]
 
-*Importance of the pretraining step*: This pretraining step critically enables the model to learn representations of echocardiograms that are robust to standard variations in video acquisition, thus better generalizing when later fine-tuned on a specific downstream task. 
+    else:
+        model.fc = torch.nn.Linear(512, 1)
+        if lpft != "":
+            # Linear probing fine-tuning (LPFT) weights are stored in a dict under the key "weights"
+            weights = dict(torch.load(lpft, map_location="cpu")["weights"])
 
-*Video clip for self-supervised pretraining*: Self-supervised pretraining
-was performed on randomly sampled video clips of 4 consecutive frames from each of the training set echocardiogram videos for 300 epochs.
+            model.fc.weight.data = weights["fc.weight"]
+            model.fc.bias.data = weights["fc.bias"]
 
-*Model Architecture*: More specifically, self-supervised representation learning was performed on the training set videos with a novel combination of (i) a multi-instance contrastive learning task and (ii) a frame re-ordering pretext task
+    if ssl != "":
+        checkpoints = [f for f in os.listdir(ssl) if f.endswith(".pt")]
+        idx = np.argmax([int(f.split(".")[0].split("-")[1]) for f in checkpoints])
+        weights = torch.load(os.path.join(ssl, checkpoints[idx]), map_location="cpu")[
+            "weights"
+        ]
+        weights = {
+            k.replace("encoder.", ""): v for k, v in weights.items() if "encoder" in k
+        }
 
-In brief, we adopted the *SimCLR* framework for contrastive learning, which traditionally generates two “views” of an image by sending two copies of the input through a pipeline of random image augmentations, producing view 𝑥̃𝑖 and 𝑥̃𝑗.
+        model.load_state_dict(weights, strict=False)
+```
 
+Then, for a maximum of 10 epochs, we train the model on the training set of the EchoNet-LVH dataset using the Adam optimization algorithm with a specified learning rate. The binary cross-entropy loss function is used to compute the loss between the predicted and true labels. The model is evaluated on the validation set after each epoch, and the best model (with the lowest validation loss) is saved for later use.
 
-*GPU used*: The SSL model was trained on two NVIDIA RTX 3090 GPUs.
+```{python}
+while epoch <= max_epochs and early_stopping_dict["epochs_no_improve"] < patience:
+    history = train(
+        model=model,
+        device=device,
+        loss_fxn=loss_fxn,
+        optimizer=optimizer,
+        data_loader=train_loader,
+        history=history,
+        epoch=epoch,
+        model_dir=model_dir,
+    )
+    history, early_stopping_dict, best_model_wts = validate(
+        model=model,
+        device=device,
+        loss_fxn=eval_loss_fxn,
+        optimizer=optimizer,
+        data_loader=val_loader,
+        history=history,
+        epoch=epoch,
+        model_dir=model_dir,
+        early_stopping_dict=early_stopping_dict,
+        best_model_wts=best_model_wts,
+    )
 
-*LVH Classification*: Call LVH present if IVSd or LVPWd is at least 1.1 cm, which is a common sex-agnostic convention.
+    epoch += 1
+```
 
+![](loss-history.png){height=392px}
+
+We see the training loss and validation loss decrease over time, indicating that the model is learning. 
+
+![](auroc-history.png){height=392px}
+
+We see that the AUROC increases over time for both the training and validation sets, indicating that the model is improving its ability to distinguish between the two classes (LVH present or not). The model weights are only saved when the validation AUROC improves, so the best model is the one with the highest validation AUROC.
+
+![](test-roc.png){height=392px}
+
+The final model output is the test-set ROC curve, which shows an AUC of 0.789. 
