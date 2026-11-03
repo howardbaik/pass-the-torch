@@ -6,7 +6,7 @@ format:
     code-summary: "Show code"
 engine: jupyter
 author: "Howard Baik"
-date: "2026-11-06"
+date: "2026-11-04"
 image: "model.jpeg"
 eval: false
 categories: [Medical AI]
@@ -14,7 +14,11 @@ categories: [Medical AI]
 
 ## Introduction
 
-Investigate the the self-supervised learning (SSL) model architecture used for pretraining. The SSL model is based on a 3D ResNet-18 backbone and is designed to learn robust representations of echocardiogram videos through a frame reordering pretext task. The model is then fine-tuned for the downstream task of LVH classification. 
+This post is a code-focused deep dive into a deep learning model for the detection of severe aortic stenosis (AS) from echocardiogram videos. The original paper, [Severe aortic stenosis detection by deep learning applied to echocardiography](https://academic.oup.com/eurheartj/article/44/43/4592/7248551), reports a deep learning model that consists of a self-supervised learning (SSL) model architecture used for pretraining and another model fine-tuned for the downstream task of AS classification. 
+
+![](paper.jpeg){fig-align="center"}
+
+In the rest of this post, we will go through the source code of the Self-Supervised Learning (SSL) model architecture, the training loop, and the fine-tuning process. Then, using a real world dataset unrelated to this paper, [EchoNet-LVH](https://echonet.github.io/lvh/), we will demonstrate how to apply the same model architecture to left ventricular hypertrophy (LVH) classification.
 
 
 ## Self-Supervised Learning (SSL) Pretraining
