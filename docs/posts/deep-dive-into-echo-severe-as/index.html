@@ -192,20 +192,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 
-<section id="under-construction" class="level1">
-<h1>UNDER CONSTRUCTION!!!</h1>
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
 <p>Investigate the the self-supervised learning (SSL) model architecture used for pretraining. The SSL model is based on a 3D ResNet-18 backbone and is designed to learn robust representations of echocardiogram videos through a frame reordering pretext task. The model is then fine-tuned for the downstream task of LVH classification.</p>
-<p>Adapted from Echo Severe AS</p>
 </section>
 <section id="self-supervised-learning-ssl-pretraining" class="level2">
 <h2 class="anchored" data-anchor-id="self-supervised-learning-ssl-pretraining">Self-Supervised Learning (SSL) Pretraining</h2>
 <section id="simclr-class" class="level3">
 <h3 class="anchored" data-anchor-id="simclr-class">SimCLR class</h3>
-<p>SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder. The encoder maps each video clip to a 512-dimensional feature vector.</p>
-<p>In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (<code>torch.nn.Identity()</code>) so the encoder just outputs the features without any final projection. Then, there is a reordering head (<code>self.reordering_head</code>) that projects the <code>n_features</code> into 24 features. This is based on the 24 (4!) possible permutations of the 4 input video frames. The reordering head is for the frame re-ordering “pretext” task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Lastly, there is a projection MLP (<code>self.projector</code>) that projects the <code>n_features</code> into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features (<code>projection_dim</code>).</p>
-<div id="46f5fa60" class="cell" data-execution_count="1">
+<p>SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder.</p>
+<p>In the initialization:</p>
+<ul>
+<li><strong>Encoder (<code>self.encoder</code>):</strong> The last fully connected layer of the encoder is swapped out for an identity layer (<code>torch.nn.Identity()</code>), so the encoder just outputs the features without any final projection. As a result, the encoder maps each video clip to a 512-dimensional feature vector.</li>
+<li><strong>Reordering head (<code>self.reordering_head</code>):</strong> Projects the <code>n_features</code> into 24 features, one for each of the 24 possible permutations of the 4 input video frames.
+<ul>
+<li>It is used for the frame re-ordering “pretext” task, where frames are randomly permuted and the model is trained to predict the correct order of the frames.</li>
+</ul></li>
+<li><strong>Projection MLP (<code>self.projector</code>):</strong> Projects the <code>n_features</code> into a lower-dimensional space for contrastive learning. It consists of:
+<ul>
+<li>a linear layer,</li>
+<li>a ReLU activation,</li>
+<li>and another linear layer that outputs the final projected features (<code>projection_dim</code>).</li>
+</ul></li>
+</ul>
+<div id="c6849b9a" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SimCLR(torch.nn.Module):</span>
@@ -230,7 +240,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </details>
 </div>
 <p>In the forward pass, the method takes two video clips from the same study (patient) as input: <code>x_i</code> and <code>x_j</code>. Each clip is passed through the encoder to obtain feature representations (<code>h_i</code> and <code>h_j</code>). The reordering head predicts the order of the frames for each clip (<code>t_i</code> and <code>t_j</code>), and the projection MLP projects the features into a lower-dimensional space (<code>z_i</code> and <code>z_j</code>). The model returns the feature representations, the projected features, and the predicted order of frames for both clips.</p>
-<div id="8845afcd" class="cell" data-execution_count="2">
+<div id="1457d20a" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward(<span class="va">self</span>, x_i, x_j):</span>
@@ -250,7 +260,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="training-loop" class="level3">
 <h3 class="anchored" data-anchor-id="training-loop">Training Loop</h3>
 <p>The training starts off with loading the dataset using the <code>EchoDataset</code> class. The dataset (<code>train_dataset</code>) is initialized with the data directory, the split for training, the clip length, and the sampling rate. A <code>DataLoader</code> is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The <code>drop_last=True</code> argument ensures that any incomplete batch at the end of an epoch is dropped.</p>
-<div id="36288a71" class="cell" data-execution_count="3">
+<div id="372dd647" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>train_dataset <span class="op">=</span> EchoDataset(</span>
@@ -270,7 +280,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </details>
 </div>
 <p>Then, the encoder is initialized using a 3D ResNet-18 model from the <code>torchvision</code> library. The <code>SimCLR</code> model is then instantiated with the encoder, the projection dimension, and the number of features from the encoder’s fully connected layer.</p>
-<div id="9ee2c8ba" class="cell" data-execution_count="4">
+<div id="ea9ab87e" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>encoder <span class="op">=</span> torchvision.models.video.r3d_18(pretrained<span class="op">=</span><span class="va">False</span>)</span>
@@ -282,7 +292,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </details>
 </div>
 <p>Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: <code>NT_Xent</code> for contrastive learning and <code>CrossEntropyLoss</code> for the frame reordering classification task.</p>
-<div id="c2d708f1" class="cell" data-execution_count="5">
+<div id="5a3f1fa8" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.Adam(model.parameters(), lr<span class="op">=</span>args.lr)</span>
@@ -291,9 +301,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>cls_loss_fxn <span class="op">=</span> torch.nn.CrossEntropyLoss()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
-<p>The training loop takes two different echo views of the same patient, <code>x_i</code> and <code>x_j</code>, and passes them through the model (<code>model.forward(x_i, x_j)</code>) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (<code>loss_fxn</code>) is computed using the projected features, and the classification loss (<code>cls_loss_fxn</code>) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses. The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar.</p>
+<p>The training loop takes two different echo views of the same patient, <code>x_i</code> and <code>x_j</code>, and passes them through the model (<code>model.forward(x_i, x_j)</code>) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (<code>loss_fxn</code>) is computed using the projected features, and the classification loss (<code>cls_loss_fxn</code>) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses.</p>
+<p>The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar.</p>
 <p>Finally, the model checkpoint is saved every <code>save_freq</code> epochs. The model weights and optimizer state are saved to a file for later use.</p>
-<div id="cd03f219" class="cell" data-execution_count="6">
+<div id="bb5be428" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> epoch <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, args.num_epochs <span class="op">+</span> <span class="dv">1</span>):</span>
@@ -349,12 +360,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><strong>Background:</strong> The EchoNet-LVH dataset contains 12,000 PLAX echocardiogram videos of patients who underwent imaging as part of routine clinical care at Stanford Medicine. For each video, EchoNet-LVH provides a table of measurements, including IVSd and LVPWd, which are used to determine the presence of LVH. For the purposes of this demo, we classify LVH as present in each video if the values of IVSd or LVPWd are at least 1.1 cm, following the ASE/EACVI 2015 chamber quantification guidelines. The 2015 ASE/EACVI guidelines state that the upper reference limit for both the interventricular septum at end-diastole (IVSd) and the left ventricular posterior wall thickness at end-diastole (LVPWd) is 1.0 cm (10 mm) for women and men.</p>
 <p><strong>How a pair is made:</strong> EchoNet-LVH has exactly one video per patient, so the original paper’s approach of “two different videos from the same study” does not apply to this dataset. The new <code>EchoNetLVHDataset</code> class (subclass of <code>EchoNetDataset</code>) builds each pair from one <code>.avi</code>:</p>
 <ol type="1">
-<li>It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass <code>--same_clip</code> if you want both views to use the same frames and differ only by the edits below.</li>
-<li>It shrinks each frame to 112×112 (<code>--frame_size</code>). The raw 1024×768 frames are too big to train on.</li>
+<li>It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. The argument <code>same_clip</code> allows you to specify whether both views should use the same frames.</li>
+<li>It shrinks each frame to 112×112 (<code>frame_size</code>). The raw 1024×768 frames are too big to train on.</li>
 <li>It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.</li>
 <li>The resulting pairs are used for training the SSL model.</li>
 </ol>
-<div id="2960b3fd" class="cell" data-execution_count="7">
+<div id="c8f1c93e" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EchoNetLVHDataset(EchoDataset):</span>
@@ -479,7 +490,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="lvh-finetuning" class="level3">
 <h3 class="anchored" data-anchor-id="lvh-finetuning">LVH FineTuning</h3>
 <p>Then, using the learned encoder weights from the SSL pretraining step, we fine-tune the same model architecture (3D ResNet-18) for the downstream task of LVH classification. First, we initialize the model weights with the learned encoder weights from the SSL pretraining step. Then, we replace the last fully connected layer of the model with a new linear layer that outputs a single value for binary classification (LVH present or not).</p>
-<div id="085af2b6" class="cell" data-execution_count="8">
+<div id="44906b16" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create model</span></span>
@@ -522,7 +533,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </details>
 </div>
 <p>Then, for a maximum of 10 epochs, we train the model on the training set of the EchoNet-LVH dataset using the Adam optimization algorithm with a specified learning rate. The binary cross-entropy loss function is used to compute the loss between the predicted and true labels. The model is evaluated on the validation set after each epoch, and the best model (with the lowest validation loss) is saved for later use.</p>
-<div id="fe605452" class="cell" data-execution_count="9">
+<div id="107abf6f" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> epoch <span class="op">&lt;=</span> max_epochs <span class="kw">and</span> early_stopping_dict[<span class="st">"epochs_no_improve"</span>] <span class="op">&lt;</span> patience:</span>
@@ -552,15 +563,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    epoch <span class="op">+=</span> <span class="dv">1</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
+<p>In the below line plot, we see the training loss and validation loss decrease over time, indicating that the model is learning.</p>
 <p><img src="loss-history.png" height="392"></p>
-<p>We see the training loss and validation loss decrease over time, indicating that the model is learning.</p>
+<p>In the below line plot, we see the AUROC for both the training and validation sets increase over time, indicating that the model is improving its ability to distinguish between the two classes (LVH present or not). The model weights are only saved when the validation AUROC improves, so the best model is the one with the highest validation AUROC.</p>
 <p><img src="auroc-history.png" height="392"></p>
-<p>We see that the AUROC increases over time for both the training and validation sets, indicating that the model is improving its ability to distinguish between the two classes (LVH present or not). The model weights are only saved when the validation AUROC improves, so the best model is the one with the highest validation AUROC.</p>
+<p>Finally, below is the test-set ROC curve, which shows an AUC of 0.789.</p>
 <p><img src="test-roc.png" height="392"></p>
-<p>The final model output is the test-set ROC curve, which shows an AUC of 0.789.</p>
 
 
-</section>
 </section>
 </section>
 

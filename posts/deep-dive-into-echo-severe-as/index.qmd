@@ -12,22 +12,26 @@ eval: false
 categories: [Medical AI]
 ---
 
-# UNDER CONSTRUCTION!!!
-
 ## Introduction
 
 Investigate the the self-supervised learning (SSL) model architecture used for pretraining. The SSL model is based on a 3D ResNet-18 backbone and is designed to learn robust representations of echocardiogram videos through a frame reordering pretext task. The model is then fine-tuned for the downstream task of LVH classification. 
-
-Adapted from Echo Severe AS
 
 
 ## Self-Supervised Learning (SSL) Pretraining
 
 ### SimCLR class
 
-SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder. The encoder maps each video clip to a 512-dimensional feature vector. 
+SimCLR is a self-supervised learning (SSL) model that contains a 18 layer Resnet3D (3D ResNet-18) backbone as its encoder.
 
-In the initialization, we swap out the last fully connected layer of the encoder with an identity layer (`torch.nn.Identity()`) so the encoder just outputs the features without any final projection. Then, there is a reordering head (`self.reordering_head`) that projects the `n_features` into 24 features. This is based on the 24 (4!) possible permutations of the 4 input video frames. The reordering head is for the frame re-ordering "pretext" task where frames are randomly permuted and the model is trained to predict the correct order of the frames. Lastly, there is a projection MLP (`self.projector`) that projects the `n_features` into a lower-dimensional space for contrastive learning. The projection MLP consists of a linear layer, followed by a ReLU activation, and another linear layer that outputs the final projected features (`projection_dim`).
+In the initialization:
+
+- **Encoder (`self.encoder`):** The last fully connected layer of the encoder is swapped out for an identity layer (`torch.nn.Identity()`), so the encoder just outputs the features without any final projection. As a result, the encoder maps each video clip to a 512-dimensional feature vector.
+- **Reordering head (`self.reordering_head`):** Projects the `n_features` into 24 features, one for each of the 24 possible permutations of the 4 input video frames.
+  - It is used for the frame re-ordering "pretext" task, where frames are randomly permuted and the model is trained to predict the correct order of the frames.
+- **Projection MLP (`self.projector`):** Projects the `n_features` into a lower-dimensional space for contrastive learning. It consists of:
+  - a linear layer,
+  - a ReLU activation,
+  - and another linear layer that outputs the final projected features (`projection_dim`).
 
 ```{python}
 class SimCLR(torch.nn.Module):
@@ -116,7 +120,9 @@ cls_loss_fxn = torch.nn.CrossEntropyLoss()
 ```
 
 
-The training loop takes two different echo views of the same patient, `x_i` and `x_j`, and passes them through the model (`model.forward(x_i, x_j)`) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (`loss_fxn`) is computed using the projected features, and the classification loss (`cls_loss_fxn`) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses. The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar. 
+The training loop takes two different echo views of the same patient, `x_i` and `x_j`, and passes them through the model (`model.forward(x_i, x_j)`) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (`loss_fxn`) is computed using the projected features, and the classification loss (`cls_loss_fxn`) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses. 
+
+The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar. 
 
 Finally, the model checkpoint is saved every `save_freq` epochs. The model weights and optimizer state are saved to a file for later use.
 
@@ -176,8 +182,8 @@ In the rest of this blog post, we will be using the [EchoNet-LVH dataset](https:
 
 **How a pair is made:** EchoNet-LVH has exactly one video per patient, so the original paper's approach of "two different videos from the same study" does not apply to this dataset. The new `EchoNetLVHDataset` class (subclass of `EchoNetDataset`) builds each pair from one `.avi`:
 
-1. It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. Pass `--same_clip` if you want both views to use the same frames and differ only by the edits below.
-2. It shrinks each frame to 112×112 (`--frame_size`). The raw 1024×768 frames are too big to train on.
+1. It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. The argument `same_clip` allows you to specify whether both views should use the same frames.
+2. It shrinks each frame to 112×112 (`frame_size`). The raw 1024×768 frames are too big to train on.
 3. It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.
 4. The resulting pairs are used for training the SSL model.
 
@@ -384,14 +390,15 @@ while epoch <= max_epochs and early_stopping_dict["epochs_no_improve"] < patienc
     epoch += 1
 ```
 
+In the below line plot, we see the training loss and validation loss decrease over time, indicating that the model is learning. 
+
 ![](loss-history.png){height=392px}
 
-We see the training loss and validation loss decrease over time, indicating that the model is learning. 
+In the below line plot, we see the AUROC for both the training and validation sets increase over time, indicating that the model is improving its ability to distinguish between the two classes (LVH present or not). The model weights are only saved when the validation AUROC improves, so the best model is the one with the highest validation AUROC.
 
 ![](auroc-history.png){height=392px}
 
-We see that the AUROC increases over time for both the training and validation sets, indicating that the model is improving its ability to distinguish between the two classes (LVH present or not). The model weights are only saved when the validation AUROC improves, so the best model is the one with the highest validation AUROC.
+Finally, below is the test-set ROC curve, which shows an AUC of 0.789. 
 
 ![](test-roc.png){height=392px}
 
-The final model output is the test-set ROC curve, which shows an AUC of 0.789. 
