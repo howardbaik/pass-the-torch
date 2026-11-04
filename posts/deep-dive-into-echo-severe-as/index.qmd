@@ -80,7 +80,7 @@ def forward(self, x_i, x_j):
 
 ### Training Loop
 
-The training starts off with loading the dataset using the `EchoDataset` class. The dataset (`train_dataset`) is initialized with the data directory, the split for training, the clip length, and the sampling rate. A `DataLoader` is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The `drop_last=True` argument ensures that any incomplete batch at the end of an epoch is dropped.
+The training starts off with loading the dataset using the `EchoDataset` class. It is initialized with the data directory, the split for training, the clip length, and the sampling rate. A `DataLoader` is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The `drop_last=True` argument ensures that any incomplete batch at the end of an epoch is dropped.
 
 
 ```{python}
@@ -186,9 +186,9 @@ In the rest of this blog post, we will be using the [EchoNet-LVH dataset](https:
 
 **How a pair is made:** EchoNet-LVH has exactly one video per patient, so the original paper's approach of "two different videos from the same study" does not apply to this dataset. The new `EchoNetLVHDataset` class (subclass of `EchoNetDataset`) builds each pair from one `.avi`:
 
-1. It takes two short clips from the video, each starting at its own random frame. That puts the two views at different moments in the same heartbeat. The argument `same_clip` allows you to specify whether both views should use the same frames.
+1. It takes two short clips from the video, each starting at its own random frame. The argument `same_clip` allows you to specify whether both views should use the same frames.
 2. It shrinks each frame to 112×112 (`frame_size`). The raw 1024×768 frames are too big to train on.
-3. It applies the existing light edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.
+3. It applies edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.
 4. The resulting pairs are used for training the SSL model.
 
 ```{python}
@@ -309,7 +309,7 @@ class EchoNetLVHDataset(EchoDataset):
 
 ### SSL Pretraining
 
-The training step is performed on the EchoNet-LVH dataset using the `EchoNetLVHDataset` class and is identical to the training loop described in the previous section. It was trained on 1 NVIDIA RTX 4090 GPU from [Runpod](https://www.runpod.io/) for 120 epochs. 
+The training step is performed on the EchoNet-LVH dataset and is identical to the training loop described in the previous section. It was trained on 1 NVIDIA RTX 4090 GPU from [Runpod](https://www.runpod.io/) for 120 epochs. 
 
 Below is a graph of the number of epochs versus the training loss. The training loss decreases over time, indicating that the model is learning. Future work could include increasing the number of epochs to improve the model's performance.
 
@@ -366,7 +366,7 @@ if model_name == "3dresnet18":
         model.load_state_dict(weights, strict=False)
 ```
 
-Then, for a maximum of 10 epochs, we train the model on the training set of the EchoNet-LVH dataset using the Adam optimization algorithm with a specified learning rate. The binary cross-entropy loss function is used to compute the loss between the predicted and true labels. The model is evaluated on the validation set after each epoch, and the best model (with the lowest validation loss) is saved for later use.
+Then, for a maximum of 10 epochs, we train the model on the training set of the EchoNet-LVH dataset using the Adam optimization algorithm with a specified learning rate. The binary cross-entropy loss function is used to compute the loss between the predicted and true labels. The model is evaluated on the validation set after each epoch, and the best model with the lowest validation loss is saved for later use.
 
 ```{python}
 while epoch <= max_epochs and early_stopping_dict["epochs_no_improve"] < patience:
