@@ -14,11 +14,11 @@ categories: [Medical AI]
 
 ## Introduction
 
-This post is a code-focused deep dive into a deep learning model for the detection of severe aortic stenosis (AS) from echocardiogram videos. The original paper, [Severe aortic stenosis detection by deep learning applied to echocardiography](https://academic.oup.com/eurheartj/article/44/43/4592/7248551), reports a deep learning model that consists of a self-supervised learning (SSL) model architecture used for pretraining and another model fine-tuned for the downstream task of AS classification. 
+This post is a code-focused deep dive into a deep learning model for the detection of severe aortic stenosis (AS) from echocardiogram videos. The original paper, [Severe aortic stenosis detection by deep learning applied to echocardiography](https://academic.oup.com/eurheartj/article/44/43/4592/7248551), reports a deep learning model that consists of a self-supervised learning (SSL) model architecture used for pretraining and a model fine-tuned for the downstream task of AS classification. 
 
 ![](paper.jpeg){fig-align="center"}
 
-In the rest of this post, we will go through the source code of the Self-Supervised Learning (SSL) model architecture, the training loop, and the fine-tuning process. Then, using a real world dataset unrelated to this paper, [EchoNet-LVH](https://echonet.github.io/lvh/), we will demonstrate how to apply the same model architecture to left ventricular hypertrophy (LVH) classification.
+In the rest of this post, we will go through the source code of the Self-Supervised Learning (SSL) model architecture and the training loop. Then, using a real world dataset unrelated to this paper, [EchoNet-LVH](https://echonet.github.io/lvh/), we will demonstrate how to apply the same model architecture to left ventricular hypertrophy (LVH) classification.
 
 
 ## Self-Supervised Learning (SSL) Pretraining
@@ -33,9 +33,9 @@ In the initialization:
 - **Reordering head (`self.reordering_head`):** Projects the `n_features` into 24 features, one for each of the 24 possible permutations of the 4 input video frames.
   - It is used for the frame re-ordering "pretext" task, where frames are randomly permuted and the model is trained to predict the correct order of the frames.
 - **Projection MLP (`self.projector`):** Projects the `n_features` into a lower-dimensional space for contrastive learning. It consists of:
-  - a linear layer,
-  - a ReLU activation,
-  - and another linear layer that outputs the final projected features (`projection_dim`).
+  - Linear layer
+  - ReLU activation
+  - Linear layer that outputs the final projected features (`projection_dim`)
 
 ```{python}
 class SimCLR(torch.nn.Module):
@@ -309,7 +309,9 @@ class EchoNetLVHDataset(EchoDataset):
 
 ### SSL Pretraining
 
-The training step is performed on the EchoNet-LVH dataset using the `EchoNetLVHDataset` class and is identical to the training loop described in the previous section. It was trained on 1 NVIDIA RTX 4090 GPU from [Runpod](https://www.runpod.io/) for 120 epochs. Below is a graph of the number of epochs versus the training loss. The training loss decreases over time, indicating that the model is learning. Future work could include increasing the number of epochs to improve the model's performance.
+The training step is performed on the EchoNet-LVH dataset using the `EchoNetLVHDataset` class and is identical to the training loop described in the previous section. It was trained on 1 NVIDIA RTX 4090 GPU from [Runpod](https://www.runpod.io/) for 120 epochs. 
+
+Below is a graph of the number of epochs versus the training loss. The training loss decreases over time, indicating that the model is learning. Future work could include increasing the number of epochs to improve the model's performance.
 
 
 
@@ -394,11 +396,11 @@ while epoch <= max_epochs and early_stopping_dict["epochs_no_improve"] < patienc
     epoch += 1
 ```
 
-In the below line plot, we see the training loss and validation loss decrease over time, indicating that the model is learning. 
+In the line plot below, we see the training loss and validation loss decrease over time, indicating that the model is learning. 
 
 ![](loss-history.png){height=392px}
 
-In the below line plot, we see the AUROC for both the training and validation sets increase over time, indicating that the model is improving its ability to distinguish between the two classes (LVH present or not). The model weights are only saved when the validation AUROC improves, so the best model is the one with the highest validation AUROC.
+Also, we see the AUROC for both the training and validation sets increase over time, indicating that the model is improving its ability to distinguish between the two classes (LVH present or not). The model weights are only saved when the validation AUROC improves, so the best model is the one with the highest validation AUROC.
 
 ![](auroc-history.png){height=392px}
 
@@ -406,3 +408,7 @@ Finally, below is the test-set ROC curve, which shows an AUC of 0.789.
 
 ![](test-roc.png){height=392px}
 
+
+## Conclusion
+
+In this post, we have gone through the source code of the Self-Supervised Learning (SSL) model architecture and the training loop. Then, using a real world dataset unrelated to the original paper, EchoNet-LVH, we demonstrated how to apply the same model architecture to left ventricular hypertrophy (LVH) classification. When fine-tuning the model for LVH classification, we achieved a test-set AUC of 0.789 and training and validation loss decrease over time. Future work could include increasing the number of epochs to improve the model's performance.
