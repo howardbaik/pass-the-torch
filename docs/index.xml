@@ -29,7 +29,7 @@
 <p><img src="https://passthetorch.dev/posts/deep-dive-into-echo-severe-as/paper.jpeg" class="img-fluid quarto-figure quarto-figure-center figure-img"></p>
 </figure>
 </div>
-<p>In the rest of this post, we will go through the source code of the Self-Supervised Learning (SSL) model architecture and the training loop. Then, using a real world dataset unrelated to this paper, <a href="https://echonet.github.io/lvh/">EchoNet-LVH</a>, we will demonstrate how to apply the same model architecture to left ventricular hypertrophy (LVH) classification.</p>
+<p>In the rest of this post, we will go through the source code of the Self-Supervised Learning (SSL) model architecture and the training loop. Then, using a real world dataset, <a href="https://echonet.github.io/lvh/">EchoNet-LVH</a>, we will demonstrate how to apply the same model architecture to left ventricular hypertrophy (LVH) classification.</p>
 </section>
 <section id="self-supervised-learning-ssl-pretraining" class="level2">
 <h2 class="anchored" data-anchor-id="self-supervised-learning-ssl-pretraining">Self-Supervised Learning (SSL) Pretraining</h2>
@@ -50,7 +50,7 @@
 <li>Linear layer that outputs the final projected features (<code>projection_dim</code>)</li>
 </ul></li>
 </ul>
-<div id="286f303c" class="cell" data-execution_count="1">
+<div id="abb1e27a" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><span class="kw" style="color: #003B4F;
@@ -143,7 +143,7 @@ font-style: inherit;">False</span>),</span>
 </details>
 </div>
 <p>In the forward pass, the method takes two video clips from the same study (patient) as input: <code>x_i</code> and <code>x_j</code>. Each clip is passed through the encoder to obtain feature representations (<code>h_i</code> and <code>h_j</code>). The reordering head predicts the order of the frames for each clip (<code>t_i</code> and <code>t_j</code>), and the projection MLP projects the features into a lower-dimensional space (<code>z_i</code> and <code>z_j</code>). The model returns the feature representations, the projected features, and the predicted order of frames for both clips.</p>
-<div id="f9af7a1b" class="cell" data-execution_count="2">
+<div id="5df6e2df" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><span class="kw" style="color: #003B4F;
@@ -195,7 +195,7 @@ font-style: inherit;">return</span> h_i, h_j, z_i, z_j, t_i, t_j</span></code></
 <section id="training-loop" class="level3">
 <h3 class="anchored" data-anchor-id="training-loop">Training Loop</h3>
 <p>The training starts off with loading the dataset using the <code>EchoDataset</code> class. It is initialized with the data directory, the split for training, the clip length, and the sampling rate. A <code>DataLoader</code> is then created to load the training dataset in batches, with shuffling enabled and a specified number of worker threads for parallel data loading. The <code>drop_last=True</code> argument ensures that any incomplete batch at the end of an epoch is dropped.</p>
-<div id="16035924" class="cell" data-execution_count="3">
+<div id="c81eb41f" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1">train_dataset <span class="op" style="color: #5E5E5E;
@@ -247,7 +247,7 @@ font-style: inherit;">True</span>,</span>
 </details>
 </div>
 <p>Then, the encoder is initialized using a 3D ResNet-18 model from the <code>torchvision</code> library. The <code>SimCLR</code> model is then instantiated with the encoder, the projection dimension, and the number of features from the encoder’s fully connected layer.</p>
-<div id="6ed9394e" class="cell" data-execution_count="4">
+<div id="8899e3c1" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">encoder <span class="op" style="color: #5E5E5E;
@@ -273,7 +273,7 @@ font-style: inherit;">=</span>encoder.fc.in_features,</span>
 </details>
 </div>
 <p>Before the training loop, the optimizer is set up using the Adam optimization algorithm with a specified learning rate. The loss functions are also defined: <code>NT_Xent</code> for contrastive learning and <code>CrossEntropyLoss</code> for the frame reordering classification task.</p>
-<div id="7474ba19" class="cell" data-execution_count="5">
+<div id="acf8a485" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1">optimizer <span class="op" style="color: #5E5E5E;
@@ -295,7 +295,7 @@ font-style: inherit;">=</span> torch.nn.CrossEntropyLoss()</span></code></pre></
 <p>The training loop takes two different echo views of the same patient, <code>x_i</code> and <code>x_j</code>, and passes them through the model (<code>model.forward(x_i, x_j)</code>) to obtain the feature representations, projected features, and predicted frame orders. The contrastive loss (<code>loss_fxn</code>) is computed using the projected features, and the classification loss (<code>cls_loss_fxn</code>) is computed using the predicted frame orders and the true frame orders. The total loss is the sum of these two losses.</p>
 <p>The backward pass then computes the gradients of the loss with respect to the model parameters, and the optimizer updates the model parameters accordingly. The running loss is accumulated and displayed in a progress bar.</p>
 <p>Finally, the model checkpoint is saved every <code>save_freq</code> epochs. The model weights and optimizer state are saved to a file for later use.</p>
-<div id="178efe6d" class="cell" data-execution_count="6">
+<div id="dc9ab952" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><span class="cf" style="color: #003B4F;
@@ -485,7 +485,7 @@ font-style: inherit;">.pt"</span>),</span>
 <li>It applies edits to each view separately: a shift of up to 8px, a random horizontal flip, a rotation of up to ±10°, and the frame-shuffle label.</li>
 <li>The resulting pairs are used for training the SSL model.</li>
 </ol>
-<div id="636798fc" class="cell" data-execution_count="7">
+<div id="d2f8e119" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><span class="kw" style="color: #003B4F;
@@ -997,7 +997,7 @@ font-style: inherit;">long</span>(),</span>
 <section id="lvh-finetuning" class="level3">
 <h3 class="anchored" data-anchor-id="lvh-finetuning">LVH FineTuning</h3>
 <p>Then, using the learned encoder weights from the SSL pretraining step, we fine-tune the same model architecture (3D ResNet-18) for the downstream task of LVH classification. First, we initialize the model weights with the learned encoder weights from the SSL pretraining step. Then, we replace the last fully connected layer of the model with a new linear layer that outputs a single value for binary classification (LVH present or not).</p>
-<div id="b8d8adf3" class="cell" data-execution_count="8">
+<div id="ea63166a" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><span class="co" style="color: #5E5E5E;
@@ -1216,7 +1216,7 @@ font-style: inherit;">False</span>)</span></code></pre></div></div>
 </details>
 </div>
 <p>Then, for a maximum of 10 epochs, we train the model on the training set of the EchoNet-LVH dataset using the Adam optimization algorithm with a specified learning rate. The binary cross-entropy loss function is used to compute the loss between the predicted and true labels. The model is evaluated on the validation set after each epoch, and the best model with the lowest validation loss is saved for later use.</p>
-<div id="24704811" class="cell" data-execution_count="9">
+<div id="5fc77c4b" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><span class="cf" style="color: #003B4F;

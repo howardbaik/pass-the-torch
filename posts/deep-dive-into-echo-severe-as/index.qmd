@@ -18,7 +18,7 @@ This post is a code-focused deep dive into a deep learning model for the detecti
 
 ![](paper.jpeg){fig-align="center"}
 
-In the rest of this post, we will go through the source code of the Self-Supervised Learning (SSL) model architecture and the training loop. Then, using a real world dataset unrelated to this paper, [EchoNet-LVH](https://echonet.github.io/lvh/), we will demonstrate how to apply the same model architecture to left ventricular hypertrophy (LVH) classification.
+In the rest of this post, we will go through the source code of the Self-Supervised Learning (SSL) model architecture and the training loop. Then, using a real world dataset, [EchoNet-LVH](https://echonet.github.io/lvh/), we will demonstrate how to apply the same model architecture to left ventricular hypertrophy (LVH) classification.
 
 
 ## Self-Supervised Learning (SSL) Pretraining
